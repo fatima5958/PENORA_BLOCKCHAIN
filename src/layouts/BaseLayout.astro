@@ -1,0 +1,71 @@
+---
+import '../styles/penora-brand.css';
+import '../styles/global.css';
+import { Header } from '../components/common/Header';
+import { Footer } from '../components/common/Footer';
+
+interface Props {
+  title?: string;
+  description?: string;
+  image?: string;
+}
+
+const {
+  title = 'PENORA — Web3 Publishing & Reputation Protocol',
+  description = 'A refined Web3 social publishing platform where creators publish longform essays, curate domain communities, and build verifiable reputation.',
+  image = '/brand/penora-identity-board.jpg',
+} = Astro.props;
+
+const currentPath = Astro.url.pathname;
+---
+
+<!doctype html>
+<html lang="en" class="scroll-smooth">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="theme-color" content="#0A2540" />
+    <meta name="generator" content={Astro.generator} />
+
+    <!-- Google Fonts for PENORA Blockchain Brand System: Sora (Display) + Inter (Body) + Michroma (Brand Eyebrow) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Michroma&family=Sora:wght@500;600;700&display=swap"
+      rel="stylesheet"
+    />
+
+    <!-- SEO Meta Tags -->
+    <title>{title}</title>
+    <meta name="title" content={title} />
+    <meta name="description" content={description} />
+
+    <!-- Open Graph / Social -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content={Astro.url} />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:image" content={image} />
+
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image" />
+    <meta property="twitter:url" content={Astro.url} />
+    <meta property="twitter:title" content={title} />
+    <meta property="twitter:description" content={description} />
+    <meta property="twitter:image" content={image} />
+
+    <!-- Preconnect for image performance -->
+    <link rel="preconnect" href="https://images.unsplash.com" />
+  </head>
+  <body class="pn-canvas min-h-screen flex flex-col antialiased">
+    <!-- Header is its own React island — manages auth state independently via supabase.auth -->
+    <Header client:load currentPath={currentPath} />
+
+    <main class="flex-grow">
+      <slot />
+    </main>
+
+    <Footer client:idle />
+  </body>
+</html>

@@ -1,0 +1,17 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { CommunitiesView } from '../components/communities/CommunitiesView';
+import { MOCK_COMMUNITIES, MOCK_ARTICLES, MOCK_TOPICS } from '../data/mockArticles';
+---
+
+<BaseLayout
+  title="Communities & Guilds — PENORA"
+  description="Discover niche publishing circles, spatial computing guilds, and subscribed community feeds."
+>
+  <CommunitiesView
+    client:load
+    communities={MOCK_COMMUNITIES}
+    articles={MOCK_ARTICLES}
+    topics={MOCK_TOPICS}
+  />
+</BaseLayout>

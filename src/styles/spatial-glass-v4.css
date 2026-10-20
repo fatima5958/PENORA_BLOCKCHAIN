@@ -1,0 +1,264 @@
+/* ==========================================================================
+   PENORA — SPATIAL GLASS DESIGN SYSTEM (V4)
+   Reusable tokens, realistic glass & ceramic materials, and specular lighting
+   ========================================================================== */
+
+:root {
+  /* Color Palette Tokens */
+  --sg-pearl: #F8F9F8;
+  --sg-ivory: #F5F1EC;
+  --sg-frosted-silver: #DDE5E5;
+  --sg-graphite: #1D2729;
+  --sg-graphite-soft: #2A373A;
+  --sg-cocoa-muted: #61534D;
+  --sg-aqua: #A7E8DF;
+  --sg-jade: #4D9F91;
+  --sg-jade-deep: #367B6F;
+  --sg-champagne: #D9B88C;
+  --sg-champagne-soft: rgba(217, 184, 140, 0.28);
+
+  /* Typography */
+  --sg-font-serif: 'Playfair Display', 'Georgia', 'Cambria', 'Times New Roman', serif;
+  --sg-font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif;
+
+  /* Shadows & Lighting */
+  --sg-shadow-shell:
+    0 32px 80px -16px rgba(20, 28, 30, 0.28),
+    0 12px 32px -8px rgba(20, 28, 30, 0.14),
+    inset 0 1.5px 2px rgba(255, 255, 255, 0.9),
+    inset 0 -1px 2px rgba(29, 39, 41, 0.08);
+
+  --sg-shadow-panel:
+    0 12px 32px -8px rgba(29, 39, 41, 0.07),
+    0 2px 6px -1px rgba(29, 39, 41, 0.04),
+    inset 0 1px 1.5px rgba(255, 255, 255, 0.85);
+
+  --sg-shadow-card:
+    0 4px 18px -4px rgba(29, 39, 41, 0.06),
+    0 1px 3px rgba(29, 39, 41, 0.03),
+    inset 0 1px 0 rgba(255, 255, 255, 0.95);
+
+  --sg-shadow-card-hover:
+    0 14px 34px -8px rgba(29, 39, 41, 0.12),
+    0 4px 12px -2px rgba(77, 159, 145, 0.08),
+    inset 0 1px 1px rgba(255, 255, 255, 1);
+
+  --sg-shadow-active-pill:
+    0 6px 22px -4px rgba(77, 159, 145, 0.28),
+    0 2px 6px rgba(29, 39, 41, 0.05),
+    inset 0 1px 2px rgba(255, 255, 255, 1),
+    0 0 0 1px rgba(167, 232, 223, 0.65);
+
+  --sg-shadow-liquid-modal:
+    0 30px 70px -12px rgba(18, 27, 29, 0.32),
+    0 10px 28px -6px rgba(77, 159, 145, 0.16),
+    inset 0 2px 3px rgba(255, 255, 255, 0.95),
+    inset 0 -2px 6px rgba(167, 232, 223, 0.35),
+    inset 2px 0 4px rgba(255, 255, 255, 0.7);
+}
+
+/* Outer Ambient Backdrop */
+.sg-ambient-canvas {
+  background-color: #d7dedd;
+  background-image:
+    radial-gradient(circle at 12% 18%, rgba(255, 246, 235, 0.75) 0%, transparent 45%),
+    radial-gradient(circle at 85% 22%, rgba(167, 232, 223, 0.32) 0%, transparent 48%),
+    radial-gradient(circle at 50% 85%, rgba(217, 184, 140, 0.28) 0%, transparent 55%),
+    linear-gradient(160deg, #cfd8d7 0%, #e7e2da 48%, #c9d2d0 100%);
+  color: var(--sg-graphite);
+  font-family: var(--sg-font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Main Spatial Application Window Shell */
+.sg-window-shell {
+  background: linear-gradient(
+    145deg,
+    rgba(248, 249, 248, 0.82) 0%,
+    rgba(245, 241, 236, 0.76) 55%,
+    rgba(229, 236, 235, 0.78) 100%
+  );
+  backdrop-filter: blur(28px) saturate(140%);
+  -webkit-backdrop-filter: blur(28px) saturate(140%);
+  border: 1px solid rgba(255, 255, 255, 0.78);
+  box-shadow: var(--sg-shadow-shell);
+}
+
+/* Top Translucent Navigation Bar */
+.sg-topnav {
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.55) 0%,
+    rgba(245, 241, 236, 0.32) 100%
+  );
+  border-bottom: 1px solid rgba(255, 255, 255, 0.65);
+}
+
+/* Recessed Liquid-Glass Search Bar with Specular Wave */
+.sg-liquid-search {
+  position: relative;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.72) 0%,
+    rgba(242, 248, 247, 0.82) 52%,
+    rgba(225, 240, 238, 0.68) 100%
+  );
+  border: 1px solid rgba(255, 255, 255, 0.88);
+  box-shadow:
+    inset 0 2px 5px rgba(29, 39, 41, 0.06),
+    inset 0 -1px 2px rgba(167, 232, 223, 0.45),
+    0 4px 16px -4px rgba(29, 39, 41, 0.06);
+  transition: box-shadow 0.25s ease, border-color 0.25s ease, transform 0.2s ease;
+}
+
+.sg-liquid-search:focus-within {
+  border-color: rgba(77, 159, 145, 0.65);
+  box-shadow:
+    inset 0 2px 4px rgba(29, 39, 41, 0.04),
+    0 0 0 3px rgba(167, 232, 223, 0.45),
+    0 8px 24px -6px rgba(77, 159, 145, 0.22);
+}
+
+/* Frosted Sidebar Surface */
+.sg-frosted-panel {
+  background: linear-gradient(
+    165deg,
+    rgba(255, 255, 255, 0.62) 0%,
+    rgba(245, 241, 236, 0.48) 100%
+  );
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  box-shadow: var(--sg-shadow-panel);
+}
+
+/* Active Nav Pill with Soft Aqua Rim */
+.sg-active-pill {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.96) 0%,
+    rgba(240, 252, 250, 0.92) 100%
+  );
+  box-shadow: var(--sg-shadow-active-pill);
+}
+
+/* Soft Ceramic Editorial Card */
+.sg-ceramic-card {
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.86) 0%,
+    rgba(250, 248, 245, 0.78) 100%
+  );
+  border: 1px solid rgba(255, 255, 255, 0.88);
+  box-shadow: var(--sg-shadow-card);
+  transition: transform 0.24s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.24s ease, background 0.24s ease;
+}
+
+.sg-ceramic-card:hover {
+  transform: translateY(-2px);
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.94) 0%,
+    rgba(252, 250, 248, 0.88) 100%
+  );
+  box-shadow: var(--sg-shadow-card-hover);
+}
+
+/* Glossy Dark Graphite Button */
+.sg-graphite-btn {
+  background: linear-gradient(135deg, #273639 0%, #1D2729 65%, #162022 100%);
+  color: #F8F9F8;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow:
+    0 6px 18px -4px rgba(29, 39, 41, 0.35),
+    inset 0 1px 1px rgba(255, 255, 255, 0.28),
+    inset 2px 0 8px rgba(167, 232, 223, 0.18);
+  transition: transform 0.16s ease, box-shadow 0.2s ease, filter 0.2s ease;
+}
+
+.sg-graphite-btn:hover {
+  filter: brightness(1.06);
+  box-shadow:
+    0 8px 22px -4px rgba(29, 39, 41, 0.42),
+    inset 0 1px 1.5px rgba(255, 255, 255, 0.35),
+    inset 3px 0 10px rgba(167, 232, 223, 0.28);
+}
+
+.sg-graphite-btn:active {
+  transform: scale(0.98);
+}
+
+/* Jade Teal Liquid Button */
+.sg-jade-btn {
+  background: linear-gradient(135deg, #57ADA0 0%, #418E81 55%, #317569 100%);
+  color: #FFFFFF;
+  border: 1px solid rgba(167, 232, 223, 0.55);
+  box-shadow:
+    0 8px 24px -4px rgba(65, 142, 129, 0.42),
+    0 0 16px rgba(167, 232, 223, 0.32),
+    inset 0 1px 1.5px rgba(255, 255, 255, 0.55);
+  transition: transform 0.16s ease, box-shadow 0.2s ease, filter 0.2s ease;
+}
+
+.sg-jade-btn:hover {
+  filter: brightness(1.05);
+  box-shadow:
+    0 10px 28px -4px rgba(65, 142, 129, 0.5),
+    0 0 22px rgba(167, 232, 223, 0.45),
+    inset 0 1px 2px rgba(255, 255, 255, 0.65);
+}
+
+.sg-jade-btn:active {
+  transform: scale(0.98);
+}
+
+/* Sculpted Liquid-Glass Auth Panel */
+.sg-liquid-auth-panel {
+  position: relative;
+  background: linear-gradient(
+    150deg,
+    rgba(255, 255, 255, 0.84) 0%,
+    rgba(244, 248, 248, 0.72) 48%,
+    rgba(225, 238, 237, 0.78) 100%
+  );
+  backdrop-filter: blur(28px) saturate(160%);
+  -webkit-backdrop-filter: blur(28px) saturate(160%);
+  border: 1.5px solid rgba(255, 255, 255, 0.92);
+  box-shadow: var(--sg-shadow-liquid-modal);
+}
+
+.sg-liquid-auth-panel::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1.5px;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.95) 0%,
+    rgba(167, 232, 223, 0.55) 35%,
+    rgba(255, 255, 255, 0.2) 70%,
+    rgba(167, 232, 223, 0.7) 100%
+  );
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+/* Accessible Focus Ring */
+.sg-focus-ring:focus-visible {
+  outline: 2px solid var(--sg-jade);
+  outline-offset: 2px;
+}
+
+/* Respect Reduced Motion */
+@media (prefers-reduced-motion: reduce) {
+  .sg-ceramic-card,
+  .sg-graphite-btn,
+  .sg-jade-btn,
+  .sg-liquid-search {
+    transition: none !important;
+    transform: none !important;
+  }
+}

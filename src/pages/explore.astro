@@ -1,0 +1,12 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { ExploreView } from '../components/explore/ExploreView';
+import { MOCK_TOPICS } from '../data/mockArticles';
+---
+
+<BaseLayout
+  title="Explore Communities & Topics — PENORA"
+  description="Discover niche publishing circles, spatial computing guilds, and creator-led communities."
+>
+  <ExploreView client:load topics={MOCK_TOPICS} />
+</BaseLayout>

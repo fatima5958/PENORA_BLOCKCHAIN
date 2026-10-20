@@ -1,0 +1,8 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { MyProfileView } from '../../components/profile/MyProfileView';
+---
+
+<BaseLayout title="My Profile — PENORA" description="Your PENORA creator profile">
+  <MyProfileView client:load />
+</BaseLayout>

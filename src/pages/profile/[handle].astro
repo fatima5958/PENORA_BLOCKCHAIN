@@ -1,0 +1,35 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { CreatorProfileView } from '../../components/profile/CreatorProfileView';
+import { MOCK_ARTICLES, MOCK_TOPICS, MOCK_COMMUNITIES } from '../../data/mockArticles';
+
+export function getStaticPaths() {
+  const authorMap = new Map();
+  for (const article of MOCK_ARTICLES) {
+    if (!authorMap.has(article.author.handle)) {
+      authorMap.set(article.author.handle, article.author);
+    }
+  }
+
+  return Array.from(authorMap.entries()).map(([handle, author]) => ({
+    params: { handle },
+    props: { author },
+  }));
+}
+
+const { author } = Astro.props;
+---
+
+<BaseLayout
+  title={`${author.name} (@${author.handle}) — PENORA Creator Profile`}
+  description={author.bio || `${author.name}'s creator profile and articles on PENORA.`}
+  image={author.coverImage || author.avatar}
+>
+  <CreatorProfileView
+    client:load
+    author={author}
+    articles={MOCK_ARTICLES}
+    topics={MOCK_TOPICS}
+    communities={MOCK_COMMUNITIES}
+  />
+</BaseLayout>

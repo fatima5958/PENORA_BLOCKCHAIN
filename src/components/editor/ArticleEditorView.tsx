@@ -1,0 +1,605 @@
+// src/components/editor/ArticleEditorView.tsx
+// PENORA Blockchain — Article Studio Shell (/editor)
+// Aligned with the approved PENORA Blockchain Identity System.
+import React, { useState, useEffect, useRef } from 'react';
+import {
+  Bold,
+  Italic,
+  Heading2,
+  Quote,
+  Code,
+  List,
+  Eye,
+  Edit3,
+  Send,
+  ArrowLeft,
+  AlertCircle,
+  Loader2,
+  CheckCircle2,
+  ShieldCheck,
+  Upload,
+  ImageIcon,
+  Trash2,
+} from 'lucide-react';
+import { supabase } from '../../lib/supabaseClient';
+import { createPost } from '../../lib/api/articles';
+import { SpatialAuthModalV4 } from '../design-v4/SpatialAuthModalV4';
+import { penoraKeyAuth, type PenoraUser } from '../../lib/auth/penoraKeyAuth';
+import type { User as SupabaseUser } from '@supabase/supabase-js';
+
+export const ArticleEditorView: React.FC = () => {
+  const [user, setUser] = useState<SupabaseUser | null>(null);
+  const [keyUser, setKeyUser] = useState<PenoraUser | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [authModalOpen, setAuthModalOpen] = useState(false);
+
+  const [title, setTitle] = useState('');
+  const [tagsInput, setTagsInput] = useState('');
+  const [coverImageUrl, setCoverImageUrl] = useState('');
+  const [excerpt, setExcerpt] = useState('');
+  const [content, setContent] = useState('');
+  const [mode, setMode] = useState<'edit' | 'preview'>('edit');
+  const [isSavingDraft, setIsSavingDraft] = useState(false);
+  const [isPublishing, setIsPublishing] = useState(false);
+  const [publishSuccess, setPublishSuccess] = useState<string | null>(null);
+  const [publishError, setPublishError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const saved = localStorage.getItem('penora_article_draft');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (parsed.title) setTitle(parsed.title);
+        if (parsed.tags) setTagsInput(parsed.tags);
+        if (parsed.coverImageUrl) setCoverImageUrl(parsed.coverImageUrl);
+        if (parsed.excerpt) setExcerpt(parsed.excerpt);
+        if (parsed.content) setContent(parsed.content);
+      } catch {
+        // ignore invalid json
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    let mounted = true;
+    const unsubKeyAuth = penoraKeyAuth.subscribe(ku => {
+      if (mounted) {
+        setKeyUser(ku);
+        if (ku) setAuthLoading(false);
+      }
+    });
+
+    supabase.auth.getSession().then(({ data }) => {
+      if (mounted) {
+        setUser(data.session?.user ?? null);
+        setAuthLoading(false);
+      }
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (mounted) {
+        setUser(session?.user ?? null);
+        setAuthLoading(false);
+      }
+    });
+
+    return () => {
+      mounted = false;
+      unsubKeyAuth();
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  const handleContentChange = (val: string) => {
+    setContent(val);
+    const draft = {
+      title,
+      tags: tagsInput,
+      coverImageUrl,
+      excerpt,
+      content: val,
+      updatedAt: new Date().toISOString(),
+    };
+    localStorage.setItem('penora_article_draft', JSON.stringify(draft));
+  };
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      setPublishError('Please select a valid image file (PNG, JPEG, WebP, GIF, SVG).');
+      return;
+    }
+
+    // Read untouched, full-resolution file data URL without ANY cropping or resizing
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const result = event.target?.result as string;
+      if (result) {
+        setCoverImageUrl(result);
+        setPublishError(null);
+        // Persist to draft
+        const draft = {
+          title,
+          tags: tagsInput,
+          coverImageUrl: result,
+          excerpt,
+          content,
+          updatedAt: new Date().toISOString(),
+        };
+        localStorage.setItem('penora_article_draft', JSON.stringify(draft));
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const insertFormatting = (prefix: string, suffix: string = '') => {
+    setContent(prev => prev + `\n${prefix} ` + suffix);
+  };
+
+  const handleSaveDraft = async () => {
+    if (isSavingDraft || isPublishing) return;
+    setPublishError(null);
+    setPublishSuccess(null);
+
+    if (!title.trim() && !content.trim()) {
+      setPublishError('Draft must have a title or content before saving.');
+      return;
+    }
+
+    // Always update local storage for persistence across refresh/logout
+    const draft = {
+      title,
+      tags: tagsInput,
+      coverImageUrl,
+      excerpt,
+      content,
+      updatedAt: new Date().toISOString(),
+    };
+    localStorage.setItem('penora_article_draft', JSON.stringify(draft));
+
+    const authorId = keyUser?.id || user?.id;
+    if (!authorId) {
+      setPublishSuccess('Draft saved locally in browser storage. Sign in with your Private Posting Key to sync drafts to the cloud.');
+      return;
+    }
+
+    setIsSavingDraft(true);
+    const slug =
+      title
+        .toLowerCase()
+        .trim()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/(^-|-$)/g, '') || `draft-${Date.now()}`;
+
+    const tags = tagsInput
+      .split(',')
+      .map(t => t.trim().toLowerCase())
+      .filter(Boolean);
+
+    try {
+      const res = await createPost({
+        author_id: authorId,
+        title: title.trim() || 'Untitled Draft',
+        slug,
+        excerpt: excerpt.trim() || (content.trim() ? content.trim().slice(0, 160) + '...' : ''),
+        content: content.trim(),
+        cover_image_url: coverImageUrl.trim() || undefined,
+        tags,
+        published: false,
+      });
+
+      if (res.isPendingMigration) {
+        setPublishSuccess('Draft preserved securely in browser storage. (Remote Supabase posts table migration pending).');
+      } else if (res.error) {
+        setPublishError(res.error);
+      } else if (res.data) {
+        setPublishSuccess('Draft saved privately to your account (unpublished).');
+      }
+    } catch (err: any) {
+      setPublishError(err.message || 'Failed to save draft.');
+    } finally {
+      setIsSavingDraft(false);
+    }
+  };
+
+  const handlePublish = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (isPublishing || isSavingDraft) return;
+    setPublishError(null);
+    setPublishSuccess(null);
+
+    const authorId = keyUser?.id || user?.id;
+    if (!authorId) {
+      setAuthModalOpen(true);
+      return;
+    }
+
+    if (keyUser && !penoraKeyAuth.hasPermission('publish')) {
+      setPublishError('Your active session does not have Posting permissions to publish essays.');
+      return;
+    }
+
+    if (!title.trim()) {
+      setPublishError('Please enter an essay title before publishing.');
+      return;
+    }
+
+    if (!content.trim() || content.trim().length < 10) {
+      setPublishError('Please provide meaningful essay content (at least 10 characters) before publishing.');
+      return;
+    }
+
+    setIsPublishing(true);
+
+    const slug =
+      title
+        .toLowerCase()
+        .trim()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/(^-|-$)/g, '') || `post-${Date.now()}`;
+
+    const tags = tagsInput
+      .split(',')
+      .map(t => t.trim().toLowerCase())
+      .filter(Boolean);
+
+    try {
+      const res = await createPost({
+        author_id: authorId,
+        title: title.trim(),
+        slug,
+        excerpt: excerpt.trim() || content.trim().slice(0, 160) + '...',
+        content: content.trim(),
+        cover_image_url: coverImageUrl.trim() || undefined,
+        tags,
+        published: true,
+      });
+
+      if (res.isPendingMigration) {
+        setPublishError(
+          'Remote database error: Table public.posts is not yet deployed on Supabase. Your essay has been saved as a local draft, but publishing requires database migration approval.'
+        );
+      } else if (res.error) {
+        setPublishError(res.error);
+      } else if (res.data) {
+        setPublishSuccess(`Essay published successfully! View at /story/${res.data.slug}`);
+        localStorage.removeItem('penora_article_draft');
+      }
+    } catch (err: any) {
+      setPublishError(err.message || 'Failed to publish essay.');
+    } finally {
+      setIsPublishing(false);
+    }
+  };
+
+  return (
+    <div className="w-full max-w-4xl mx-auto px-4 sm:px-6 py-8">
+      {/* Studio Top Toolbar: Back to Feed | Compose/Preview, Save Draft, Publish Essay */}
+      <div className="flex items-center justify-between gap-3 mb-6 flex-wrap">
+        <div>
+          <a href="/" className="pn-btn pn-btn-secondary pn-btn-sm sm:h-9">
+            <ArrowLeft className="h-3.5 w-3.5" />
+            <span>Back to Feed</span>
+          </a>
+        </div>
+
+        <div className="flex items-center gap-2.5 sm:gap-3 flex-wrap">
+          {/* Edit / Preview Segmented Switcher */}
+          <div className="pn-segmented w-56 sm:w-60 mr-1 sm:mr-2">
+            <button
+              type="button"
+              aria-selected={mode === 'edit'}
+              onClick={() => setMode('edit')}
+              className="flex items-center justify-center gap-2 px-3.5 py-1"
+            >
+              <Edit3 className="h-3.5 w-3.5 shrink-0" />
+              <span>Compose</span>
+            </button>
+            <button
+              type="button"
+              aria-selected={mode === 'preview'}
+              onClick={() => setMode('preview')}
+              className="flex items-center justify-center gap-2 px-3.5 py-1"
+            >
+              <Eye className="h-3.5 w-3.5 shrink-0" />
+              <span>Preview</span>
+            </button>
+          </div>
+
+          {/* Save Draft CTA */}
+          <button
+            type="button"
+            onClick={handleSaveDraft}
+            disabled={isSavingDraft || isPublishing}
+            className="pn-btn pn-btn-secondary pn-btn-sm sm:h-9"
+            title="Save draft"
+          >
+            {isSavingDraft ? (
+              <>
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                <span>Saving…</span>
+              </>
+            ) : (
+              <span>Save Draft</span>
+            )}
+          </button>
+
+          {/* Branded Publish CTA */}
+          <button
+            type="button"
+            onClick={handlePublish}
+            disabled={isSavingDraft || isPublishing}
+            className="pn-btn pn-btn-brand pn-btn-sm sm:h-9 sm:px-5"
+          >
+            {isPublishing ? (
+              <>
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                <span>Publishing…</span>
+              </>
+            ) : (
+              <>
+                <Send className="h-3.5 w-3.5" />
+                <span>Publish Essay</span>
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+
+      {/* Status Alerts */}
+      {publishSuccess && (
+        <div className="pn-alert pn-alert-success mb-6">
+          <CheckCircle2 className="h-4 w-4 text-[#0E9F6E] flex-shrink-0 mt-0.5" />
+          <div>
+            <strong className="font-semibold block">Publication Update</strong>
+            <p>{publishSuccess}</p>
+          </div>
+        </div>
+      )}
+
+      {publishError && (
+        <div className="pn-alert pn-alert-error mb-6">
+          <AlertCircle className="h-4 w-4 text-[#D0384B] flex-shrink-0 mt-0.5" />
+          <div>
+            <strong className="font-semibold block">Publishing Error</strong>
+            <p>{publishError}</p>
+          </div>
+        </div>
+      )}
+
+      {!user && !keyUser && !authLoading && (
+        <div className="pn-alert pn-alert-info mb-6 items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <ShieldCheck className="h-4 w-4 text-[#007C8B] flex-shrink-0" />
+            <span>
+              Composing in local draft mode. Sign in to publish under your verified PENORA creator identity.
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setAuthModalOpen(true)}
+            className="pn-btn pn-btn-primary pn-btn-sm flex-shrink-0"
+          >
+            Sign In
+          </button>
+        </div>
+      )}
+
+      {/* Main Studio Card */}
+      <div className="pn-card p-6 sm:p-10 relative overflow-hidden">
+        {/* Top signature teal gradient accent */}
+        <div
+          aria-hidden="true"
+          className="absolute inset-x-0 top-0 h-1"
+          style={{ background: 'var(--pn-gradient)' }}
+        />
+
+        {mode === 'edit' ? (
+          <div className="space-y-6">
+            {/* Title Input */}
+            <div>
+              <input
+                type="text"
+                value={title}
+                onChange={e => setTitle(e.target.value)}
+                placeholder="Essay title..."
+                className="pn-display w-full text-2xl sm:text-3xl font-bold text-[#0A2540] placeholder:text-[#6E7D90]/50 bg-transparent border-none focus:outline-none leading-tight"
+              />
+            </div>
+
+            {/* Subtitle / Excerpt */}
+            <div>
+              <input
+                type="text"
+                value={excerpt}
+                onChange={e => setExcerpt(e.target.value)}
+                placeholder="Write a concise summary or thesis statement..."
+                className="w-full text-sm text-[#4A5B70] placeholder:text-[#6E7D90]/60 bg-transparent border-none focus:outline-none"
+              />
+            </div>
+
+            {/* Meta Fields: Cover Image & Tags */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 border-t border-[#0A2540]/8">
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="pn-field-label mb-0">Cover Image</label>
+                  {coverImageUrl && (
+                    <button
+                      type="button"
+                      onClick={() => setCoverImageUrl('')}
+                      className="text-[11px] text-[#C44] hover:underline inline-flex items-center gap-1 font-medium"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                      <span>Remove</span>
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <input
+                    type="url"
+                    value={coverImageUrl.startsWith('data:') ? 'Local Image File Attached (Original Aspect Ratio)' : coverImageUrl}
+                    onChange={e => setCoverImageUrl(e.target.value)}
+                    placeholder="Paste image URL (https://...)"
+                    className="pn-input text-xs h-10 flex-1 truncate"
+                    disabled={coverImageUrl.startsWith('data:')}
+                  />
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    accept="image/*"
+                    onChange={handleFileUpload}
+                    className="hidden"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="pn-btn pn-btn-secondary pn-btn-sm h-10 px-3 text-xs flex-shrink-0"
+                    title="Upload image as-is (no cropping or resizing)"
+                  >
+                    <Upload className="h-3.5 w-3.5" />
+                    <span>Upload</span>
+                  </button>
+                </div>
+                <p className="text-[11px] text-[#6E7D90] mt-1">
+                  Images are rendered in full original resolution without cropping or distortion.
+                </p>
+              </div>
+
+              <div>
+                <label className="pn-field-label">Topic Tags (comma separated)</label>
+                <input
+                  type="text"
+                  value={tagsInput}
+                  onChange={e => setTagsInput(e.target.value)}
+                  placeholder="protocol, design, web3"
+                  className="pn-input text-xs h-10"
+                />
+              </div>
+            </div>
+
+            {/* Markdown Formatting Toolbar */}
+            <div className="flex items-center justify-between gap-2 p-2 rounded-xl bg-[#F4F7FA] border border-[#0A2540]/8 overflow-x-auto">
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => insertFormatting('**', '**')}
+                  className="pn-icon-btn h-8 w-8"
+                  title="Bold"
+                >
+                  <Bold className="h-4 w-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => insertFormatting('*', '*')}
+                  className="pn-icon-btn h-8 w-8"
+                  title="Italic"
+                >
+                  <Italic className="h-4 w-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => insertFormatting('## ')}
+                  className="pn-icon-btn h-8 w-8"
+                  title="Section Heading"
+                >
+                  <Heading2 className="h-4 w-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => insertFormatting('> ')}
+                  className="pn-icon-btn h-8 w-8"
+                  title="Blockquote"
+                >
+                  <Quote className="h-4 w-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => insertFormatting('```\n', '\n```')}
+                  className="pn-icon-btn h-8 w-8"
+                  title="Code Block"
+                >
+                  <Code className="h-4 w-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => insertFormatting('- ')}
+                  className="pn-icon-btn h-8 w-8"
+                  title="Bullet List"
+                >
+                  <List className="h-4 w-4" />
+                </button>
+              </div>
+              <span className="text-[11px] text-[#6E7D90] pr-2 hidden sm:inline">
+                Markdown supported
+              </span>
+            </div>
+
+            {/* Body Editor */}
+            <div>
+              <textarea
+                value={content}
+                onChange={e => handleContentChange(e.target.value)}
+                placeholder="Begin writing your essay..."
+                rows={15}
+                className="w-full text-[15.5px] text-[#0A2540] placeholder:text-[#6E7D90]/50 bg-transparent border-none focus:outline-none resize-none leading-relaxed"
+                style={{ minHeight: '360px' }}
+              />
+            </div>
+          </div>
+        ) : (
+          /* Live Preview Mode */
+          <div className="space-y-6">
+            {coverImageUrl && (
+              <div className="w-full rounded-2xl overflow-hidden border border-[#0A2540]/8 bg-black/[0.02]">
+                <img
+                  src={coverImageUrl}
+                  alt={title}
+                  className="w-full h-auto block rounded-2xl"
+                />
+              </div>
+            )}
+
+            <div>
+              <div className="flex items-center gap-2 mb-3 flex-wrap">
+                {tagsInput
+                  .split(',')
+                  .filter(Boolean)
+                  .map(tag => (
+                    <span key={tag} className="pn-tag">
+                      #{tag.trim()}
+                    </span>
+                  ))}
+              </div>
+
+              <h1 className="pn-h1 text-2xl sm:text-4xl mb-3">
+                {title || 'Untitled Essay'}
+              </h1>
+
+              {excerpt && (
+                <p className="text-base text-[#4A5B70] leading-relaxed pb-4 border-b border-[#0A2540]/10">
+                  {excerpt}
+                </p>
+              )}
+            </div>
+
+            <div className="text-[16px] text-[#0A2540] leading-relaxed space-y-4 whitespace-pre-wrap">
+              {content || 'Switch to Compose mode to begin writing your essay.'}
+            </div>
+          </div>
+        )}
+      </div>
+
+      <SpatialAuthModalV4
+        isOpen={authModalOpen}
+        onClose={() => setAuthModalOpen(false)}
+        initialMode="login"
+        presentation="centered-modal"
+      />
+    </div>
+  );
+};

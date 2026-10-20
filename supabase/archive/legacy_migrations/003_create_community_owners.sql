@@ -1,0 +1,3 @@
+-- 003_create_community_owners.sql
+-- Deprecated historical placeholder: table public.community_owners is created in 007_fix_community_owners.sql
+-- after public.communities (006_create_communities.sql) to maintain strict foreign key dependency ordering.

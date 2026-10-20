@@ -1,0 +1,115 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ==========================================================================
+   PENORA — Global base layer
+   Brand tokens & component classes live in ./penora-brand.css.
+   Legacy utility class names below are preserved for older screens but are
+   re-tinted to the approved PENORA blockchain palette (navy + teal).
+   ========================================================================== */
+
+@layer base {
+  :root {
+    /* Legacy aliases → brand values */
+    --bg-ivory: #F4F7FA;
+    --bg-cream: #FFFFFF;
+    --accent-coral: #007C8B;
+    --accent-peach: #00E5F4;
+    --text-cocoa: #0A2540;
+    --text-muted: #4A5B70;
+  }
+
+  html,
+  body {
+    overflow-x: hidden;
+    max-width: 100vw;
+  }
+
+  body {
+    background-color: var(--bg-ivory);
+    color: var(--text-cocoa);
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  ::selection {
+    background-color: rgba(0, 229, 244, 0.28);
+    color: #0A2540;
+  }
+}
+
+/* Spatial depth utilities (legacy, toned down to balanced motion) */
+.spatial-container {
+  perspective: 1200px;
+}
+
+.spatial-card-3d {
+  transition: transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.22s ease;
+}
+
+.spatial-card-3d:hover {
+  transform: translateY(-2px);
+}
+
+/* Legacy glass surfaces → PENORA glass */
+.liquid-glass {
+  background: rgba(255, 255, 255, 0.78);
+  backdrop-filter: blur(16px) saturate(140%);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+  border: 1px solid rgba(10, 37, 64, 0.08);
+  box-shadow: 0 8px 28px -14px rgba(10, 37, 64, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.8);
+}
+
+.liquid-glass-dark {
+  background: linear-gradient(160deg, #0F2E4F 0%, #0A2540 60%, #06182C 100%);
+  border: 1px solid rgba(0, 229, 244, 0.16);
+  box-shadow: 0 20px 40px -16px rgba(6, 24, 44, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.liquid-glass-pill {
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(10, 37, 64, 0.08);
+  box-shadow: 0 4px 16px -8px rgba(10, 37, 64, 0.12);
+}
+
+.prism-edge {
+  position: relative;
+}
+
+.prism-edge::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(135deg, rgba(0, 229, 244, 0.35) 0%, rgba(0, 124, 139, 0.12) 50%, rgba(255, 255, 255, 0) 100%);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+.spatial-ambient-glow {
+  background:
+    radial-gradient(ellipse 60% 50% at 50% -10%, rgba(0, 229, 244, 0.1), transparent 70%),
+    radial-gradient(circle 400px at 85% 20%, rgba(0, 124, 139, 0.08), transparent 70%);
+}
+
+/* Accessibility: Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .spatial-card-3d:hover {
+    transform: none !important;
+  }
+}

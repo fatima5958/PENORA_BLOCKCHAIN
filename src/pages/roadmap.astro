@@ -1,0 +1,11 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { RoadmapView } from '../components/roadmap/RoadmapView';
+---
+
+<BaseLayout
+  title="Roadmap & Security Architecture — PENORA"
+  description="Transparent phased roadmap, business safety principles, and non-cash reputation guidelines for PENORA."
+>
+  <RoadmapView client:load />
+</BaseLayout>

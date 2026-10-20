@@ -1,0 +1,113 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+---
+
+<BaseLayout title="Dev Progress — PENORA Functional Status" description="Development progress and verified feature status.">
+  <div class="max-w-4xl mx-auto px-4 py-12 space-y-8">
+    <div class="mb-8">
+      <span class="inline-block text-xs font-bold uppercase tracking-widest text-[#007C8B] bg-[#00E5F4]/10 border border-[#00E5F4]/30 px-3 py-1 rounded-full mb-3">
+        Phase 5 MVP & Security Status
+      </span>
+      <h1 class="font-serif text-3xl sm:text-4xl font-bold text-[#0A2540] mb-2">Development & Security Verification</h1>
+      <p class="text-[#4A5B70] text-sm">
+        Verified code implementation, runnable security test suite, and staged consolidated database migration.
+        Last updated: Phase 5 Functional MVP Execution.
+      </p>
+    </div>
+
+    <!-- Approved Design Application -->
+    <section>
+      <h2 class="text-xs font-bold uppercase tracking-widest text-[#61534D] mb-4">Design System (V4 Spatial Glass - APPROVED)</h2>
+      <div class="sg-ceramic-card rounded-2xl border border-white/90 divide-y divide-[#1D2729]/8 overflow-hidden">
+        {[
+          { status: '✅', label: 'V4 Spatial Glass Applied Globally', note: 'BaseLayout, Header, Feed, Explore, Communities, Studio & Profile all use approved spatial design system', link: '/' },
+          { status: '✅', label: 'Editorial 3-Column Layout', note: 'Navigation Dock (Left) | Editorial Feed (Center) | Creators & Communities (Right)', link: '/' },
+          { status: '✅', label: 'Provisional Logo Mark Preserved', note: 'Organic droplet mark + spaced serif PENORA wordmark maintained pending separate logo approval', link: null },
+          { status: '✅', label: 'Balanced Motion & Spatial Depth', note: 'Restrained elevations, subtle specular highlights, no dizzying floats or excessive tilts', link: null },
+        ].map(item => (
+          <div class="flex items-start gap-4 px-5 py-3.5">
+            <span class="text-base mt-0.5">{item.status}</span>
+            <div class="flex-1">
+              <div class="flex items-center gap-2">
+                <p class="text-sm font-semibold text-[#1D2729]">{item.label}</p>
+                {item.link && <a href={item.link} class="text-xs text-[#367B6F] font-semibold underline">view →</a>}
+              </div>
+              <p class="text-xs text-[#61534D] mt-0.5">{item.note}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+
+    <!-- Auth features -->
+    <section>
+      <h2 class="text-xs font-bold uppercase tracking-widest text-[#61534D] mb-4">Authentication & Identity</h2>
+      <div class="sg-ceramic-card rounded-2xl border border-white/90 divide-y divide-[#1D2729]/8 overflow-hidden">
+        {[
+          { status: '✅', label: 'Supabase Project Connected', note: 'Real backend at ssjdirzophcveisnubwj.supabase.co', link: null },
+          { status: '✅', label: 'Email/Password Signup & Login', note: 'Real Supabase auth, no simulated users or mock sessions', link: null },
+          { status: '✅', label: 'Session Persistence', note: 'JWT persisted in localStorage across page reloads and routes', link: null },
+          { status: '✅', label: 'V4 Liquid-Glass Auth Modal', note: 'Centered modal with mode switching, validation, and confirmation states', link: null },
+          { status: '✅', label: 'User Logout & State Broadcast', note: 'Clears session via supabase.auth.signOut(), islands update reactively', link: null },
+        ].map(item => (
+          <div class="flex items-start gap-4 px-5 py-3.5">
+            <span class="text-base mt-0.5">{item.status}</span>
+            <div class="flex-1">
+              <p class="text-sm font-semibold text-[#1D2729]">{item.label}</p>
+              <p class="text-xs text-[#61534D] mt-0.5">{item.note}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+
+    <!-- Profile & Studio -->
+    <section>
+      <h2 class="text-xs font-bold uppercase tracking-widest text-[#61534D] mb-4">Creator Profile & Studio</h2>
+      <div class="sg-ceramic-card rounded-2xl border border-white/90 divide-y divide-[#1D2729]/8 overflow-hidden">
+        {[
+          { status: '✅', label: '/profile/me — Authenticated Dashboard', note: 'Client-side protected route showing real email, verification, join date, articles, and bookmarks', link: '/profile/me' },
+          { status: '✅', label: 'Profile Bio & Name Editing', note: 'Wired to updateProfile with graceful migration pending fallback', link: '/profile/me' },
+          { status: '✅', label: '/editor — Article Studio', note: 'Markdown editor, auto-draft saving to localStorage, real Supabase createPost integration', link: '/editor' },
+          { status: '✅', label: 'Slug & Tag Generation', note: 'Clean URL slugifier, tag indexing, and excerpt generation', link: '/editor' },
+        ].map(item => (
+          <div class="flex items-start gap-4 px-5 py-3.5">
+            <span class="text-base mt-0.5">{item.status}</span>
+            <div class="flex-1">
+              <div class="flex items-center gap-2">
+                <p class="text-sm font-semibold text-[#1D2729]">{item.label}</p>
+                {item.link && <a href={item.link} class="text-xs text-[#367B6F] font-semibold underline">test →</a>}
+              </div>
+              <p class="text-xs text-[#61534D] mt-0.5">{item.note}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+
+    <!-- Social Curation & Database API -->
+    <section>
+      <h2 class="text-xs font-bold uppercase tracking-widest text-[#61534D] mb-4">Social Publishing & API Layer</h2>
+      <div class="sg-ceramic-card rounded-2xl border border-white/90 divide-y divide-[#1D2729]/8 overflow-hidden">
+        {[
+          { status: '✅', label: 'Full API Client Modules (src/lib/api/)', note: 'articles.ts, profiles.ts, votes.ts, comments.ts, bookmarks.ts, follows.ts, communities.ts', link: null },
+          { status: '✅', label: 'Non-Cash Voting & Reputation', note: 'castVote, removeVote, getVotesForPost implemented with constraint validation', link: '/story/the-architecture-of-spatial-interfaces' },
+          { status: '✅', label: 'Bookmark Management', note: 'toggleBookmark and getUserBookmarks with RLS security policies', link: null },
+          { status: '✅', label: 'Comment Threads', note: 'getCommentsForPost and addComment with optimistic UI feedback', link: '/story/the-architecture-of-spatial-interfaces#comments' },
+          { status: '⏳', label: 'Remote Database Execution (ssjdirzophcveisnubwj)', note: 'Migrations 000-012 audited, fixed, and awaiting user approval before remote execution', link: null },
+        ].map(item => (
+          <div class="flex items-start gap-4 px-5 py-3.5">
+            <span class="text-base mt-0.5">{item.status}</span>
+            <div class="flex-1">
+              <div class="flex items-center gap-2">
+                <p class="text-sm font-semibold text-[#1D2729]">{item.label}</p>
+                {item.link && <a href={item.link} class="text-xs text-[#367B6F] font-semibold underline">view →</a>}
+              </div>
+              <p class="text-xs text-[#61534D] mt-0.5">{item.note}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  </div>
+</BaseLayout>

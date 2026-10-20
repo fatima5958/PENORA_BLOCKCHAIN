@@ -1,0 +1,22 @@
+---
+// /design-v3 — Full-screen PENORA Design V3 interactive proposal
+// This page uses its OWN full-screen layout (no BaseLayout) so the preview is immersive.
+import '../styles/global.css';
+import { DesignV3Preview } from '../components/design-v3/DesignV3Preview';
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Design V3 — PENORA Proposal</title>
+    <style>
+      /* Override global body styles for this immersive preview */
+      body { margin: 0; padding: 0; background: #F4F1EC; }
+    </style>
+  </head>
+  <body>
+    <DesignV3Preview client:load />
+  </body>
+</html>

@@ -1,0 +1,227 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { PenoraLogo, PenoraEmblem } from '../components/brand/PenoraLogo';
+import { Sparkles, ArrowUpRight, Shield, Layers, Feather, CheckCircle2 } from 'lucide-react';
+---
+
+<BaseLayout
+  title="Brand Identity & UI System — PENORA Blockchain"
+  description="Official PENORA Blockchain Logo Suite, Color Palette, Typography, and Spatial Glass Design System."
+>
+  <div class="w-full max-w-6xl mx-auto px-4 sm:px-6 py-10 space-y-10">
+    
+    {/* Hero Banner */}
+    <div class="pn-inverse rounded-3xl p-8 sm:p-10 relative overflow-hidden">
+      <div class="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-8">
+        <div class="max-w-xl space-y-3">
+          <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#00E5F4]/15 border border-[#00E5F4]/30 text-[#00E5F4] text-[10px] font-bold uppercase tracking-widest">
+            <Sparkles className="h-3 w-3" />
+            <span>Official Brand Identity & Design System</span>
+          </span>
+          <h1 class="font-display text-3xl sm:text-4xl font-bold text-white tracking-tight">
+            PENORA Blockchain Brand Suite
+          </h1>
+          <p class="text-xs sm:text-sm text-[#9FB3C8] leading-relaxed">
+            Unified Web3 publishing design language combining Deep Navy (<code class="text-[#00E5F4]">#0A2540</code>), Dark Teal (<code class="text-[#00E5F4]">#007C8B</code>), Bright Teal (<code class="text-[#00E5F4]">#00E5F4</code>), geometric display typography, and cool alabaster editorial surfaces.
+          </p>
+        </div>
+
+        <div class="flex items-center justify-center bg-[#061728]/80 border border-[#00E5F4]/20 rounded-2xl p-6 shadow-xl">
+          <PenoraLogo client:load variant="stacked" theme="dark" size="lg" showTagline={true} />
+        </div>
+      </div>
+    </div>
+
+    {/* Logo Suite Grid (Sections 01 - 07) */}
+    <section class="space-y-4">
+      <div class="flex items-center justify-between">
+        <div>
+          <span class="text-[11px] font-bold uppercase tracking-widest text-[#007C8B]">01 — 07 Logo Suite</span>
+          <h2 class="font-display text-2xl font-bold text-[#0A2540]">Approved Lockups & Marks</h2>
+        </div>
+        <a href="/" class="pn-btn pn-btn-secondary px-4 py-2 rounded-full text-xs">
+          <span>Back to Live Feed</span>
+          <ArrowUpRight className="h-3.5 w-3.5" />
+        </a>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-12 gap-5">
+        {/* 01 Primary Logo (Stacked) */}
+        <div class="md:col-span-5 pn-card p-7 flex flex-col justify-between items-center text-center min-h-[280px]">
+          <div class="w-full text-left">
+            <span class="text-[10px] font-bold uppercase tracking-widest text-[#7B8FA6]">01. Primary Logo (Stacked)</span>
+          </div>
+          <div class="my-auto py-4">
+            <PenoraLogo client:load variant="stacked" theme="light" size="lg" showTagline={true} />
+          </div>
+          <p class="text-[11px] text-[#4A5E75]">Used on hero splash, auth modal, and brand identity cards.</p>
+        </div>
+
+        {/* Right column of lockups */}
+        <div class="md:col-span-7 grid grid-cols-1 sm:grid-cols-2 gap-5">
+          {/* 02 Horizontal Lockup */}
+          <div class="sm:col-span-2 pn-card p-6 flex flex-col justify-between">
+            <span class="text-[10px] font-bold uppercase tracking-widest text-[#7B8FA6]">02. Horizontal Lockup (Primary Header & Footer)</span>
+            <div class="py-5 flex items-center justify-center">
+              <PenoraLogo client:load variant="horizontal" theme="light" size="lg" showTagline={true} />
+            </div>
+            <p class="text-[11px] text-[#4A5E75]">Used in sticky top navigation bar and site footer.</p>
+          </div>
+
+          {/* 03 Icon Only */}
+          <div class="pn-card p-6 flex flex-col justify-between items-center text-center">
+            <span class="w-full text-left text-[10px] font-bold uppercase tracking-widest text-[#7B8FA6]">03. Icon Only (Emblem)</span>
+            <div class="py-4">
+              <PenoraEmblem client:load size={76} theme="light" idSuffix="brand-03" />
+            </div>
+            <span class="text-[11px] text-[#4A5E75]">3D Dual-Ribbon Lotus + 4-Point Star</span>
+          </div>
+
+          {/* 04 Dark Background Version */}
+          <div class="pn-inverse rounded-2xl p-6 flex flex-col justify-between items-center text-center">
+            <span class="w-full text-left text-[10px] font-bold uppercase tracking-widest text-[#00E5F4]">04. Dark Background Version</span>
+            <div class="py-4 relative z-10">
+              <PenoraLogo client:load variant="stacked" theme="dark" size="sm" showTagline={true} />
+            </div>
+            <span class="text-[11px] text-[#9FB3C8] relative z-10">Deep Navy #0A2540 Surface</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Bottom Row: 05 Monochrome, 06 Favicon, 07 App Icon */}
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+        <div class="pn-card p-6 flex flex-col justify-between items-center">
+          <span class="w-full text-left text-[10px] font-bold uppercase tracking-widest text-[#7B8FA6]">05. Monochrome Version</span>
+          <div class="py-6 flex items-center gap-6">
+            <PenoraEmblem client:load size={56} theme="mono" idSuffix="brand-mono" />
+            <div class="h-16 px-5 rounded-xl bg-[#0A2540] flex items-center justify-center">
+              <PenoraEmblem client:load size={44} theme="dark" idSuffix="brand-mono-inv" />
+            </div>
+          </div>
+          <span class="text-[11px] text-[#4A5E75]">Single-ink & inverse utility marks</span>
+        </div>
+
+        <div class="pn-card p-6 flex flex-col justify-between items-center">
+          <span class="w-full text-left text-[10px] font-bold uppercase tracking-widest text-[#7B8FA6]">06. Favicon / Small Size</span>
+          <div class="py-6 flex items-end gap-5">
+            <div class="flex flex-col items-center gap-2">
+              <PenoraLogo client:load variant="app-icon" size="md" idSuffix="fav-64" />
+              <span class="text-[10px] font-mono text-[#7B8FA6]">64×64px</span>
+            </div>
+            <div class="flex flex-col items-center gap-2">
+              <PenoraLogo client:load variant="app-icon" size="sm" idSuffix="fav-32" />
+              <span class="text-[10px] font-mono text-[#7B8FA6]">32×32px</span>
+            </div>
+          </div>
+          <span class="text-[11px] text-[#4A5E75]">High-contrast browser tab & badge legibility</span>
+        </div>
+
+        <div class="pn-card p-6 flex flex-col justify-between items-center">
+          <span class="w-full text-left text-[10px] font-bold uppercase tracking-widest text-[#7B8FA6]">07. App Icon / Social Avatar</span>
+          <div class="py-4">
+            <PenoraLogo client:load variant="app-icon" size="xl" idSuffix="app-icon-xl" />
+          </div>
+          <span class="text-[11px] text-[#4A5E75]">Squircle container with radial cyan core glow</span>
+        </div>
+      </div>
+    </section>
+
+    {/* Color Palette & Typography System */}
+    <section class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      {/* Color Swatches */}
+      <div class="lg:col-span-7 pn-card p-7 space-y-5">
+        <div>
+          <span class="text-[10px] font-bold uppercase tracking-widest text-[#007C8B]">Color Architecture</span>
+          <h3 class="font-display text-xl font-bold text-[#0A2540]">Approved Brand Palette</h3>
+        </div>
+
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
+          <div class="rounded-2xl overflow-hidden border border-[#0A2540]/10 bg-white">
+            <div class="h-20 bg-[#0A2540]"></div>
+            <div class="p-3">
+              <div class="text-xs font-bold text-[#0A2540]">Deep Navy</div>
+              <div class="text-[11px] font-mono text-[#4A5E75]">#0A2540</div>
+              <div class="text-[10px] text-[#7B8FA6] mt-0.5">Primary Brand / Ink</div>
+            </div>
+          </div>
+
+          <div class="rounded-2xl overflow-hidden border border-[#0A2540]/10 bg-white">
+            <div class="h-20 bg-[#007C8B]"></div>
+            <div class="p-3">
+              <div class="text-xs font-bold text-[#0A2540]">Dark Teal</div>
+              <div class="text-[11px] font-mono text-[#4A5E75]">#007C8B</div>
+              <div class="text-[10px] text-[#7B8FA6] mt-0.5">Interactive / Rep</div>
+            </div>
+          </div>
+
+          <div class="rounded-2xl overflow-hidden border border-[#0A2540]/10 bg-white">
+            <div class="h-20 bg-[#00E5F4]"></div>
+            <div class="p-3">
+              <div class="text-xs font-bold text-[#0A2540]">Bright Teal</div>
+              <div class="text-[11px] font-mono text-[#4A5E75]">#00E5F4</div>
+              <div class="text-[10px] text-[#7B8FA6] mt-0.5">Luminous Accent</div>
+            </div>
+          </div>
+
+          <div class="rounded-2xl overflow-hidden border border-[#0A2540]/10 bg-white">
+            <div class="h-20 bg-gradient-to-r from-[#007C8B] to-[#00E5F4]"></div>
+            <div class="p-3">
+              <div class="text-xs font-bold text-[#0A2540]">Brand Gradient</div>
+              <div class="text-[11px] font-mono text-[#4A5E75]">135° Linear</div>
+              <div class="text-[10px] text-[#7B8FA6] mt-0.5">#007C8B → #00E5F4</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Interactive UI Controls Preview */}
+        <div class="pt-4 border-t border-[#0A2540]/8 space-y-3">
+          <div class="text-xs font-bold uppercase tracking-wider text-[#4A5E75]">Interactive Button & Pill System</div>
+          <div class="flex flex-wrap items-center gap-3">
+            <button type="button" class="pn-btn pn-btn-primary px-4 py-2 rounded-full text-xs">Primary Navy CTA</button>
+            <button type="button" class="pn-btn pn-btn-brand px-4 py-2 rounded-full text-xs">Signature Gradient CTA</button>
+            <button type="button" class="pn-btn pn-btn-secondary px-4 py-2 rounded-full text-xs">Secondary Surface</button>
+            <button type="button" class="pn-btn pn-btn-subtle px-4 py-2 rounded-full text-xs">Subtle Teal Action</button>
+            <span class="pn-tag">94 Rep Badge</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Typography System */}
+      <div class="lg:col-span-5 pn-card p-7 flex flex-col justify-between space-y-5">
+        <div class="space-y-4">
+          <div>
+            <span class="text-[10px] font-bold uppercase tracking-widest text-[#007C8B]">Typography Hierarchy</span>
+            <h3 class="font-display text-xl font-bold text-[#0A2540]">Precision Geometric + Clean Sans</h3>
+          </div>
+
+          <div class="p-4 rounded-2xl bg-[#F8FAFC] border border-[#0A2540]/8 space-y-1.5">
+            <div class="text-[10px] font-mono uppercase tracking-wider text-[#007C8B]">Display & Editorial Headings — Sora</div>
+            <div class="font-display text-2xl font-bold text-[#0A2540] tracking-tight">
+              Decentralized Publishing
+            </div>
+            <p class="text-xs text-[#4A5E75]">Crisp geometric proportions that harmonize with the PENORA wordmark while remaining effortless to scan in article feeds.</p>
+          </div>
+
+          <div class="p-4 rounded-2xl bg-[#F8FAFC] border border-[#0A2540]/8 space-y-1.5">
+            <div class="text-[10px] font-mono uppercase tracking-wider text-[#007C8B]">UI & Long-Form Body — Inter</div>
+            <div class="font-sans text-sm font-semibold text-[#0A2540]">
+              High-Signal Editorial Readability
+            </div>
+            <p class="text-xs text-[#4A5E75] leading-relaxed">
+              Optimized for long-form essays, community curation feeds, reputation metrics, and clear metadata hierarchy.
+            </p>
+          </div>
+        </div>
+
+        <div class="flex items-center justify-between pt-3 border-t border-[#0A2540]/8 text-xs text-[#4A5E75]">
+          <span class="flex items-center gap-1.5 text-[#007C8B] font-semibold">
+            <CheckCircle2 className="h-4 w-4" />
+            <span>Applied Across All PENORA Routes</span>
+          </span>
+          <span class="font-mono text-[11px]">v4.2 Brand Suite</span>
+        </div>
+      </div>
+    </section>
+
+  </div>
+</BaseLayout>

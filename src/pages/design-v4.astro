@@ -1,0 +1,32 @@
+---
+// src/pages/design-v4.astro
+// Full-screen PENORA Spatial Glass V4 design candidate
+import '../styles/global.css';
+import '../styles/spatial-glass-v4.css';
+import { DesignV4Preview } from '../components/design-v4/DesignV4Preview';
+---
+
+<!doctype html>
+<html lang="en" class="scroll-smooth">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>PENORA — Premium Spatial Glass V4 Candidate</title>
+    <meta
+      name="description"
+      content="PENORA Spatial Glass Design System V4 — Refined liquid glass, tactile depth, and calm editorial typography."
+    />
+    <!-- Preconnect & Load Editorial Serif (Playfair Display) + Clean Sans (Inter) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="preconnect" href="https://images.unsplash.com" />
+  </head>
+  <body class="m-0 p-0 antialiased selection:bg-[#A7E8DF]/50 selection:text-[#1D2729]">
+    <DesignV4Preview client:load />
+  </body>
+</html>

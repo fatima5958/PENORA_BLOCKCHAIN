@@ -1,0 +1,22 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { ArticleReader } from '../../components/story/ArticleReader';
+import { MOCK_ARTICLES } from '../../data/mockArticles';
+
+export function getStaticPaths() {
+  return MOCK_ARTICLES.map((article) => ({
+    params: { slug: article.slug },
+    props: { article },
+  }));
+}
+
+const { article } = Astro.props;
+---
+
+<BaseLayout
+  title={`${article.title} — PENORA`}
+  description={article.excerpt}
+  image={article.coverImage}
+>
+  <ArticleReader client:load article={article} />
+</BaseLayout>
