@@ -27,10 +27,23 @@ export interface EmailVerificationRecord {
   hashedCode?: string; // Stored exclusively in local/test sandbox for cryptographic verification
 }
 
+export function generateCryptoUuid(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  const bytes = nacl.randomBytes(16);
+  // Per RFC 4122 section 4.4: set version to 4 and variant to 10xx
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
 export interface VerificationProof {
   token: string;
   email: string;
   username: string;
+  userId: string;
   issuedAt: number;
   expiresAt: number;
 }
@@ -311,6 +324,7 @@ export class EmailVerificationService {
         };
       }
 
+      let verifyRes: any = null;
       const isUnitTest = typeof process !== 'undefined' && process.env?.NODE_ENV === 'test';
 
       // In unit test environment: verify against test cryptographic hash
@@ -417,7 +431,11 @@ export class EmailVerificationService {
       record.attempts = 0;
       this.persistToStorage();
 
-      // Issue cryptographic proof token bound to (email, username, expiresAt)
+      // Ensure every verified account receives a genuine database UUID
+      const realUserId =
+        (verifyRes as any)?.data?.user?.id || generateCryptoUuid();
+
+      // Issue cryptographic proof token bound to (email, username, userId, expiresAt)
       const proofBytes = nacl.randomBytes(32);
       const proofToken = `vproof_${Array.from(proofBytes).map(b => b.toString(16).padStart(2, '0')).join('')}`;
 
@@ -425,6 +443,7 @@ export class EmailVerificationService {
         token: proofToken,
         email,
         username: record.username,
+        userId: realUserId,
         issuedAt: now,
         expiresAt: now + PROOF_TTL_MS,
       };
@@ -493,6 +512,12 @@ export class EmailVerificationService {
   public isEmailRegistered(email: string): boolean {
     this.hydrateFromStorage();
     return this.verifiedEmails.has(email.trim().toLowerCase());
+  }
+
+  public getProof(token: string): VerificationProof | null {
+    this.hydrateFromStorage();
+    if (!token) return null;
+    return this.issuedProofs.get(token) || null;
   }
 
   // --------------------------------------------------------------------------

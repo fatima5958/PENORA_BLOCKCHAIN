@@ -22,7 +22,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
-import { createPost } from '../../lib/api/articles';
+import { createPost, getArticleBySlug } from '../../lib/api/articles';
 import { SpatialAuthModalV4 } from '../design-v4/SpatialAuthModalV4';
 import { penoraKeyAuth, type PenoraUser } from '../../lib/auth/penoraKeyAuth';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
@@ -45,6 +45,22 @@ export const ArticleEditorView: React.FC = () => {
   const [publishError, setPublishError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const editSlug = params.get('edit');
+    if (editSlug) {
+      getArticleBySlug(editSlug).then(res => {
+        if (res.data) {
+          setTitle(res.data.title);
+          setTagsInput((res.data.tags || []).join(', '));
+          setCoverImageUrl(res.data.cover_image_url || '');
+          setExcerpt(res.data.excerpt || '');
+          setContent(res.data.content);
+        }
+      });
+      return;
+    }
+
     const saved = localStorage.getItem('penora_article_draft');
     if (saved) {
       try {
@@ -268,6 +284,11 @@ export const ArticleEditorView: React.FC = () => {
       } else if (res.data) {
         setPublishSuccess(`Essay published successfully! View at /story/${res.data.slug}`);
         localStorage.removeItem('penora_article_draft');
+        setTitle('');
+        setTagsInput('');
+        setCoverImageUrl('');
+        setExcerpt('');
+        setContent('');
       }
     } catch (err: any) {
       setPublishError(err.message || 'Failed to publish essay.');
@@ -309,6 +330,32 @@ export const ArticleEditorView: React.FC = () => {
               <span>Preview</span>
             </button>
           </div>
+
+          {/* New / Clear Draft CTA */}
+          <button
+            type="button"
+            onClick={() => {
+              if (title || content) {
+                if (typeof window !== 'undefined' && !window.confirm('Clear editor and start a new blank essay?')) return;
+              }
+              if (typeof window !== 'undefined') {
+                localStorage.removeItem('penora_article_draft');
+              }
+              setTitle('');
+              setTagsInput('');
+              setCoverImageUrl('');
+              setExcerpt('');
+              setContent('');
+              setPublishSuccess(null);
+              setPublishError(null);
+            }}
+            disabled={isSavingDraft || isPublishing}
+            className="pn-btn pn-btn-secondary pn-btn-sm sm:h-9"
+            title="Start new blank story"
+          >
+            <Trash2 className="h-3.5 w-3.5 text-[#52657C]" />
+            <span className="hidden sm:inline">New Blank</span>
+          </button>
 
           {/* Save Draft CTA */}
           <button

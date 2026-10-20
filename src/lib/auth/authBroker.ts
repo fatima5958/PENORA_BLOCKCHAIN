@@ -217,6 +217,31 @@ export class PenoraAuthBroker {
     return { success: true, account };
   }
 
+  public registerHydratedAccount(params: {
+    userId: string;
+    username: string;
+    displayName: string;
+    email?: string;
+    authorities: PublicAuthorities;
+    keyVersion?: number;
+  }): { success: boolean; account: StoredAccount } {
+    this.hydrateFromStorage();
+    const cleanUsername = params.username.trim().toLowerCase();
+    const account: StoredAccount = {
+      userId: params.userId,
+      username: cleanUsername,
+      displayName: params.displayName || cleanUsername,
+      email: params.email,
+      authorities: { ...params.authorities },
+      keyVersion: params.keyVersion || 1,
+      createdAt: new Date().toISOString(),
+    };
+    this.accounts.set(cleanUsername, account);
+    this.accountsById.set(params.userId, account);
+    this.persistToStorage();
+    return { success: true, account };
+  }
+
   public getAccount(username: string): StoredAccount | null {
     this.hydrateFromStorage();
     return this.accounts.get(username.trim().toLowerCase()) || null;

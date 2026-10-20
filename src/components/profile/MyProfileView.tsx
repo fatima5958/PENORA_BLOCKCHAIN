@@ -76,22 +76,13 @@ export const MyProfileView: React.FC = () => {
   useEffect(() => {
     let mounted = true;
 
-    const unsubscribeKeyAuth = penoraKeyAuth.subscribe(ku => {
-      if (mounted) {
-        setKeyUser(ku);
-        if (ku) {
-          setLoading(false);
-          setEditDisplayName(ku.displayName);
-        }
-      }
-    });
-
-    const loadSessionData = (u: SupabaseUser | null) => {
+    const loadSessionData = (u: SupabaseUser | null, ku: PenoraUser | null) => {
+      const activeId = u?.id || ku?.id;
       setUser(u);
       setLoading(false);
-      if (!u) return;
+      if (!activeId) return;
 
-      getProfileById(u.id).then(res => {
+      getProfileById(activeId).then(res => {
         if (res.isPendingMigration) {
           setIsPendingMigration(true);
         } else if (res.data) {
@@ -101,25 +92,36 @@ export const MyProfileView: React.FC = () => {
         }
       });
 
-      getUserArticles(u.id).then(res => {
+      getUserArticles(activeId).then(res => {
         if (res.data) setArticles(res.data);
       });
 
-      getUserBookmarks(u.id).then(res => {
+      getUserBookmarks(activeId).then(res => {
         if (res.data) setBookmarks(res.data);
       });
 
-      getFollowCounts(u.id).then(counts => {
+      getFollowCounts(activeId).then(counts => {
         setFollowCounts(counts);
       });
     };
 
+    const unsubscribeKeyAuth = penoraKeyAuth.subscribe(ku => {
+      if (mounted) {
+        setKeyUser(ku);
+        if (ku) {
+          setLoading(false);
+          setEditDisplayName(ku.displayName);
+          loadSessionData(user, ku);
+        }
+      }
+    });
+
     supabase.auth.getSession().then(({ data }) => {
-      loadSessionData(data.session?.user ?? null);
+      loadSessionData(data.session?.user ?? null, keyUser);
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      loadSessionData(session?.user ?? null);
+      loadSessionData(session?.user ?? null, keyUser);
     });
 
     return () => {

@@ -17,6 +17,7 @@ export interface PostVoteStats {
 }
 
 const LOCAL_VOTES_STORAGE_KEY = 'penora_votes_ledger_v1';
+let memoryVotes: LocalVoteEntry[] = [];
 
 interface LocalVoteEntry {
   id: string;
@@ -28,18 +29,19 @@ interface LocalVoteEntry {
 }
 
 function readLocalVotes(): LocalVoteEntry[] {
-  if (typeof window === 'undefined' || !window.localStorage) return [];
+  if (typeof window === 'undefined' || !window.localStorage) return memoryVotes;
   try {
     const raw = window.localStorage.getItem(LOCAL_VOTES_STORAGE_KEY);
-    if (!raw) return [];
+    if (!raw) return memoryVotes;
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
+    return Array.isArray(parsed) ? parsed : memoryVotes;
   } catch {
-    return [];
+    return memoryVotes;
   }
 }
 
 function writeLocalVotes(entries: LocalVoteEntry[]): void {
+  memoryVotes = entries;
   if (typeof window === 'undefined' || !window.localStorage) return;
   try {
     window.localStorage.setItem(LOCAL_VOTES_STORAGE_KEY, JSON.stringify(entries));
@@ -204,9 +206,10 @@ export async function castVote(vote: {
 
     if (error) {
       const isPending = error.code === '42P01' || error.message.includes('relation');
+      const isRls = error.message.includes('row-level security') || error.message.includes('permission denied') || error.code === '42501';
       return {
         data: localRecord,
-        error: isPending ? null : error.message,
+        error: (isPending || isRls) ? null : error.message,
         isPendingMigration: isPending,
         stats: localStats,
       };

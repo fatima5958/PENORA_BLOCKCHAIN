@@ -141,16 +141,16 @@ export const ArticleReader: React.FC<ArticleReaderProps> = ({ article }) => {
   const handleBookmark = async () => {
     const next = !bookmarked;
     setBookmarked(next);
-    if (user) {
-      await toggleBookmark(user.id, article.id);
-    }
+    const voterId = getVoterId(keyUser, user);
+    await toggleBookmark(voterId, article.id);
   };
 
   const handleFollow = async () => {
     const next = !followingAuthor;
     setFollowingAuthor(next);
-    if (user && article.author.handle) {
-      await followUser(user.id, article.author.handle);
+    const voterId = getVoterId(keyUser, user);
+    if (article.author.handle) {
+      await followUser(voterId, article.author.handle);
     }
   };
 
@@ -186,13 +186,13 @@ export const ArticleReader: React.FC<ArticleReaderProps> = ({ article }) => {
     setNewCommentText('');
 
     try {
-      if (user) {
-        await addComment({
-          post_id: article.id,
-          author_id: user.id,
-          body: text,
-        });
-      }
+      const authorId = keyUser?.id || user?.id || getVoterId(keyUser, user);
+      await addComment({
+        post_id: article.id,
+        author_id: authorId,
+        body: text,
+        author_name: authorHandle,
+      });
     } finally {
       setSubmittingComment(false);
     }

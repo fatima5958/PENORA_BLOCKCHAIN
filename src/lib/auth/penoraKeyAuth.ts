@@ -22,6 +22,7 @@ import {
 } from './authBroker';
 import {
   emailVerificationService,
+  generateCryptoUuid,
 } from './emailVerification';
 import { supabase } from '../supabaseClient';
 
@@ -194,8 +195,11 @@ class PenoraKeyAuthService {
       memo_public_key: params.keySuite.memo.publicKeyPen,
     };
 
-    // Deterministic UUID for the user identity
-    const userId = `usr_${cleanUsername}_${Date.now().toString(36)}`;
+    // Ensure every real account has a genuine database-backed UUID (RFC 4122)
+    const proof = params.emailVerificationProof
+      ? emailVerificationService.getProof(params.emailVerificationProof)
+      : null;
+    const userId = proof?.userId || generateCryptoUuid();
 
     // 1. Register with trusted auth broker (validates email proof and public keys)
     const regRes = authBroker.registerAccount({
@@ -211,7 +215,33 @@ class PenoraKeyAuthService {
       return { success: false, error: regRes.error || 'Registration failed' };
     }
 
-    // 2. Perform initial automatic login with Posting key
+    // 2. Synchronize to Supabase profiles & account_authorities if remote tables exist
+    try {
+      await supabase.from('profiles').upsert(
+        {
+          id: userId,
+          username: cleanUsername,
+          display_name: params.displayName || cleanUsername,
+        },
+        { onConflict: 'id' }
+      );
+
+      await supabase.from('account_authorities').upsert(
+        {
+          account_id: userId,
+          owner_public_key: publicAuthorities.owner_public_key,
+          active_public_key: publicAuthorities.active_public_key,
+          posting_public_key: publicAuthorities.posting_public_key,
+          memo_public_key: publicAuthorities.memo_public_key,
+          key_version: 1,
+        },
+        { onConflict: 'account_id' }
+      );
+    } catch {
+      // Gracefully continue; broker maintains authorities securely in all environments
+    }
+
+    // 3. Perform initial automatic login with Posting key
     const loginRes = await this.loginWithPrivateKey(cleanUsername, params.keySuite.posting.privateKeyWif);
     if (!loginRes.success || !loginRes.user) {
       return { success: false, error: loginRes.error || 'Account created, but initial login failed.' };
@@ -243,8 +273,45 @@ class PenoraKeyAuthService {
       return { success: false, error: 'Please enter your Private Posting or Active Key.' };
     }
 
-    // 1. Fetch user public authorities from broker
-    const account = authBroker.getAccount(cleanUsername);
+    // 1. Fetch user public authorities from broker (with Supabase remote fallback)
+    let account = authBroker.getAccount(cleanUsername);
+    if (!account) {
+      try {
+        const { data: prof } = await supabase
+          .from('profiles')
+          .select('id, username, display_name')
+          .eq('username', cleanUsername)
+          .maybeSingle();
+
+        if (prof) {
+          const { data: authRow } = await supabase
+            .from('account_authorities')
+            .select('*')
+            .eq('account_id', prof.id)
+            .maybeSingle();
+
+          if (authRow) {
+            const syncedAuthorities: PublicAuthorities = {
+              owner_public_key: authRow.owner_public_key,
+              active_public_key: authRow.active_public_key,
+              posting_public_key: authRow.posting_public_key,
+              memo_public_key: authRow.memo_public_key,
+            };
+            const reg = authBroker.registerHydratedAccount({
+              userId: prof.id,
+              username: prof.username,
+              displayName: prof.display_name || prof.username,
+              authorities: syncedAuthorities,
+              keyVersion: authRow.key_version || 1,
+            });
+            account = reg.account || null;
+          }
+        }
+      } catch {
+        // Fallback to local check
+      }
+    }
+
     if (!account) {
       return {
         success: false,
@@ -345,18 +412,49 @@ class PenoraKeyAuthService {
     supabase.auth.signOut().catch(() => {});
   }
 
-  public async deleteAccount(username?: string): Promise<{ success: boolean; error?: string }> {
-    const targetUsername = username || this.currentUser?.username;
+  public async deleteAccount(username?: string, privateKeyInput?: string): Promise<{ success: boolean; error?: string }> {
+    const targetUsername = (username || this.currentUser?.username || '').trim().toLowerCase();
     if (!targetUsername) {
       return { success: false, error: 'No user specified to delete.' };
     }
-    const cleanUsername = targetUsername.trim().toLowerCase();
-    const deleted = authBroker.deleteAccount(cleanUsername);
+
+    const account = authBroker.getAccount(targetUsername);
+    if (!account) {
+      return { success: false, error: 'Account not found.' };
+    }
+
+    // Require signature verification with Active or Owner key when key is provided
+    if (privateKeyInput) {
+      try {
+        const derived = deriveKeyInfoFromWif(privateKeyInput.trim());
+        const isAuthorized =
+          derived.publicKeyPen === account.authorities.owner_public_key ||
+          derived.publicKeyPen === account.authorities.active_public_key;
+        if (!isAuthorized) {
+          return { success: false, error: 'Account deletion requires your Active Key or Master Owner Key.' };
+        }
+      } catch {
+        return { success: false, error: 'Invalid private key format.' };
+      }
+    }
+
+    // Delete in broker
+    const deleted = authBroker.deleteAccount(targetUsername);
+
+    // Also attempt remote profile deletion if Supabase connection active
+    try {
+      if (account.userId) {
+        await supabase.from('profiles').delete().eq('id', account.userId);
+      }
+    } catch {
+      // Ignore
+    }
+
     if (deleted) {
       this.logout();
       return { success: true };
     }
-    return { success: false, error: 'Account not found.' };
+    return { success: false, error: 'Failed to delete account.' };
   }
 
   // --------------------------------------------------------------------------

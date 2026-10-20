@@ -23,6 +23,11 @@ function checkIsPendingMigration(error: { code?: string; message?: string } | nu
   );
 }
 
+function isUuid(id?: string | null): boolean {
+  if (!id) return false;
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+}
+
 export async function getPublishedArticles(options?: {
   limit?: number;
   tag?: string;
@@ -73,6 +78,9 @@ export async function getArticleBySlug(slug: string): Promise<SingleArticleResul
 }
 
 export async function getUserArticles(authorId: string): Promise<ArticlesListResult> {
+  if (!isUuid(authorId)) {
+    return { data: [], error: null };
+  }
   try {
     const { data, error } = await supabase
       .from('posts')
@@ -99,6 +107,12 @@ export async function createPost(post: {
   tags?: string[];
   published?: boolean;
 }): Promise<SingleArticleResult> {
+  if (!isUuid(post.author_id)) {
+    return {
+      data: null,
+      error: 'Invalid author ID format: author_id must be a valid account UUID.',
+    };
+  }
   try {
     const { data, error } = await supabase
       .from('posts')
