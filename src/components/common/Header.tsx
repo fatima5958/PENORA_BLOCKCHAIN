@@ -1,7 +1,7 @@
 // src/components/common/Header.tsx
 // PENORA Blockchain — Global Top Navigation Header
 // Integrates the approved PENORA Blockchain Horizontal Logo Lockup,
-// refined search bar, branded Write CTA, and live session state.
+// refined search bar, branded pen shortcut, and live session state.
 import React, { useState, useEffect, useRef } from 'react';
 import {
   PenLine,
@@ -20,6 +20,7 @@ import {
 import { supabase } from '../../lib/supabaseClient';
 import { SpatialAuthModalV4 } from '../design-v4/SpatialAuthModalV4';
 import { PenoraLogo } from '../brand/PenoraLogo';
+import { PenoraWriteIcon } from '../brand/PenoraWriteIcon';
 import { penoraKeyAuth, type PenoraUser } from '../../lib/auth/penoraKeyAuth';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 
@@ -223,15 +224,16 @@ export const Header: React.FC<HeaderProps> = ({ currentPath = '/' }) => {
             </form>
           </div>
 
-          {/* Right: Write Button & Auth Controls */}
+          {/* Right: Article Studio shortcut & Auth Controls */}
           <div className="flex items-center gap-2 sm:gap-2.5">
-            {/* Write Button — Deep Navy with Bright Teal Icon */}
+            {/* Icon-only pen shortcut, styled after the official PENORA emblem. */}
             <a
               href="/editor"
-              className="pn-btn pn-btn-primary pn-btn-sm sm:h-9 sm:px-4"
+              aria-label="Open Article Studio"
+              title="Create an essay"
+              className="pn-focus inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-[#007C8B]/20 bg-[#F4F7FA] shadow-sm transition-colors hover:bg-[#00E5F4]/10 hover:border-[#007C8B]/50"
             >
-              <PenLine className="h-3.5 w-3.5 text-[#00E5F4]" />
-              <span>Write</span>
+              <PenoraWriteIcon className="h-9 w-9" />
             </a>
 
             <div className="h-5 w-px bg-[#0A2540]/10 hidden sm:block mx-0.5" />

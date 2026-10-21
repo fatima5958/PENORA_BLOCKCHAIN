@@ -1,7 +1,7 @@
 // src/components/editor/ArticleEditorView.tsx
 // PENORA Blockchain — Article Studio Shell (/editor)
 // Aligned with the approved PENORA Blockchain Identity System.
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Bold,
   Italic,
@@ -13,6 +13,7 @@ import {
   Edit3,
   Send,
   ArrowLeft,
+  ArrowRight,
   AlertCircle,
   Loader2,
   CheckCircle2,
@@ -26,6 +27,13 @@ import { createPost, updatePost, getArticleBySlug } from '../../lib/api/articles
 import { SpatialAuthModalV4 } from '../design-v4/SpatialAuthModalV4';
 import { penoraKeyAuth, type PenoraUser } from '../../lib/auth/penoraKeyAuth';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
+import {
+  hasDraftContent,
+  readArticleDraft,
+  saveArticleDraft,
+  removeArticleDraft,
+  type ArticleDraft,
+} from '../../lib/articleDrafts';
 
 export const ArticleEditorView: React.FC = () => {
   const [user, setUser] = useState<SupabaseUser | null>(null);
@@ -49,15 +57,22 @@ export const ArticleEditorView: React.FC = () => {
   // Editing existing post vs writing fresh
   const [editingPostId, setEditingPostId] = useState<string | null>(null);
   const [editingSlug, setEditingSlug] = useState<string | null>(null);
-  const [unsavedDraftAvailable, setUnsavedDraftAvailable] = useState<any | null>(null);
+  const [unsavedDraftAvailable, setUnsavedDraftAvailable] = useState<ArticleDraft | null>(null);
+  const [editorReady, setEditorReady] = useState(false);
+  const [hasLocalEdits, setHasLocalEdits] = useState(false);
+  const [draftStatus, setDraftStatus] = useState('');
+  const [draftStorageError, setDraftStorageError] = useState<string | null>(null);
+  const editorLoadSequence = useRef(0);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
+    const loadSequence = ++editorLoadSequence.current;
     const params = new URLSearchParams(window.location.search);
     const editSlug = params.get('edit');
     if (editSlug) {
       getArticleBySlug(editSlug).then(res => {
+        if (editorLoadSequence.current !== loadSequence) return;
         if (res.data) {
           setEditingPostId(res.data.id);
           setEditingSlug(res.data.slug);
@@ -66,54 +81,119 @@ export const ArticleEditorView: React.FC = () => {
           setCoverImageUrl(res.data.cover_image_url || '');
           setExcerpt(res.data.excerpt || '');
           setContent(res.data.content);
+          const saved = readArticleDraft();
+          if (saved?.postId === res.data.id && saved.slug === res.data.slug) {
+            setUnsavedDraftAvailable(saved);
+          }
+          setEditorReady(true);
+        } else {
+          setPublishError(res.error || 'This essay could not be loaded. Use New Blank to start another essay.');
         }
       });
-      return;
+    } else {
+      // Keep recovery opt-in; mounting a blank editor must never overwrite a saved draft.
+      setUnsavedDraftAvailable(readArticleDraft());
+      setEditorReady(true);
     }
 
-    // New article starts completely blank! Check if unsaved draft exists to offer restoration
-    const saved = localStorage.getItem('penora_article_draft');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        if (parsed.title || parsed.content) {
-          setUnsavedDraftAvailable(parsed);
-        }
-      } catch {
-        // ignore invalid json
-      }
-    }
+    return () => { editorLoadSequence.current += 1; };
   }, []);
+
+  const persistCurrentDraft = useCallback(() => {
+    const draft: ArticleDraft = {
+      title,
+      tags: tagsInput,
+      coverImageUrl,
+      excerpt,
+      content,
+      updatedAt: new Date().toISOString(),
+      postId: editingPostId,
+      slug: editingSlug,
+    };
+    const error = hasDraftContent(draft) ? saveArticleDraft(draft) : removeArticleDraft();
+    setDraftStorageError(error);
+    setDraftStatus(error ? '' : hasDraftContent(draft) ? 'Draft saved in this browser' : '');
+    return error === null;
+  }, [title, tagsInput, coverImageUrl, excerpt, content, editingPostId, editingSlug]);
+
+  useEffect(() => {
+    if (!editorReady || !hasLocalEdits || unsavedDraftAvailable) return;
+    setDraftStatus('Saving draft…');
+    const timer = window.setTimeout(persistCurrentDraft, 500);
+
+    // Flush the debounce when leaving so the last title/tag edit survives an immediate refresh.
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (!persistCurrentDraft()) {
+        event.preventDefault();
+        event.returnValue = '';
+      }
+    };
+    const handlePageHide = () => { persistCurrentDraft(); };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') persistCurrentDraft();
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    window.addEventListener('pagehide', handlePageHide);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      window.clearTimeout(timer);
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      window.removeEventListener('pagehide', handlePageHide);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [editorReady, hasLocalEdits, unsavedDraftAvailable, persistCurrentDraft]);
 
   const handleRestoreDraft = () => {
     if (!unsavedDraftAvailable) return;
-    if (unsavedDraftAvailable.title) setTitle(unsavedDraftAvailable.title);
-    if (unsavedDraftAvailable.tags) setTagsInput(unsavedDraftAvailable.tags);
-    if (unsavedDraftAvailable.coverImageUrl) setCoverImageUrl(unsavedDraftAvailable.coverImageUrl);
-    if (unsavedDraftAvailable.excerpt) setExcerpt(unsavedDraftAvailable.excerpt);
-    if (unsavedDraftAvailable.content) setContent(unsavedDraftAvailable.content);
+    setTitle(unsavedDraftAvailable.title);
+    setTagsInput(unsavedDraftAvailable.tags);
+    setCoverImageUrl(unsavedDraftAvailable.coverImageUrl);
+    setExcerpt(unsavedDraftAvailable.excerpt);
+    setContent(unsavedDraftAvailable.content);
+    setEditingPostId(unsavedDraftAvailable.postId);
+    setEditingSlug(unsavedDraftAvailable.slug);
+    setHasLocalEdits(true);
     setUnsavedDraftAvailable(null);
   };
 
   const handleDiscardDraft = () => {
-    localStorage.removeItem('penora_article_draft');
+    const error = removeArticleDraft();
+    setDraftStorageError(error);
+    if (error) return;
     setUnsavedDraftAvailable(null);
   };
 
+  const resetEditor = () => {
+    // Invalidate an in-flight edit load before clearing the target article.
+    editorLoadSequence.current += 1;
+    setTitle('');
+    setTagsInput('');
+    setCoverImageUrl('');
+    setExcerpt('');
+    setContent('');
+    setEditingPostId(null);
+    setEditingSlug(null);
+    setUnsavedDraftAvailable(null);
+    setHasLocalEdits(false);
+    setDraftStatus('');
+    setDraftStorageError(removeArticleDraft());
+    setMode('edit');
+    setEditorReady(true);
+    const url = new URL(window.location.href);
+    url.searchParams.delete('edit');
+    window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
+  };
+
   const handleClearEditor = () => {
-    if (window.confirm('Clear the editor to start a completely blank new essay?')) {
-      setTitle('');
-      setTagsInput('');
-      setCoverImageUrl('');
-      setExcerpt('');
-      setContent('');
-      setEditingPostId(null);
-      setEditingSlug(null);
-      setPublishSuccess(null);
-      setPublishSuccessSlug(null);
-      setPublishError(null);
-      localStorage.removeItem('penora_article_draft');
+    if ((hasDraftContent({ title, tags: tagsInput, coverImageUrl, excerpt, content }) || unsavedDraftAvailable)
+      && !window.confirm('Clear editor and discard the browser draft to start a new blank essay?')) {
+      return;
     }
+    resetEditor();
+    setPublishSuccess(null);
+    setPublishSuccessSlug(null);
+    setPublishError(null);
   };
 
   useEffect(() => {
@@ -147,16 +227,8 @@ export const ArticleEditorView: React.FC = () => {
   }, []);
 
   const handleContentChange = (val: string) => {
+    setHasLocalEdits(true);
     setContent(val);
-    const draft = {
-      title,
-      tags: tagsInput,
-      coverImageUrl,
-      excerpt,
-      content: val,
-      updatedAt: new Date().toISOString(),
-    };
-    localStorage.setItem('penora_article_draft', JSON.stringify(draft));
   };
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -171,22 +243,15 @@ export const ArticleEditorView: React.FC = () => {
     }
 
     // Read untouched, full-resolution file data URL without ANY cropping or resizing
+    const uploadSequence = editorLoadSequence.current;
     const reader = new FileReader();
     reader.onload = (event) => {
+      if (editorLoadSequence.current !== uploadSequence) return;
       const result = event.target?.result as string;
       if (result) {
         setCoverImageUrl(result);
+        setHasLocalEdits(true);
         setPublishError(null);
-        // Persist to draft
-        const draft = {
-          title,
-          tags: tagsInput,
-          coverImageUrl: result,
-          excerpt,
-          content,
-          updatedAt: new Date().toISOString(),
-        };
-        localStorage.setItem('penora_article_draft', JSON.stringify(draft));
       }
     };
     reader.readAsDataURL(file);
@@ -195,7 +260,7 @@ export const ArticleEditorView: React.FC = () => {
   const insertFormatting = (prefix: string, suffix: string = '') => {
     const textarea = textareaRef.current;
     if (!textarea) {
-      setContent(prev => prev + `\n${prefix} ` + suffix);
+      handleContentChange(content + `\n${prefix} ` + suffix);
       return;
     }
     const start = textarea.selectionStart;
@@ -204,7 +269,6 @@ export const ArticleEditorView: React.FC = () => {
     const selected = currentText.substring(start, end);
     const replacement = selected ? `${prefix}${selected}${suffix}` : `${prefix}${suffix}`;
     const newContent = currentText.substring(0, start) + replacement + currentText.substring(end);
-    setContent(newContent);
     handleContentChange(newContent);
     setTimeout(() => {
       textarea.focus();
@@ -224,20 +288,11 @@ export const ArticleEditorView: React.FC = () => {
       return;
     }
 
-    // Always update local storage for persistence across refresh/logout
-    const draft = {
-      title,
-      tags: tagsInput,
-      coverImageUrl,
-      excerpt,
-      content,
-      updatedAt: new Date().toISOString(),
-    };
-    localStorage.setItem('penora_article_draft', JSON.stringify(draft));
+    const locallySaved = persistCurrentDraft();
 
     const authorId = user?.id || keyUser?.id;
     if (!authorId) {
-      setPublishSuccess('Draft saved locally in browser storage. Sign in with your Private Posting Key to sync drafts to the cloud.');
+      if (locallySaved) setPublishSuccess('Draft saved locally in browser storage. Sign in with your Private Posting Key to sync drafts to the cloud.');
       return;
     }
 
@@ -285,10 +340,10 @@ export const ArticleEditorView: React.FC = () => {
       }
 
       if (res.isPendingMigration) {
-        setPublishSuccess('Draft preserved securely in browser storage. (Remote Supabase posts table migration pending).');
+        if (locallySaved) setPublishSuccess('Draft saved in this browser. Cloud draft sync is currently unavailable.');
       } else if (res.error) {
         if (res.error.includes('row-level security') || res.error.includes('42501')) {
-          setPublishSuccess('Draft saved locally in browser storage. (Cloud database sync requires an active authenticated session).');
+          if (locallySaved) setPublishSuccess('Draft saved locally in browser storage. (Cloud database sync requires an active authenticated session).');
         } else {
           setPublishError(res.error);
         }
@@ -330,6 +385,7 @@ export const ArticleEditorView: React.FC = () => {
       return;
     }
 
+    const locallySaved = persistCurrentDraft();
     setIsPublishing(true);
 
     const slug =
@@ -372,7 +428,9 @@ export const ArticleEditorView: React.FC = () => {
 
       if (res.isPendingMigration) {
         setPublishError(
-          'Remote database error: Table public.posts is not yet deployed on Supabase. Your essay has been saved as a local draft, but publishing requires database migration approval.'
+          locallySaved
+            ? 'Publishing is currently unavailable. Your essay is saved as a draft in this browser.'
+            : 'Publishing is currently unavailable and your browser draft could not be saved. Keep this page open and copy your writing.'
         );
       } else if (res.error) {
         if (res.error.includes('row-level security') || res.error.includes('42501')) {
@@ -382,17 +440,9 @@ export const ArticleEditorView: React.FC = () => {
         }
       } else if (res.data) {
         const finalSlug = res.data.slug || editingSlug || slug;
+        resetEditor();
         setPublishSuccess('Essay published successfully!');
         setPublishSuccessSlug(finalSlug);
-        localStorage.removeItem('penora_article_draft');
-        setUnsavedDraftAvailable(null);
-        setEditingPostId(null);
-        setEditingSlug(null);
-        setTitle('');
-        setTagsInput('');
-        setCoverImageUrl('');
-        setExcerpt('');
-        setContent('');
       }
     } catch (err: any) {
       setPublishError(err.message || 'Failed to publish essay.');
@@ -438,21 +488,7 @@ export const ArticleEditorView: React.FC = () => {
           {/* New / Clear Draft CTA */}
           <button
             type="button"
-            onClick={() => {
-              if (title || content) {
-                if (typeof window !== 'undefined' && !window.confirm('Clear editor and start a new blank essay?')) return;
-              }
-              if (typeof window !== 'undefined') {
-                localStorage.removeItem('penora_article_draft');
-              }
-              setTitle('');
-              setTagsInput('');
-              setCoverImageUrl('');
-              setExcerpt('');
-              setContent('');
-              setPublishSuccess(null);
-              setPublishError(null);
-            }}
+            onClick={handleClearEditor}
             disabled={isSavingDraft || isPublishing}
             className="pn-btn pn-btn-secondary pn-btn-sm sm:h-9"
             title="Start new blank story"
@@ -465,7 +501,7 @@ export const ArticleEditorView: React.FC = () => {
           <button
             type="button"
             onClick={handleSaveDraft}
-            disabled={isSavingDraft || isPublishing}
+            disabled={isSavingDraft || isPublishing || !editorReady || !!unsavedDraftAvailable}
             className="pn-btn pn-btn-secondary pn-btn-sm sm:h-9"
             title="Save draft"
           >
@@ -483,7 +519,7 @@ export const ArticleEditorView: React.FC = () => {
           <button
             type="button"
             onClick={handlePublish}
-            disabled={isSavingDraft || isPublishing}
+            disabled={isSavingDraft || isPublishing || !editorReady || !!unsavedDraftAvailable}
             className="pn-btn pn-btn-brand pn-btn-sm sm:h-9 sm:px-5"
           >
             {isPublishing ? (
@@ -506,7 +542,7 @@ export const ArticleEditorView: React.FC = () => {
         <div className="pn-alert pn-alert-success mb-6">
           <CheckCircle2 className="h-4 w-4 text-[#0E9F6E] flex-shrink-0 mt-0.5" />
           <div className="space-y-1">
-            <strong className="font-semibold block">Publication Confirmed</strong>
+            <strong className="font-semibold block">{publishSuccessSlug ? 'Publication Confirmed' : 'Draft Saved'}</strong>
             <p>{publishSuccess}</p>
             {publishSuccessSlug && (
               <a
@@ -556,6 +592,17 @@ export const ArticleEditorView: React.FC = () => {
         </div>
       )}
 
+      {draftStorageError ? (
+        <div role="alert" className="pn-alert pn-alert-error mb-6">
+          <AlertCircle className="h-4 w-4 shrink-0" aria-hidden="true" />
+          <p>{draftStorageError}</p>
+        </div>
+      ) : (
+        <p role="status" aria-live="polite" className="text-xs text-[#4A5B70] mb-4 min-h-4">
+          {!editorReady ? 'Loading essay…' : draftStatus}
+        </p>
+      )}
+
       {!user && !keyUser && !authLoading && (
         <div className="pn-alert pn-alert-info mb-6 items-center justify-between">
           <div className="flex items-center gap-2.5">
@@ -575,7 +622,10 @@ export const ArticleEditorView: React.FC = () => {
       )}
 
       {/* Main Studio Card */}
-      <div className="pn-card p-6 sm:p-10 relative overflow-hidden">
+      <fieldset
+        disabled={!editorReady || !!unsavedDraftAvailable || isPublishing || isSavingDraft}
+        className="pn-card p-6 sm:p-10 relative overflow-hidden min-w-0"
+      >
         {/* Top signature teal gradient accent */}
         <div
           aria-hidden="true"
@@ -590,7 +640,7 @@ export const ArticleEditorView: React.FC = () => {
               <input
                 type="text"
                 value={title}
-                onChange={e => setTitle(e.target.value)}
+                onChange={e => { setHasLocalEdits(true); setTitle(e.target.value); }}
                 placeholder="Essay title..."
                 className="pn-display w-full text-2xl sm:text-3xl font-bold text-[#0A2540] placeholder:text-[#6E7D90]/50 bg-transparent border-none focus:outline-none leading-tight"
               />
@@ -601,7 +651,7 @@ export const ArticleEditorView: React.FC = () => {
               <input
                 type="text"
                 value={excerpt}
-                onChange={e => setExcerpt(e.target.value)}
+                onChange={e => { setHasLocalEdits(true); setExcerpt(e.target.value); }}
                 placeholder="Write a concise summary or thesis statement..."
                 className="w-full text-sm text-[#4A5B70] placeholder:text-[#6E7D90]/60 bg-transparent border-none focus:outline-none"
               />
@@ -615,7 +665,7 @@ export const ArticleEditorView: React.FC = () => {
                   {coverImageUrl && (
                     <button
                       type="button"
-                      onClick={() => setCoverImageUrl('')}
+                      onClick={() => { setHasLocalEdits(true); setCoverImageUrl(''); }}
                       className="text-[11px] text-[#C44] hover:underline inline-flex items-center gap-1 font-medium"
                     >
                       <Trash2 className="h-3 w-3" />
@@ -628,7 +678,7 @@ export const ArticleEditorView: React.FC = () => {
                   <input
                     type="url"
                     value={coverImageUrl.startsWith('data:') ? 'Local Image File Attached (Original Aspect Ratio)' : coverImageUrl}
-                    onChange={e => setCoverImageUrl(e.target.value)}
+                    onChange={e => { setHasLocalEdits(true); setCoverImageUrl(e.target.value); }}
                     placeholder="Paste image URL (https://...)"
                     className="pn-input text-xs h-10 flex-1 truncate"
                     disabled={coverImageUrl.startsWith('data:')}
@@ -660,7 +710,7 @@ export const ArticleEditorView: React.FC = () => {
                 <input
                   type="text"
                   value={tagsInput}
-                  onChange={e => setTagsInput(e.target.value)}
+                  onChange={e => { setHasLocalEdits(true); setTagsInput(e.target.value); }}
                   placeholder="protocol, design, web3"
                   className="pn-input text-xs h-10"
                 />
@@ -778,7 +828,7 @@ export const ArticleEditorView: React.FC = () => {
             </div>
           </div>
         )}
-      </div>
+      </fieldset>
 
       <SpatialAuthModalV4
         isOpen={authModalOpen}
