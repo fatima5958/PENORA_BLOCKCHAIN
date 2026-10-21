@@ -29,10 +29,11 @@ export const MyProfileView: React.FC = () => {
     return null;
   });
   const [articles, setArticles] = useState<PostRecord[]>([]);
-  const [followCounts, setFollowCounts] = useState({ followers: 1200, following: 320 });
+  const [followCounts, setFollowCounts] = useState({ followers: 0, following: 0 });
 
   useEffect(() => {
     let mounted = true;
+    let loadVersion = 0;
 
     // Listen for live profile updates
     const handleProfileUpdated = (e: Event) => {
@@ -49,6 +50,7 @@ export const MyProfileView: React.FC = () => {
           ...(prev || {
             id: keyUser?.id || user?.id || '',
             username: keyUser?.username || user?.email?.split('@')[0] || 'creator',
+            reputation: 0,
             created_at: new Date().toISOString(),
           }),
           ...(ce.detail.display_name !== undefined && { display_name: ce.detail.display_name }),
@@ -65,9 +67,7 @@ export const MyProfileView: React.FC = () => {
     // 1. Listen for Steemit-style key session changes
     const unsubKey = penoraKeyAuth.subscribe(kUser => {
       setKeyUser(kUser);
-      if (kUser) {
-        loadUserData(null, kUser);
-      }
+      loadUserData(null, kUser);
     });
 
     // 2. Fetch current Supabase auth session
@@ -89,11 +89,16 @@ export const MyProfileView: React.FC = () => {
     });
 
     async function loadUserData(sUser: SupabaseUser | null, kUser: PenoraUser | null) {
+      const version = ++loadVersion;
+      setProfile(null);
+      setArticles([]);
+      setFollowCounts({ followers: 0, following: 0 });
       const activeId = kUser?.id || sUser?.id;
       if (!activeId) {
         if (mounted) setLoading(false);
         return;
       }
+      setLoading(true);
 
       // Check localStorage cache first
       if (typeof window !== 'undefined') {
@@ -112,20 +117,20 @@ export const MyProfileView: React.FC = () => {
           getFollowCounts(activeId),
         ]);
 
-        if (mounted) {
+        if (mounted && version === loadVersion) {
           if (profRes.data) {
             setProfile(profRes.data);
           }
           if (artRes.data) setArticles(artRes.data);
           setFollowCounts({
-            followers: fc.followers || 1200,
-            following: fc.following || 320,
+            followers: fc.followers ?? 0,
+            following: fc.following ?? 0,
           });
         }
       } catch (err) {
         console.error('Failed to load profile data:', err);
       } finally {
-        if (mounted) setLoading(false);
+        if (mounted && version === loadVersion) setLoading(false);
       }
     }
 

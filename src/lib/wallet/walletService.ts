@@ -2,15 +2,15 @@
 // PENORA Blockchain — EVM Wallet Service for Polygon Amoy (Chain ID 80002)
 // Clean separation of PENORA authority keys from EVM Web3 wallet keys.
 import { createPublicClient, http, formatEther } from 'viem';
-import { polygonAmoy, PENORA_TARGET_CHAIN_ID } from './chain';
+import { polygonAmoy, PENORA_TARGET_CHAIN_ID, AMOY_RPC_URL } from './chain';
 import type { WalletState } from './types';
 import { isUsdtConfigured } from './contracts';
-import { penoraUsdtService } from './usdtService';
+import { penoraUsdtService, penoraPnrService } from './usdtService';
 
 // Create a public viem client for querying Polygon Amoy testnet
 export const publicClient = createPublicClient({
   chain: polygonAmoy,
-  transport: http('https://rpc-amoy.polygon.technology'),
+  transport: http(AMOY_RPC_URL, { timeout: 10_000, retryCount: 1 }),
 });
 
 // Helper to get MetaMask / EIP-1193 injected provider
@@ -29,8 +29,7 @@ export function getEthereumProvider(): any {
   return anyWin.ethereum;
 }
 
-class PenoraWalletService {
-  private state: WalletState = {
+export const INITIAL_WALLET_STATE: WalletState = {
     status: 'disconnected',
     address: null,
     chainId: null,
@@ -47,8 +46,19 @@ class PenoraWalletService {
     contractsDeployed: false,
   };
 
+
+class PenoraWalletService {
+  private state: WalletState = { ...INITIAL_WALLET_STATE };
+
   private listeners: Set<(state: WalletState) => void> = new Set();
   private isInitialized = false;
+  private accountVersion = 0;
+  private balanceVersion = 0;
+
+  private clearBalances(): Partial<WalletState> {
+    return { balancePol: null, balancePnr: null, balancePp: null, balanceUsdt: null,
+      votingManaPercent: null, powerDownSchedule: null, contractsDeployed: false };
+  }
 
   constructor() {
     if (typeof window !== 'undefined') {
@@ -63,19 +73,13 @@ class PenoraWalletService {
 
   public init() {
     if (this.isInitialized || typeof window === 'undefined') return;
-    this.isInitialized = true;
-
     const eth = getEthereumProvider();
     if (eth) {
+      this.isInitialized = true;
       // Listen to accountsChanged
       eth.on?.('accountsChanged', (accounts: string[]) => {
         if (!accounts || accounts.length === 0) {
-          this.updateState({
-            status: 'disconnected',
-            address: null,
-            balancePol: null,
-            balanceUsdt: null,
-          });
+          this.disconnect();
         } else {
           this.handleAccountConnected(accounts[0] as `0x${string}`);
         }
@@ -85,7 +89,10 @@ class PenoraWalletService {
       eth.on?.('chainChanged', (chainIdHex: string) => {
         const chainId = parseInt(chainIdHex, 16);
         const isCorrect = chainId === PENORA_TARGET_CHAIN_ID;
+        this.accountVersion++;
+        this.balanceVersion++;
         this.updateState({
+          ...this.clearBalances(),
           chainId,
           isCorrectNetwork: isCorrect,
           status: isCorrect ? (this.state.address ? 'connected' : 'disconnected') : 'wrong_network',
@@ -95,10 +102,12 @@ class PenoraWalletService {
         }
       });
 
-      // Auto-detect if already authorized in MetaMask
+      // Ignore a late auto-detection after disconnect or another connection.
+      const detectedVersion = this.accountVersion;
       eth
         .request?.({ method: 'eth_accounts' })
         .then((accounts: string[]) => {
+          if (detectedVersion !== this.accountVersion) return;
           if (accounts && accounts.length > 0) {
             this.handleAccountConnected(accounts[0] as `0x${string}`);
           }
@@ -136,8 +145,12 @@ class PenoraWalletService {
     const eth = getEthereumProvider();
     if (!eth) return;
 
+    const version = ++this.accountVersion;
+    this.balanceVersion++;
+    this.updateState({ ...this.clearBalances(), address, isCorrectNetwork: false, status: 'loading' });
     try {
       const chainIdHex = await eth.request({ method: 'eth_chainId' });
+      if (version !== this.accountVersion) return;
       const chainId = parseInt(chainIdHex, 16);
       const isCorrect = chainId === PENORA_TARGET_CHAIN_ID;
 
@@ -153,6 +166,7 @@ class PenoraWalletService {
         await this.refreshBalance(address);
       }
     } catch (err: any) {
+      if (version !== this.accountVersion) return;
       this.updateState({
         address,
         status: 'error',
@@ -162,24 +176,31 @@ class PenoraWalletService {
   }
 
   public async refreshBalance(address: `0x${string}`) {
+    if (this.state.address !== address || !this.state.isCorrectNetwork) return;
+    const version = ++this.balanceVersion;
+    const isCurrent = () => version === this.balanceVersion && this.state.address === address && this.state.isCorrectNetwork;
     try {
       const rawBalance = await publicClient.getBalance({ address });
       const balancePol = formatEther(rawBalance);
       const formattedPol = parseFloat(balancePol).toFixed(4);
 
       // Fetch USDT balance if configured
-      const usdtInfo = await penoraUsdtService.fetchBalance(address);
+      const [usdtInfo, pnrInfo] = await Promise.all([penoraUsdtService.fetchBalance(address), penoraPnrService.fetchBalance(address)]);
 
+      if (!isCurrent()) return;
       this.updateState({
         balancePol: formattedPol,
+        balancePnr: pnrInfo.balanceFormatted,
         balanceUsdt: usdtInfo.balanceFormatted,
         usdtDecimals: usdtInfo.decimals,
         isUsdtConfigured: isUsdtConfigured(),
       });
     } catch {
       // RPC or network unavailable
+      if (!isCurrent()) return;
       this.updateState({
         balancePol: null,
+        balancePnr: null,
         balanceUsdt: null,
       });
     }
@@ -195,16 +216,21 @@ class PenoraWalletService {
       return;
     }
 
+    this.init();
+    const version = ++this.accountVersion;
+    this.balanceVersion++;
     this.updateState({ status: 'connecting', error: null });
 
     try {
       const accounts = await eth.request({ method: 'eth_requestAccounts' });
+      if (version !== this.accountVersion) return;
       if (accounts && accounts.length > 0) {
         await this.handleAccountConnected(accounts[0] as `0x${string}`);
       } else {
         this.updateState({ status: 'disconnected', error: 'No account selected in wallet' });
       }
     } catch (err: any) {
+      if (version !== this.accountVersion) return;
       const isUserRejected = err?.code === 4001 || err?.message?.toLowerCase().includes('reject');
       const isPending = err?.code === -32002;
       let errorMsg = err?.message || 'Failed to connect wallet';
@@ -261,7 +287,12 @@ class PenoraWalletService {
   }
 
   public disconnect() {
+    this.accountVersion++;
+    this.balanceVersion++;
     this.updateState({
+      ...this.clearBalances(),
+      chainId: null,
+      isCorrectNetwork: false,
       status: 'disconnected',
       address: null,
       balancePol: null,

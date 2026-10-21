@@ -2,19 +2,60 @@
 // PENORA Blockchain — Power Up / Power Down & Voting Mana Execution Service
 // Orchestrates non-custodial transactions via connected Web3 wallet and Polygon Amoy RPC.
 
-import { formatEther, parseEther, encodeFunctionData } from 'viem';
+import { formatEther, encodeFunctionData } from 'viem';
 import { publicClient, getEthereumProvider, penoraWalletService } from './walletService';
 import {
   PENORA_CONTRACT_ADDRESSES,
   areContractsConfigured,
+  isConfiguredAddress,
   PNR_TOKEN_ABI,
   POWER_ESCROW_ABI,
   VOTING_INFLUENCE_ABI,
   REWARD_DISTRIBUTOR_ABI,
 } from './contracts';
+import { parseTokenAmount } from './amount';
+import { waitForWalletTransaction } from './transactionReceipt';
+import { PENORA_TARGET_CHAIN_ID } from './chain';
 import type { PowerDownInfo } from './types';
 
 export class PenoraPowerService {
+  private isSubmitting = false;
+
+  private async requireAccount(): Promise<`0x${string}`> {
+    const eth = getEthereumProvider();
+    if (!eth) throw new Error('MetaMask or Web3 wallet extension not detected.');
+    const accounts = await eth.request({ method: 'eth_accounts' });
+    if (!accounts?.length) throw new Error('Wallet not connected.');
+    const chainId = await eth.request({ method: 'eth_chainId' });
+    if (Number(chainId) !== PENORA_TARGET_CHAIN_ID) {
+      throw new Error('Please switch to Polygon Amoy Testnet before continuing.');
+    }
+    return accounts[0] as `0x${string}`;
+  }
+
+  private async submitConfirmed(from: string, to: string, data: `0x${string}`): Promise<`0x${string}`> {
+    // Approval may take time: recheck the account and network before each signature.
+    const activeAccount = await this.requireAccount();
+    if (activeAccount.toLowerCase() !== from.toLowerCase()) {
+      throw new Error('Wallet account changed. Please review the transaction again.');
+    }
+    const hash = await getEthereumProvider().request({
+      method: 'eth_sendTransaction', params: [{ from, to, data }],
+    }) as `0x${string}`;
+    const result = await waitForWalletTransaction(hash);
+    if (result.status === 'pending') {
+      throw new Error(`Transaction submitted, confirmation pending: ${result.hash}. Check the explorer before retrying.`);
+    }
+    if (result.status === 'failed') throw new Error(`Transaction reverted or cancelled: ${result.hash}`);
+    return result.hash;
+  }
+
+  private async withSubmission<T>(action: () => Promise<T>): Promise<T> {
+    if (this.isSubmitting) throw new Error('A power transaction is already in progress.');
+    this.isSubmitting = true;
+    try { return await action(); } finally { this.isSubmitting = false; }
+  }
+
   /**
    * Refreshes on-chain PNR, PP, and Power Down state for a connected address.
    */
@@ -52,7 +93,7 @@ export class PenoraPowerService {
       const rawPp = (await publicClient.readContract({
         address: escrowAddress,
         abi: POWER_ESCROW_ABI,
-        functionName: 'lockedPower',
+        functionName: 'getAvailablePower',
         args: [address],
       })) as bigint;
 
@@ -101,8 +142,8 @@ export class PenoraPowerService {
       }
 
       // 4. Read voting mana
-      let manaPercent = 100.0;
-      if (influenceAddress !== '0x0000000000000000000000000000000000000000') {
+      let manaPercent: number | null = null;
+      if (isConfiguredAddress(influenceAddress)) {
         const rawMana = (await publicClient.readContract({
           address: influenceAddress,
           abi: VOTING_INFLUENCE_ABI,
@@ -113,8 +154,8 @@ export class PenoraPowerService {
       }
 
       return {
-        balancePnr: parseFloat(formatEther(rawPnr)).toFixed(4),
-        balancePp: parseFloat(formatEther(rawPp)).toFixed(4),
+        balancePnr: formatEther(rawPnr),
+        balancePp: formatEther(rawPp),
         votingManaPercent: manaPercent,
         powerDownSchedule,
         contractsDeployed: true,
@@ -134,183 +175,124 @@ export class PenoraPowerService {
    * Prompts user wallet to execute Power Up (approve + deposit).
    */
   public async executePowerUp(amountPnr: string): Promise<`0x${string}`> {
-    const eth = getEthereumProvider();
-    if (!eth) throw new Error('MetaMask or Web3 wallet extension not detected.');
+    return this.withSubmission(async () => {
+      const userAddress = await this.requireAccount();
 
-    const accounts = await eth.request({ method: 'eth_accounts' });
-    if (!accounts || accounts.length === 0) throw new Error('Wallet not connected.');
-    const userAddress = accounts[0];
+      if (!areContractsConfigured()) {
+        throw new Error(
+          'PENORA Token and Escrow contracts are pending testnet deployment. Live token staking will open upon contract deployment.'
+        );
+      }
 
-    if (!areContractsConfigured()) {
-      throw new Error(
-        'PENORA Token and Escrow contracts are pending testnet deployment. Live token staking will open upon contract deployment.'
-      );
-    }
+      const parsedAmount = parseTokenAmount(amountPnr, 18);
+      if (parsedAmount <= 0n) throw new Error('Deposit amount must be greater than zero.');
 
-    const parsedAmount = parseEther(amountPnr);
-    if (parsedAmount <= 0n) throw new Error('Deposit amount must be greater than zero.');
+      const pnrAddress = PENORA_CONTRACT_ADDRESSES.PNR_TOKEN as `0x${string}`;
+      const escrowAddress = PENORA_CONTRACT_ADDRESSES.POWER_ESCROW as `0x${string}`;
 
-    const pnrAddress = PENORA_CONTRACT_ADDRESSES.PNR_TOKEN as `0x${string}`;
-    const escrowAddress = PENORA_CONTRACT_ADDRESSES.POWER_ESCROW as `0x${string}`;
-
-    // 1. Check current allowance
-    const currentAllowance = (await publicClient.readContract({
-      address: pnrAddress,
-      abi: PNR_TOKEN_ABI,
-      functionName: 'allowance',
-      args: [userAddress as `0x${string}`, escrowAddress],
-    })) as bigint;
-
-    // 2. Request approve if allowance is insufficient
-    if (currentAllowance < parsedAmount) {
-      const approveData = encodeFunctionData({
+      // 1. Check current allowance
+      const currentAllowance = (await publicClient.readContract({
+        address: pnrAddress,
         abi: PNR_TOKEN_ABI,
-        functionName: 'approve',
-        args: [escrowAddress, parsedAmount],
-      });
+        functionName: 'allowance',
+        args: [userAddress as `0x${string}`, escrowAddress],
+      })) as bigint;
 
-      await eth.request({
-        method: 'eth_sendTransaction',
-        params: [
-          {
-            from: userAddress,
-            to: pnrAddress,
-            data: approveData,
-          },
-        ],
-      });
-    }
+      // 2. Request approve if allowance is insufficient
+      if (currentAllowance < parsedAmount) {
+        const approveData = encodeFunctionData({
+          abi: PNR_TOKEN_ABI,
+          functionName: 'approve',
+          args: [escrowAddress, parsedAmount],
+        });
 
-    // 3. Request Power Up deposit
-    const powerUpData = encodeFunctionData({
-      abi: POWER_ESCROW_ABI,
-      functionName: 'powerUp',
-      args: [parsedAmount],
+        await this.submitConfirmed(userAddress, pnrAddress, approveData);
+
+        const approved = await publicClient.readContract({
+          address: pnrAddress, abi: PNR_TOKEN_ABI, functionName: 'allowance',
+          args: [userAddress, escrowAddress],
+        }) as bigint;
+        if (approved < parsedAmount) throw new Error('Token approval was not granted. Power Up was not submitted.');
+      }
+
+      // 3. Request Power Up deposit
+      const powerUpData = encodeFunctionData({
+        abi: POWER_ESCROW_ABI,
+        functionName: 'powerUp',
+        args: [parsedAmount],
     });
 
-    const txHash = await eth.request({
-      method: 'eth_sendTransaction',
-      params: [
-        {
-          from: userAddress,
-          to: escrowAddress,
-          data: powerUpData,
-        },
-      ],
+    return this.submitConfirmed(userAddress, escrowAddress, powerUpData);
     });
-
-    return txHash as `0x${string}`;
   }
 
   /**
    * Prompts user wallet to start a 13-week Power Down schedule.
    */
   public async executeStartPowerDown(amountPp: string): Promise<`0x${string}`> {
-    const eth = getEthereumProvider();
-    if (!eth) throw new Error('MetaMask or Web3 wallet extension not detected.');
+    return this.withSubmission(async () => {
+      const userAddress = await this.requireAccount();
 
-    const accounts = await eth.request({ method: 'eth_accounts' });
-    if (!accounts || accounts.length === 0) throw new Error('Wallet not connected.');
-    const userAddress = accounts[0];
+      if (!areContractsConfigured()) {
+        throw new Error('PENORA Escrow contract is pending testnet deployment.');
+      }
 
-    if (!areContractsConfigured()) {
-      throw new Error('PENORA Escrow contract is pending testnet deployment.');
-    }
+      const parsedAmount = parseTokenAmount(amountPp, 18);
+      if (parsedAmount <= 0n) throw new Error('Withdrawal amount must be greater than zero.');
 
-    const parsedAmount = parseEther(amountPp);
-    if (parsedAmount <= 0n) throw new Error('Withdrawal amount must be greater than zero.');
-
-    const escrowAddress = PENORA_CONTRACT_ADDRESSES.POWER_ESCROW as `0x${string}`;
-    const data = encodeFunctionData({
-      abi: POWER_ESCROW_ABI,
-      functionName: 'startPowerDown',
-      args: [parsedAmount],
+      const escrowAddress = PENORA_CONTRACT_ADDRESSES.POWER_ESCROW as `0x${string}`;
+      const data = encodeFunctionData({
+        abi: POWER_ESCROW_ABI,
+        functionName: 'startPowerDown',
+        args: [parsedAmount],
     });
 
-    const txHash = await eth.request({
-      method: 'eth_sendTransaction',
-      params: [
-        {
-          from: userAddress,
-          to: escrowAddress,
-          data,
-        },
-      ],
+    return this.submitConfirmed(userAddress, escrowAddress, data);
     });
-
-    return txHash as `0x${string}`;
   }
 
   /**
    * Prompts user wallet to claim matured Power Down installments.
    */
   public async executeClaimInstallments(): Promise<`0x${string}`> {
-    const eth = getEthereumProvider();
-    if (!eth) throw new Error('MetaMask or Web3 wallet extension not detected.');
+    return this.withSubmission(async () => {
+      const userAddress = await this.requireAccount();
 
-    const accounts = await eth.request({ method: 'eth_accounts' });
-    if (!accounts || accounts.length === 0) throw new Error('Wallet not connected.');
-    const userAddress = accounts[0];
+      if (!areContractsConfigured()) {
+        throw new Error('PENORA Escrow contract is pending testnet deployment.');
+      }
 
-    if (!areContractsConfigured()) {
-      throw new Error('PENORA Escrow contract is pending testnet deployment.');
-    }
-
-    const escrowAddress = PENORA_CONTRACT_ADDRESSES.POWER_ESCROW as `0x${string}`;
-    const data = encodeFunctionData({
-      abi: POWER_ESCROW_ABI,
-      functionName: 'claimInstallments',
-      args: [],
+      const escrowAddress = PENORA_CONTRACT_ADDRESSES.POWER_ESCROW as `0x${string}`;
+      const data = encodeFunctionData({
+        abi: POWER_ESCROW_ABI,
+        functionName: 'claimInstallments',
+        args: [],
     });
 
-    const txHash = await eth.request({
-      method: 'eth_sendTransaction',
-      params: [
-        {
-          from: userAddress,
-          to: escrowAddress,
-          data,
-        },
-      ],
+    return this.submitConfirmed(userAddress, escrowAddress, data);
     });
-
-    return txHash as `0x${string}`;
   }
 
   /**
    * Prompts user wallet to cancel unvested Power Down installments.
    */
   public async executeCancelPowerDown(): Promise<`0x${string}`> {
-    const eth = getEthereumProvider();
-    if (!eth) throw new Error('MetaMask or Web3 wallet extension not detected.');
+    return this.withSubmission(async () => {
+      const userAddress = await this.requireAccount();
 
-    const accounts = await eth.request({ method: 'eth_accounts' });
-    if (!accounts || accounts.length === 0) throw new Error('Wallet not connected.');
-    const userAddress = accounts[0];
+      if (!areContractsConfigured()) {
+        throw new Error('PENORA Escrow contract is pending testnet deployment.');
+      }
 
-    if (!areContractsConfigured()) {
-      throw new Error('PENORA Escrow contract is pending testnet deployment.');
-    }
-
-    const escrowAddress = PENORA_CONTRACT_ADDRESSES.POWER_ESCROW as `0x${string}`;
-    const data = encodeFunctionData({
-      abi: POWER_ESCROW_ABI,
-      functionName: 'cancelPowerDown',
-      args: [],
+      const escrowAddress = PENORA_CONTRACT_ADDRESSES.POWER_ESCROW as `0x${string}`;
+      const data = encodeFunctionData({
+        abi: POWER_ESCROW_ABI,
+        functionName: 'cancelPowerDown',
+        args: [],
     });
 
-    const txHash = await eth.request({
-      method: 'eth_sendTransaction',
-      params: [
-        {
-          from: userAddress,
-          to: escrowAddress,
-          data,
-        },
-      ],
+    return this.submitConfirmed(userAddress, escrowAddress, data);
     });
-
-    return txHash as `0x${string}`;
   }
 
   /**

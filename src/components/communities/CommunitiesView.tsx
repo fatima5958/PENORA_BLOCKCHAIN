@@ -1,7 +1,7 @@
 // src/components/communities/CommunitiesView.tsx
 // PENORA Blockchain Brand Suite & UI/UX System
 // Wired to real Supabase Auth and Communities API.
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import type { Community, Article, Topic } from '../../types';
 import {
   Users,
@@ -32,6 +32,10 @@ export const CommunitiesView: React.FC<CommunitiesViewProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [communities, setCommunities] = useState<Community[]>(fallbackCommunities);
   const [joinedMap, setJoinedMap] = useState<Record<string, boolean>>({});
+  const [membershipError, setMembershipError] = useState<string | null>(null);
+  const pendingJoins = useRef(new Set<string>());
+  const identity = useRef<string | undefined>(undefined);
+  identity.current = keyUser?.id || user?.id;
 
   useEffect(() => {
     const unsubKey = penoraKeyAuth.subscribe(ku => setKeyUser(ku));
@@ -68,16 +72,20 @@ export const CommunitiesView: React.FC<CommunitiesViewProps> = ({
 
   // Hydrate join status for current user
   useEffect(() => {
+    let active = true;
+    setJoinedMap({});
+    setMembershipError(null);
     const activeUserId = keyUser?.id || user?.id;
     if (!activeUserId) return;
 
     communities.forEach(c => {
       isCommunityMember(activeUserId, c.id).then(joined => {
-        if (joined) {
+        if (active && joined) {
           setJoinedMap(prev => ({ ...prev, [c.id]: true }));
         }
       });
     });
+    return () => { active = false; };
   }, [keyUser, user, communities]);
 
   const handleToggleJoin = async (communityId: string) => {
@@ -86,15 +94,27 @@ export const CommunitiesView: React.FC<CommunitiesViewProps> = ({
       setAuthModalOpen(true);
       return;
     }
+    const operation = `${activeUserId}:${communityId}`;
+    if (pendingJoins.current.has(operation)) return;
+    pendingJoins.current.add(operation);
+    setMembershipError(null);
 
     const isJoined = Boolean(joinedMap[communityId]);
     setJoinedMap(prev => ({ ...prev, [communityId]: !isJoined }));
 
-    if (isJoined) {
-      await leaveCommunity(activeUserId, communityId);
-    } else {
-      await joinCommunity(activeUserId, communityId);
-    }
+    try {
+      const result = isJoined ? await leaveCommunity(activeUserId, communityId) : await joinCommunity(activeUserId, communityId);
+      if (identity.current !== activeUserId) return;
+      if (!result.success) {
+        setJoinedMap(prev => ({ ...prev, [communityId]: isJoined }));
+        setMembershipError(result.error || 'Membership could not be saved. Please retry.');
+      }
+    } catch {
+      if (identity.current === activeUserId) {
+        setJoinedMap(prev => ({ ...prev, [communityId]: isJoined }));
+        setMembershipError('Membership could not be saved. Please retry.');
+      }
+    } finally { pendingJoins.current.delete(operation); }
   };
 
   const filtered = communities.filter(c =>
@@ -104,6 +124,7 @@ export const CommunitiesView: React.FC<CommunitiesViewProps> = ({
 
   return (
     <div className="w-full max-w-6xl mx-auto px-4 sm:px-6 py-10 space-y-10">
+      {membershipError && <p role="alert" className="text-sm text-red-700 p-3 rounded-xl bg-red-50">{membershipError}</p>}
       {/* Header */}
       <div className="text-center max-w-2xl mx-auto space-y-3">
         <span className="pn-tag">

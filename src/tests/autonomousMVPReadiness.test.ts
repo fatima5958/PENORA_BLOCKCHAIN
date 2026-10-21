@@ -106,34 +106,13 @@ describe('PENORA MVP Autonomous Readiness & Launch Verification', () => {
     const testPostUuid = generateCryptoUuid();
     const testVoterUuid = generateCryptoUuid();
 
-    it('casts upvote and toggles vote cleanly without database 400 errors', async () => {
-      // 1. Cast upvote
-      const up = await castVote({
-        voter_id: testVoterUuid,
-        post_id: testPostUuid,
-        value: 1,
-      });
-      expect(up.error).toBeNull();
-      expect(up.stats?.userVote).toBe(1);
-      expect(up.stats?.upvotes).toBeGreaterThanOrEqual(1);
-
-      // 2. Toggle same upvote off
-      const toggleOff = await castVote({
-        voter_id: testVoterUuid,
-        post_id: testPostUuid,
-        value: 1,
-      });
-      expect(toggleOff.error).toBeNull();
-      expect(toggleOff.stats?.userVote).toBeNull();
-
-      // 3. Switch to downvote
-      const down = await castVote({
-        voter_id: testVoterUuid,
-        post_id: testPostUuid,
-        value: -1,
-      });
-      expect(down.error).toBeNull();
-      expect(down.stats?.userVote).toBe(-1);
+    it('rejects an unverified voting identity instead of fabricating persisted votes', async () => {
+      for (const value of [1, -1] as const) {
+        const result = await castVote({ voter_id: testVoterUuid, post_id: testPostUuid, value });
+        expect(result.error).toMatch(/sign in|session|account changed/i);
+        expect(result.data).toBeNull();
+        expect(result.stats).toBeUndefined();
+      }
     });
 
     it('adds, fetches, and deletes comments safely', async () => {

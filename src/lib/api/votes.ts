@@ -1,13 +1,6 @@
-// src/lib/api/votes.ts
+// Votes are persisted by Supabase under authenticated RLS. Local previews never count as saved votes.
 import { supabase } from '../supabaseClient';
 import type { VoteRecord } from './types';
-
-export interface VoteResult {
-  data: VoteRecord | null;
-  error: string | null;
-  isPendingMigration?: boolean;
-  stats?: PostVoteStats;
-}
 
 export interface PostVoteStats {
   upvotes: number;
@@ -16,287 +9,126 @@ export interface PostVoteStats {
   userVote: -1 | 1 | null;
 }
 
-const LOCAL_VOTES_STORAGE_KEY = 'penora_votes_ledger_v1';
-let memoryVotes: LocalVoteEntry[] = [];
-
-interface LocalVoteEntry {
-  id: string;
-  voter_id: string;
-  post_id: string | null;
-  comment_id: string | null;
-  value: -1 | 1;
-  created_at: string;
+export interface VoteResult {
+  data: VoteRecord | null;
+  error: string | null;
+  isPendingMigration?: boolean;
+  stats?: PostVoteStats;
 }
 
-function readLocalVotes(): LocalVoteEntry[] {
-  if (typeof window === 'undefined' || !window.localStorage) return memoryVotes;
-  try {
-    const raw = window.localStorage.getItem(LOCAL_VOTES_STORAGE_KEY);
-    if (!raw) return memoryVotes;
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : memoryVotes;
-  } catch {
-    return memoryVotes;
-  }
+type VoteTarget = { post_id?: string; comment_id?: string };
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const pendingVotes = new Set<string>();
+const emptyStats = (): PostVoteStats => ({ upvotes: 0, downvotes: 0, score: 0, userVote: null });
+
+function targetError(target: VoteTarget): string | null {
+  if (!target.post_id && !target.comment_id) return 'Vote must target either a post or a comment';
+  if (target.post_id && target.comment_id) return 'Vote cannot target both a post and a comment';
+  if (!UUID.test(target.post_id || target.comment_id || '')) return 'Voting is available on published content with a saved ID.';
+  return null;
 }
 
-function writeLocalVotes(entries: LocalVoteEntry[]): void {
-  memoryVotes = entries;
-  if (typeof window === 'undefined' || !window.localStorage) return;
-  try {
-    window.localStorage.setItem(LOCAL_VOTES_STORAGE_KEY, JSON.stringify(entries));
-  } catch {
-    // ignore storage quota errors
-  }
-}
-
-function computeLocalPostStats(postId: string, currentUserId?: string): PostVoteStats {
-  const entries = readLocalVotes().filter(v => v.post_id === postId);
-  let upvotes = 0;
-  let downvotes = 0;
-  let userVote: -1 | 1 | null = null;
-
-  for (const v of entries) {
-    if (v.value === 1) upvotes++;
-    else if (v.value === -1) downvotes++;
-    if (currentUserId && v.voter_id === currentUserId) {
-      userVote = v.value;
-    }
-  }
-
+function databaseError(error: { message: string; code?: string }): Pick<VoteResult, 'error' | 'isPendingMigration'> {
+  const isPendingMigration = ['42P01', 'PGRST205'].includes(error.code || '');
   return {
-    upvotes,
-    downvotes,
-    score: upvotes - downvotes,
-    userVote,
+    error: isPendingMigration ? 'Voting setup is not ready. Your vote was not saved.' : error.message,
+    isPendingMigration,
   };
 }
 
-function applyLocalVoteMutation(vote: {
-  voter_id: string;
-  post_id?: string;
-  comment_id?: string;
-  value: -1 | 1;
-}): VoteRecord | null {
-  const entries = readLocalVotes();
-  const idx = entries.findIndex(
-    e =>
-      e.voter_id === vote.voter_id &&
-      (vote.post_id ? e.post_id === vote.post_id : e.comment_id === vote.comment_id)
-  );
-
-  if (idx !== -1) {
-    const existing = entries[idx];
-    if (existing.value === vote.value) {
-      // Toggle off if clicking the same active vote
-      entries.splice(idx, 1);
-      writeLocalVotes(entries);
-      return null;
-    } else {
-      // Switch vote direction (1 <-> -1)
-      const updated: LocalVoteEntry = {
-        ...existing,
-        value: vote.value,
-        created_at: new Date().toISOString(),
-      };
-      entries[idx] = updated;
-      writeLocalVotes(entries);
-      return updated;
-    }
-  }
-
-  const created: LocalVoteEntry = {
-    id: `vote_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-    voter_id: vote.voter_id,
-    post_id: vote.post_id || null,
-    comment_id: vote.comment_id || null,
-    value: vote.value,
-    created_at: new Date().toISOString(),
-  };
-  entries.push(created);
-  writeLocalVotes(entries);
-  return created;
+async function authenticatedVoter(voterId: string): Promise<string | null> {
+  if (!UUID.test(voterId)) return 'Sign in to vote. Guest votes are not saved.';
+  const { data, error } = await supabase.auth.getUser();
+  if (error || !data.user) return 'Sign in with an active session to save your vote.';
+  if (data.user.id !== voterId) return 'Your account changed. Sign in again before voting.';
+  return null;
 }
 
-export async function castVote(vote: {
-  voter_id: string;
-  post_id?: string;
-  comment_id?: string;
-  value: -1 | 1;
-}): Promise<VoteResult> {
+export async function castVote(vote: VoteTarget & { voter_id: string; value: -1 | 1 }): Promise<VoteResult> {
+  const invalid = targetError(vote);
+  if (invalid) return { data: null, error: invalid };
+  if (vote.value !== 1 && vote.value !== -1) return { data: null, error: 'Vote direction must be up or down.' };
+  const key = `${vote.voter_id}:${vote.post_id || vote.comment_id}`;
+  if (pendingVotes.has(key)) return { data: null, error: 'Your previous vote is still being saved.' };
+  pendingVotes.add(key);
   try {
-    if (!vote.post_id && !vote.comment_id) {
-      return { data: null, error: 'Vote must target either a post or a comment' };
-    }
-    if (vote.post_id && vote.comment_id) {
-      return { data: null, error: 'Vote cannot target both a post and a comment' };
-    }
+    const authError = await authenticatedVoter(vote.voter_id);
+    if (authError) return { data: null, error: authError };
 
-    // Always update the local persisted vote ledger so UI state is durable across reloads
-    const localRecord = applyLocalVoteMutation(vote);
-    const localStats = vote.post_id
-      ? computeLocalPostStats(vote.post_id, vote.voter_id)
-      : undefined;
-
-    // Only query Supabase if voter_id is a valid UUID
-    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-      vote.voter_id
-    );
-    const isPostUuid =
-      !vote.post_id ||
-      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(vote.post_id);
-
-    if (!isUuid || !isPostUuid) {
-      return { data: localRecord, error: null, stats: localStats };
-    }
-
-    // Check if existing vote in Supabase
     let query = supabase.from('votes').select('*').eq('voter_id', vote.voter_id);
-    if (vote.post_id) query = query.eq('post_id', vote.post_id);
-    if (vote.comment_id) query = query.eq('comment_id', vote.comment_id);
+    query = vote.post_id ? query.eq('post_id', vote.post_id) : query.eq('comment_id', vote.comment_id!);
+    const { data: existing, error: readError } = await query.maybeSingle();
+    if (readError) return { data: null, ...databaseError(readError) };
 
-    const { data: existing, error: findErr } = await query.maybeSingle();
-
-    if (findErr && (findErr.code === '42P01' || findErr.message.includes('relation'))) {
-      return {
-        data: localRecord,
-        error: null,
-        isPendingMigration: true,
-        stats: localStats,
-      };
+    let data: VoteRecord | null = null;
+    if (existing?.value === vote.value) {
+      // Request the deleted row to distinguish a real deletion from a silent RLS no-op.
+      const result = await supabase.from('votes').delete().eq('id', existing.id)
+        .eq('voter_id', vote.voter_id).select('id').maybeSingle();
+      if (result.error) return { data: null, ...databaseError(result.error) };
+      if (!result.data) return { data: null, error: 'Your vote could not be removed. Refresh and retry.' };
+    } else if (existing) {
+      const result = await supabase.from('votes').update({ value: vote.value }).eq('id', existing.id)
+        .eq('voter_id', vote.voter_id).select().maybeSingle();
+      if (result.error) return { data: null, ...databaseError(result.error) };
+      if (!result.data) return { data: null, error: 'Your vote could not be updated. Refresh and retry.' };
+      data = result.data as VoteRecord;
+    } else {
+      const result = await supabase.from('votes').insert({ voter_id: vote.voter_id,
+        post_id: vote.post_id || null, comment_id: vote.comment_id || null, value: vote.value,
+      }).select().maybeSingle();
+      if (result.error) return { data: null, ...databaseError(result.error) };
+      if (!result.data) return { data: null, error: 'Your vote was not saved. Refresh and retry.' };
+      data = result.data as VoteRecord;
     }
 
-    if (existing) {
-      if (existing.value === vote.value) {
-        // Toggle off if same vote
-        await supabase.from('votes').delete().eq('id', existing.id);
-        return { data: null, error: null, stats: localStats };
-      } else {
-        // Update vote
-        const { data, error } = await supabase
-          .from('votes')
-          .update({ value: vote.value })
-          .eq('id', existing.id)
-          .select()
-          .maybeSingle();
-        if (error) {
-          const isPending = error.code === '42P01' || error.message.includes('relation');
-          return {
-            data: localRecord,
-            error: isPending ? null : error.message,
-            isPendingMigration: isPending,
-            stats: localStats,
-          };
-        }
-        return { data: (data as VoteRecord) || localRecord, error: null, stats: localStats };
-      }
+    // Read shared counts only after the database confirms the mutation.
+    let stats: PostVoteStats | undefined;
+    if (vote.post_id) {
+      const result = await readPostStats(vote.post_id, vote.voter_id);
+      stats = result.stats;
     }
-
-    // New vote in Supabase
-    const { data, error } = await supabase
-      .from('votes')
-      .insert({
-        voter_id: vote.voter_id,
-        post_id: vote.post_id || null,
-        comment_id: vote.comment_id || null,
-        value: vote.value,
-      })
-      .select()
-      .maybeSingle();
-
-    if (error) {
-      const isPending = error.code === '42P01' || error.message.includes('relation');
-      const isRls = error.message.includes('row-level security') || error.message.includes('permission denied') || error.code === '42501';
-      return {
-        data: localRecord,
-        error: (isPending || isRls) ? null : error.message,
-        isPendingMigration: isPending,
-        stats: localStats,
-      };
-    }
-    return { data: (data as VoteRecord) || localRecord, error: null, stats: localStats };
-  } catch (err: any) {
-    return { data: null, error: err.message || 'Failed to cast vote' };
+    return { data, error: null, stats };
+  } catch (error) {
+    return { data: null, error: error instanceof Error ? error.message : 'Vote could not be saved. Please retry.' };
+  } finally {
+    pendingVotes.delete(key);
   }
 }
 
-export async function removeVote(
-  voter_id: string,
-  target: { post_id?: string; comment_id?: string }
-): Promise<{ success: boolean; error: string | null; isPendingMigration?: boolean }> {
+export async function removeVote(voter_id: string, target: VoteTarget): Promise<{
+  success: boolean; error: string | null; isPendingMigration?: boolean;
+}> {
+  const invalid = targetError(target);
+  if (invalid) return { success: false, error: invalid };
   try {
-    const entries = readLocalVotes().filter(
-      e =>
-        !(
-          e.voter_id === voter_id &&
-          (target.post_id ? e.post_id === target.post_id : e.comment_id === target.comment_id)
-        )
-    );
-    writeLocalVotes(entries);
-
+    const authError = await authenticatedVoter(voter_id);
+    if (authError) return { success: false, error: authError };
     let query = supabase.from('votes').delete().eq('voter_id', voter_id);
-    if (target.post_id) query = query.eq('post_id', target.post_id);
-    if (target.comment_id) query = query.eq('comment_id', target.comment_id);
-
+    query = target.post_id ? query.eq('post_id', target.post_id) : query.eq('comment_id', target.comment_id!);
     const { error } = await query;
-    if (error) {
-      const isPending = error.code === '42P01' || error.message.includes('relation');
-      return { success: isPending, error: isPending ? null : error.message, isPendingMigration: isPending };
-    }
-    return { success: true, error: null };
-  } catch (err: any) {
-    return { success: false, error: err.message || 'Failed to remove vote' };
+    return error ? { success: false, ...databaseError(error) } : { success: true, error: null };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : 'Vote could not be removed.' };
   }
 }
 
-export async function getVotesForPost(
-  postId: string,
-  currentUserId?: string
-): Promise<PostVoteStats> {
-  const localStats = computeLocalPostStats(postId, currentUserId);
-
-  const isPostUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-    postId
-  );
-  if (!isPostUuid) {
-    return localStats;
+async function readPostStats(postId: string, currentUserId?: string): Promise<{ stats?: PostVoteStats }> {
+  const { data, error } = await supabase.from('votes').select('voter_id, value').eq('post_id', postId);
+  if (error || !data) return {};
+  const stats = emptyStats();
+  for (const vote of data) {
+    if (vote.value === 1) stats.upvotes++;
+    else if (vote.value === -1) stats.downvotes++;
+    if (vote.voter_id === currentUserId && (vote.value === 1 || vote.value === -1)) stats.userVote = vote.value;
   }
-
-  try {
-    const { data, error } = await supabase
-      .from('votes')
-      .select('voter_id, value')
-      .eq('post_id', postId);
-
-    if (error || !data) {
-      return localStats;
-    }
-
-    let up = 0;
-    let down = 0;
-    let userVote: -1 | 1 | null = null;
-
-    for (const v of data) {
-      if (v.value === 1) up++;
-      else if (v.value === -1) down++;
-      if (currentUserId && v.voter_id === currentUserId) {
-        userVote = v.value as -1 | 1;
-      }
-    }
-
-    if (up === 0 && down === 0 && (localStats.upvotes > 0 || localStats.downvotes > 0)) {
-      return localStats;
-    }
-
-    return {
-      upvotes: up,
-      downvotes: down,
-      score: up - down,
-      userVote: userVote ?? localStats.userVote,
-    };
-  } catch {
-    return localStats;
-  }
+  stats.score = stats.upvotes - stats.downvotes;
+  return { stats };
 }
 
+export async function getVotesForPost(postId: string, currentUserId?: string): Promise<PostVoteStats> {
+  if (!UUID.test(postId)) return emptyStats();
+  try { return (await readPostStats(postId, currentUserId)).stats ?? emptyStats(); }
+  catch { return emptyStats(); }
+}
 export const getPostVoteStats = getVotesForPost;

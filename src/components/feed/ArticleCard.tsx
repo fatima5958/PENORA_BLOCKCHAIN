@@ -1,10 +1,11 @@
+import { usePostVoting } from '../../lib/hooks/usePostVoting';
 import React, { useState, useEffect } from 'react';
 import type { Article } from '../../types';
 import { FloatingCard } from '../3d/FloatingCard';
 import { SpatialBadge } from '../3d/SpatialBadge';
 import { ReputationIndicator } from './ReputationIndicator';
 import { ArrowUpRight, MessageSquare, Bookmark, Share2, Check, Sparkles } from 'lucide-react';
-import { castVote, getVotesForPost, type PostVoteStats } from '../../lib/api/votes';
+import { getVotesForPost, type PostVoteStats } from '../../lib/api/votes';
 import { getArticleRewardState } from '../../lib/api/rewards';
 import { penoraKeyAuth } from '../../lib/auth/penoraKeyAuth';
 
@@ -35,6 +36,7 @@ export const ArticleCard: React.FC<ArticleCardProps> = ({
   featured = false,
   className = '',
 }) => {
+  const { voteError, submitPostVote } = usePostVoting();
   const [voteStats, setVoteStats] = useState<PostVoteStats>({
     upvotes: 0,
     downvotes: 0,
@@ -60,34 +62,7 @@ export const ArticleCard: React.FC<ArticleCardProps> = ({
     e.stopPropagation();
 
     const voterId = getVoterId();
-    let nextUp = voteStats.upvotes;
-    let nextDown = voteStats.downvotes;
-    let nextUserVote: 1 | -1 | null = direction;
-
-    if (voteStats.userVote === direction) {
-      nextUserVote = null;
-      if (direction === 1) nextUp = Math.max(0, nextUp - 1);
-      else nextDown = Math.max(0, nextDown - 1);
-    } else {
-      if (voteStats.userVote === 1) nextUp = Math.max(0, nextUp - 1);
-      if (voteStats.userVote === -1) nextDown = Math.max(0, nextDown - 1);
-      if (direction === 1) nextUp += 1;
-      else nextDown += 1;
-    }
-
-    setVoteStats({
-      upvotes: nextUp,
-      downvotes: nextDown,
-      score: nextUp - nextDown,
-      userVote: nextUserVote,
-    });
-
-    const res = await castVote({
-      voter_id: voterId,
-      post_id: article.id,
-      value: direction,
-    });
-    if (res.stats) setVoteStats(res.stats);
+    await submitPostVote(article.id, voterId, direction, voteStats, setVoteStats);
   };
 
   const handleBookmark = (e: React.MouseEvent) => {
@@ -114,6 +89,7 @@ export const ArticleCard: React.FC<ArticleCardProps> = ({
         featured ? 'md:col-span-2 p-7 md:p-8' : 'p-6'
       } ${className}`}
     >
+      {voteError && <p role="alert" className="text-sm text-red-700 mb-3">{voteError}</p>}
       <div>
         {/* Top bar: Author + Topic Tag */}
         <div className="flex items-center justify-between gap-3 mb-5">

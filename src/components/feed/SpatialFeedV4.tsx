@@ -1,3 +1,4 @@
+import { usePostVoting } from '../../lib/hooks/usePostVoting';
 // src/components/feed/SpatialFeedV4.tsx
 // PENORA Blockchain — Main 3-Column Social Publishing Feed
 // Unified with the approved PENORA Blockchain Identity System (Deep Navy #0A2540 + Teal #007C8B -> #00E5F4)
@@ -20,7 +21,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 import { getPublishedArticles } from '../../lib/api/articles';
-import { castVote, getVotesForPost, type PostVoteStats } from '../../lib/api/votes';
+import { getVotesForPost, type PostVoteStats } from '../../lib/api/votes';
 import { getArticleRewardState } from '../../lib/api/rewards';
 import { getCommentsForPost } from '../../lib/api/comments';
 import { toggleBookmark } from '../../lib/api/bookmarks';
@@ -124,6 +125,7 @@ const CATEGORIES = [
 ] as const;
 
 export const SpatialFeedV4: React.FC = () => {
+  const { voteError, submitPostVote } = usePostVoting();
   const [user, setUser] = useState<SupabaseUser | null>(null);
   const [keyUser, setKeyUser] = useState<PenoraUser | null>(null);
   const [articles, setArticles] = useState<FeedArticleItem[]>([]);
@@ -268,45 +270,7 @@ export const SpatialFeedV4: React.FC = () => {
       userVote: null,
     };
 
-    let nextUp = current.upvotes;
-    let nextDown = current.downvotes;
-    let nextUserVote: 1 | -1 | null = direction;
-
-    if (current.userVote === direction) {
-      // Toggle off existing vote
-      nextUserVote = null;
-      if (direction === 1) nextUp = Math.max(0, nextUp - 1);
-      else nextDown = Math.max(0, nextDown - 1);
-    } else {
-      if (current.userVote === 1) nextUp = Math.max(0, nextUp - 1);
-      if (current.userVote === -1) nextDown = Math.max(0, nextDown - 1);
-      if (direction === 1) nextUp += 1;
-      else nextDown += 1;
-    }
-
-    // Optimistic update
-    setVoteStatsMap(prev => ({
-      ...prev,
-      [articleId]: {
-        upvotes: nextUp,
-        downvotes: nextDown,
-        score: nextUp - nextDown,
-        userVote: nextUserVote,
-      },
-    }));
-
-    const res = await castVote({
-      voter_id: voterId,
-      post_id: articleId,
-      value: direction,
-    });
-
-    if (res.stats) {
-      setVoteStatsMap(prev => ({
-        ...prev,
-        [articleId]: res.stats!,
-      }));
-    }
+    await submitPostVote(articleId, voterId, direction, current, stats => setVoteStatsMap(prev => ({ ...prev, [articleId]: stats })));
   };
 
   // Handle bookmark
@@ -359,6 +323,7 @@ export const SpatialFeedV4: React.FC = () => {
 
   return (
     <div className="w-full max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      {voteError && <p role="alert" className="text-sm text-red-700 p-3 rounded-xl bg-red-50">{voteError}</p>}
       {/* Main 3-Column Steemit-Inspired Publishing Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* ─── LEFT COLUMN: Navigation & Trending Topics (3 cols) ────────── */}

@@ -1,7 +1,8 @@
+import { usePostVoting } from '../../lib/hooks/usePostVoting';
 import React, { useState, useEffect } from 'react';
 import type { Article } from '../../types';
 import { MessageSquare, Bookmark, Share2, Check } from 'lucide-react';
-import { castVote, getVotesForPost, type PostVoteStats } from '../../lib/api/votes';
+import { getVotesForPost, type PostVoteStats } from '../../lib/api/votes';
 import { getArticleRewardState } from '../../lib/api/rewards';
 import { penoraKeyAuth } from '../../lib/auth/penoraKeyAuth';
 import { supabase } from '../../lib/supabaseClient';
@@ -34,6 +35,7 @@ export const CompactPostCard: React.FC<CompactPostCardProps> = ({
   onTagClick,
   className = '',
 }) => {
+  const { voteError, submitPostVote } = usePostVoting();
   const [voteStats, setVoteStats] = useState<PostVoteStats>({
     upvotes: 0,
     downvotes: 0,
@@ -65,37 +67,7 @@ export const CompactPostCard: React.FC<CompactPostCardProps> = ({
     e.stopPropagation();
 
     const voterId = getActiveVoterId(supabaseUserId);
-    let nextUp = voteStats.upvotes;
-    let nextDown = voteStats.downvotes;
-    let nextUserVote: 1 | -1 | null = direction;
-
-    if (voteStats.userVote === direction) {
-      nextUserVote = null;
-      if (direction === 1) nextUp = Math.max(0, nextUp - 1);
-      else nextDown = Math.max(0, nextDown - 1);
-    } else {
-      if (voteStats.userVote === 1) nextUp = Math.max(0, nextUp - 1);
-      if (voteStats.userVote === -1) nextDown = Math.max(0, nextDown - 1);
-      if (direction === 1) nextUp += 1;
-      else nextDown += 1;
-    }
-
-    setVoteStats({
-      upvotes: nextUp,
-      downvotes: nextDown,
-      score: nextUp - nextDown,
-      userVote: nextUserVote,
-    });
-
-    const res = await castVote({
-      voter_id: voterId,
-      post_id: article.id,
-      value: direction,
-    });
-
-    if (res.stats) {
-      setVoteStats(res.stats);
-    }
+    await submitPostVote(article.id, voterId, direction, voteStats, setVoteStats);
   };
 
   const handleBookmark = (e: React.MouseEvent) => {
@@ -118,6 +90,7 @@ export const CompactPostCard: React.FC<CompactPostCardProps> = ({
     <article
       className={`group relative pn-card pn-card-interactive p-4 sm:p-5 ${className}`}
     >
+      {voteError && <p role="alert" className="text-sm text-red-700 mb-3">{voteError}</p>}
       {/* Top Meta Header */}
       <div className="flex items-center justify-between gap-2 mb-3 text-xs">
         <div className="flex items-center gap-2 flex-wrap">
