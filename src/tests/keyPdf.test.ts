@@ -9,18 +9,26 @@ import type { AccountKeySuite } from '../lib/crypto/penoraKeys';
 describe('PENORA Branded Key Certificate PDF Suite', () => {
   const mockKeySuite: AccountKeySuite = {
     owner: {
+      role: 'owner',
+      rawPublicKey: new Uint8Array(32),
       publicKeyPen: 'PEN5JownerPublicKeyForTesting123456789012345678901234',
       privateKeyWif: '5JownerPrivateKeyWifForTesting12345678901234567890123',
     },
     active: {
+      role: 'active',
+      rawPublicKey: new Uint8Array(32),
       publicKeyPen: 'PEN5JactivePublicKeyForTesting123456789012345678901234',
       privateKeyWif: '5JactivePrivateKeyWifForTesting12345678901234567890123',
     },
     posting: {
+      role: 'posting',
+      rawPublicKey: new Uint8Array(32),
       publicKeyPen: 'PEN5JpostingPublicKeyForTesting1234567890123456789012',
       privateKeyWif: '5JpostingPrivateKeyWifForTesting123456789012345678901',
     },
     memo: {
+      role: 'memo',
+      rawPublicKey: new Uint8Array(32),
       publicKeyPen: 'PEN5JmemoPublicKeyForTesting1234567890123456789012345',
       privateKeyWif: '5JmemoPrivateKeyWifForTesting123456789012345678901234',
     },

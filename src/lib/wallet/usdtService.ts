@@ -22,6 +22,7 @@ import {
 import { PENORA_TARGET_CHAIN_ID, POLYGON_AMOY_CONFIG } from './chain';
 import { parseTokenAmount } from './amount';
 import { waitForWalletTransaction } from './transactionReceipt';
+import { readRecentEvents } from './history';
 import type { WalletTransaction, UsdtGasEstimate } from './types';
 
 export class PenoraUsdtService {
@@ -65,7 +66,7 @@ export class PenoraUsdtService {
         functionName: 'decimals',
       })) as number;
       const value = Number(decimals);
-      if (!Number.isInteger(value) || value < 0 || value > 255) throw new Error('Invalid token decimals');
+      if (!Number.isInteger(value) || value < 0 || value > 255 || (this.symbol === 'PNR' && value !== 18)) throw new Error('Invalid token decimals');
       return value;
     } catch {
       throw new Error(`Unable to verify ${this.symbol} decimals. Please retry when the network is available.`);
@@ -122,7 +123,8 @@ export class PenoraUsdtService {
       throw new Error(`${this.symbol} contract is not configured on Polygon Amoy.`);
     }
 
-    if (!isAddress(recipient) || recipient === '0x0000000000000000000000000000000000000000') {
+    if (!(this.symbol === 'USDT' ? isTokenAddressAllowed(PENORA_TARGET_CHAIN_ID, targetAddress) : targetAddress.toLowerCase() === this.getContractAddress())) throw new Error('Token contract is not on the configured Amoy allowlist.');
+    if (!isAddress(recipient) || recipient.toLowerCase() === fromAddress.toLowerCase() || recipient === '0x0000000000000000000000000000000000000000') {
       throw new Error('Invalid recipient address.');
     }
 
@@ -144,8 +146,11 @@ export class PenoraUsdtService {
 
     // Estimate fees per gas
     const fees = await publicClient.estimateFeesPerGas();
-    const gasPrice = fees.maxFeePerGas || fees.gasPrice || 25000000000n; // fallback 25 gwei
+    const gasPrice = fees.maxFeePerGas ?? fees.gasPrice;
+    if (!gasPrice || gasPrice <= 0n) throw new Error('Network gas fees are unavailable. Please retry.');
     const estimatedCostWei = gasLimit * gasPrice;
+    const native = await publicClient.getBalance({ address: fromAddress });
+    if (native < estimatedCostWei) throw new Error(`Insufficient POL for estimated gas. Required up to ${formatEther(estimatedCostWei)} POL.`);
 
     return {
       gasLimit,
@@ -223,7 +228,8 @@ export class PenoraUsdtService {
       const parsedAmount = parseTokenAmount(amountFormatted, decimals);
 
       const { balanceRaw } = await this.fetchBalance(userAddress, targetContract);
-      if (balanceRaw === null || balanceRaw < parsedAmount) {
+      if (balanceRaw === null) throw new Error(`${this.symbol} balance could not be verified. Refresh before sending.`);
+      if (balanceRaw < parsedAmount) {
         const balanceStr = balanceRaw !== null ? formatUnits(balanceRaw, decimals) : '0';
         throw new Error(`Insufficient ${this.symbol} balance. Available: ${balanceStr} ${this.symbol}, requested: ${amountFormatted} ${this.symbol}.`);
       }
@@ -233,6 +239,9 @@ export class PenoraUsdtService {
       if (nativeBal === 0n) {
         throw new Error('Insufficient POL for gas. You need native POL on Polygon Amoy to pay blockchain transaction fees.');
       }
+
+      // Re-estimate at execution time: a nonzero native balance alone may not cover gas.
+      await this.estimateGas(userAddress, trimmedRecipient as Address, amountFormatted, targetContract);
 
       // 6. Execute Transfer with Mutex Lock
       const transferData = encodeFunctionData({
@@ -276,7 +285,8 @@ export class PenoraUsdtService {
       // Wait for receipt onchain
       const result = await waitForWalletTransaction(txHash);
       if (result.status === 'pending') {
-        return { hash: result.hash, status: 'pending', amount: amountFormatted, recipient: trimmedRecipient, explorerUrl };
+        this.updateLocalTransactionStatus(txHash, 'pending', result.hash);
+        return { hash: result.hash, status: 'pending', amount: amountFormatted, recipient: trimmedRecipient, explorerUrl: `${POLYGON_AMOY_CONFIG.blockExplorers[0]}/tx/${result.hash}` };
       }
       // ERC-20 contracts may return false without reverting. Verify the actual token movement.
       const finalStatus = result.status === 'confirmed' && result.receipt &&
@@ -306,7 +316,8 @@ export class PenoraUsdtService {
    */
   public async fetchTransferLogs(
     userAddress: `0x${string}`,
-    contractAddress?: `0x${string}`
+    contractAddress?: `0x${string}`,
+    onUnavailable?: (message: string) => void
   ): Promise<WalletTransaction[]> {
     const targetAddress = contractAddress || this.getContractAddress();
     if (!targetAddress) return this.getLocalTransactions(userAddress);
@@ -314,40 +325,11 @@ export class PenoraUsdtService {
     try {
       const decimals = await this.fetchDecimals(targetAddress);
       const currentBlock = await publicClient.getBlockNumber();
-      // Look back 10,000 blocks (~5.5 hours on Polygon Amoy) to avoid testnet RPC query size limits
-      const fromBlock = currentBlock > 10000n ? currentBlock - 10000n : 0n;
-
-      // 1. Incoming Transfer events
-      const incomingLogs = await publicClient.getLogs({
-        address: targetAddress,
-        event: {
-          type: 'event',
-          name: 'Transfer',
-          inputs: [
-            { indexed: true, name: 'from', type: 'address' },
-            { indexed: true, name: 'to', type: 'address' },
-            { indexed: false, name: 'value', type: 'uint256' },
-          ],
-        },
-        args: { to: userAddress },
-        fromBlock,
-      });
-
-      // 2. Outgoing Transfer events
-      const outgoingLogs = await publicClient.getLogs({
-        address: targetAddress,
-        event: {
-          type: 'event',
-          name: 'Transfer',
-          inputs: [
-            { indexed: true, name: 'from', type: 'address' },
-            { indexed: true, name: 'to', type: 'address' },
-            { indexed: false, name: 'value', type: 'uint256' },
-          ],
-        },
-        args: { from: userAddress },
-        fromBlock,
-      });
+      const event = ERC20_USDT_ABI.find(item => item.type === 'event' && item.name === 'Transfer')!;
+      const [incomingLogs, outgoingLogs] = await Promise.all([
+        readRecentEvents(targetAddress, event, { to: userAddress }, currentBlock),
+        readRecentEvents(targetAddress, event, { from: userAddress }, currentBlock),
+      ]);
 
       const onchainTxs: WalletTransaction[] = [];
       const blockTimes = new Map<bigint, Promise<string>>();
@@ -360,10 +342,10 @@ export class PenoraUsdtService {
         return promise;
       };
 
-      for (const log of incomingLogs) {
-        if (!log.args.value || !log.transactionHash) continue;
+      for (const log of incomingLogs as any[]) {
+        if (log.removed || !log.args.value || !log.transactionHash) continue;
         onchainTxs.push({
-          id: `onchain_${log.transactionHash}_${log.logIndex}`,
+          id: `onchain_${targetAddress.toLowerCase()}_${log.transactionHash}_${log.logIndex}`,
           hash: log.transactionHash,
           type: this.symbol === 'USDT' ? 'deposit_usdt' : 'transfer_in',
           amount: formatUnits(log.args.value, decimals),
@@ -376,10 +358,10 @@ export class PenoraUsdtService {
         });
       }
 
-      for (const log of outgoingLogs) {
-        if (!log.args.value || !log.transactionHash) continue;
+      for (const log of outgoingLogs as any[]) {
+        if (log.removed || !log.args.value || !log.transactionHash) continue;
         onchainTxs.push({
-          id: `onchain_${log.transactionHash}_${log.logIndex}`,
+          id: `onchain_${targetAddress.toLowerCase()}_${log.transactionHash}_${log.logIndex}`,
           hash: log.transactionHash,
           type: this.symbol === 'USDT' ? 'send_usdt' : 'transfer_out',
           amount: formatUnits(log.args.value, decimals),
@@ -407,20 +389,17 @@ export class PenoraUsdtService {
       }));
       const map = new Map<string, WalletTransaction>();
 
-      for (const tx of onchainTxs) {
-        map.set(tx.hash.toLowerCase(), tx);
-      }
+      const minedHashes = new Set(onchainTxs.map(tx => tx.hash.toLowerCase()));
+      for (const tx of onchainTxs) map.set(tx.id, tx);
       for (const tx of localTxs) {
-        if (!map.has(tx.hash.toLowerCase())) {
-          map.set(tx.hash.toLowerCase(), tx);
-        }
+        if (!minedHashes.has(tx.hash.toLowerCase())) map.set(tx.id, tx);
       }
 
       return Array.from(map.values()).sort(
         (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
       );
     } catch (err) {
-      console.warn('Could not query onchain Transfer events from testnet RPC:', err);
+      onUnavailable?.(`${this.symbol} onchain history is unavailable; only locally saved records are shown.`);
       return this.getLocalTransactions(userAddress);
     }
   }
@@ -450,15 +429,19 @@ export class PenoraUsdtService {
             const rawVal = (log as any).args?.value;
             const txHash = log.transactionHash;
             if (rawVal && txHash) {
+              if (log.blockNumber == null) continue;
+              let timestamp: string;
+              try { timestamp = new Date(Number((await publicClient.getBlock({ blockNumber: log.blockNumber })).timestamp) * 1000).toISOString(); }
+              catch { continue; }
               const amountStr = formatUnits(rawVal, decimals);
               const tx: WalletTransaction = {
-                id: `incoming_${txHash}_${log.logIndex}`,
+                id: `onchain_${targetAddress.toLowerCase()}_${txHash}_${log.logIndex}`,
                 hash: txHash,
                 type: this.symbol === 'USDT' ? 'deposit_usdt' : 'transfer_in',
                 amount: amountStr,
                 symbol: this.symbol,
                 status: 'confirmed',
-                timestamp: new Date().toISOString(),
+                timestamp,
                 from: (log as any).args?.from,
                 to: userAddress,
                 explorerUrl: `${POLYGON_AMOY_CONFIG.blockExplorers[0]}/tx/${txHash}`,
@@ -504,7 +487,7 @@ export class PenoraUsdtService {
       const owner = (tx.type === 'deposit_usdt' || tx.type === 'transfer_in') ? tx.to : tx.from;
       if (!owner) return;
       const current = this.getLocalTransactions(owner as `0x${string}`);
-      const updated = [tx, ...current.filter(t => t.hash.toLowerCase() !== tx.hash.toLowerCase())].slice(0, 50);
+      const updated = [tx, ...current.filter(t => t.id !== tx.id)].slice(0, 100);
       localStorage.setItem(this.getStorageKey(owner), JSON.stringify(updated));
     } catch {
       // Ignore localStorage errors
@@ -513,7 +496,7 @@ export class PenoraUsdtService {
 
   public updateLocalTransactionStatus(
     txHash: Hash,
-    status: 'confirmed' | 'failed',
+    status: WalletTransaction['status'],
     replacementHash?: Hash
   ): void {
     if (typeof window === 'undefined') return;

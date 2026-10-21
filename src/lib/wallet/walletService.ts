@@ -84,6 +84,7 @@ class PenoraWalletService {
           this.handleAccountConnected(accounts[0] as `0x${string}`);
         }
       });
+      eth.on?.('disconnect', () => this.disconnect());
 
       // Listen to chainChanged
       eth.on?.('chainChanged', (chainIdHex: string) => {
@@ -147,7 +148,7 @@ class PenoraWalletService {
 
     const version = ++this.accountVersion;
     this.balanceVersion++;
-    this.updateState({ ...this.clearBalances(), address, isCorrectNetwork: false, status: 'loading' });
+    this.updateState({ ...this.clearBalances(), address, chainId: null, isCorrectNetwork: false, status: 'loading', error: null });
     try {
       const chainIdHex = await eth.request({ method: 'eth_chainId' });
       if (version !== this.accountVersion) return;
@@ -179,31 +180,26 @@ class PenoraWalletService {
     if (this.state.address !== address || !this.state.isCorrectNetwork) return;
     const version = ++this.balanceVersion;
     const isCurrent = () => version === this.balanceVersion && this.state.address === address && this.state.isCorrectNetwork;
-    try {
-      const rawBalance = await publicClient.getBalance({ address });
-      const balancePol = formatEther(rawBalance);
-      const formattedPol = parseFloat(balancePol).toFixed(4);
-
-      // Fetch USDT balance if configured
-      const [usdtInfo, pnrInfo] = await Promise.all([penoraUsdtService.fetchBalance(address), penoraPnrService.fetchBalance(address)]);
-
-      if (!isCurrent()) return;
-      this.updateState({
-        balancePol: formattedPol,
-        balancePnr: pnrInfo.balanceFormatted,
-        balanceUsdt: usdtInfo.balanceFormatted,
-        usdtDecimals: usdtInfo.decimals,
-        isUsdtConfigured: isUsdtConfigured(),
-      });
-    } catch {
-      // RPC or network unavailable
-      if (!isCurrent()) return;
-      this.updateState({
-        balancePol: null,
-        balancePnr: null,
-        balanceUsdt: null,
-      });
-    }
+    // A failed native-balance lookup must not erase independently verified token balances.
+    const [native, usdt, pnr] = await Promise.allSettled([
+      publicClient.getBalance({ address }),
+      penoraUsdtService.fetchBalance(address),
+      penoraPnrService.fetchBalance(address),
+    ]);
+    if (!isCurrent()) return;
+    const usdtInfo = usdt.status === 'fulfilled' ? usdt.value : null;
+    const pnrInfo = pnr.status === 'fulfilled' ? pnr.value : null;
+    const failed = native.status === 'rejected' ||
+      (isUsdtConfigured() && usdtInfo?.balanceFormatted == null) ||
+      (penoraPnrService.getContractAddress() && pnrInfo?.balanceFormatted == null);
+    this.updateState({
+      balancePol: native.status === 'fulfilled' ? formatEther(native.value) : null,
+      balancePnr: pnrInfo?.balanceFormatted ?? null,
+      balanceUsdt: usdtInfo?.balanceFormatted ?? null,
+      usdtDecimals: usdtInfo?.decimals ?? 6,
+      isUsdtConfigured: isUsdtConfigured(),
+      error: failed ? 'Some balances could not be verified. Refresh before making a transaction.' : null,
+    });
   }
 
   public async connect(): Promise<void> {
@@ -219,7 +215,7 @@ class PenoraWalletService {
     this.init();
     const version = ++this.accountVersion;
     this.balanceVersion++;
-    this.updateState({ status: 'connecting', error: null });
+    this.updateState({ ...this.clearBalances(), address: null, chainId: null, isCorrectNetwork: false, status: 'connecting', error: null });
 
     try {
       const accounts = await eth.request({ method: 'eth_requestAccounts' });
@@ -273,16 +269,25 @@ class PenoraWalletService {
               },
             ],
           });
+          // Adding a chain does not guarantee that the provider selected it.
+          await eth.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: chainIdHex }] });
         } catch (addError: any) {
           this.updateState({
             error: addError?.message || 'Failed to add Polygon Amoy to wallet',
           });
+          return;
         }
       } else {
         this.updateState({
           error: switchError?.message || 'Failed to switch network',
         });
+        return;
       }
+    }
+    // Some providers omit chainChanged. Read their actual selected chain again.
+    const accounts = await eth.request({ method: 'eth_accounts' }).catch(() => []);
+    if (this.state.address && accounts[0]?.toLowerCase() === this.state.address.toLowerCase()) {
+      await this.handleAccountConnected(accounts[0]);
     }
   }
 

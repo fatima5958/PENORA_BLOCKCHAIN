@@ -149,6 +149,8 @@ export const PNR_TOKEN_ABI = [
 
 // ABI for PenoraPowerEscrow (PP Staking & 13-Week Power Down)
 export const POWER_ESCROW_ABI = [
+  { inputs: [], name: 'pnrToken', outputs: [{ name: '', type: 'address' }], stateMutability: 'view', type: 'function' },
+  { inputs: [], name: 'paused', outputs: [{ name: '', type: 'bool' }], stateMutability: 'view', type: 'function' },
   {
     inputs: [{ name: 'amount', type: 'uint256' }],
     name: 'powerUp',

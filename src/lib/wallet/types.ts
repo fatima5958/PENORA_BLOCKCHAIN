@@ -63,6 +63,8 @@ export interface WalletTransaction {
     | 'transfer_out'
     | 'power_up'
     | 'power_down'
+    | 'cancel_power_down'
+    | 'approve_pnr'
     | 'claim_installment';
   amount: string;
   symbol: string;
