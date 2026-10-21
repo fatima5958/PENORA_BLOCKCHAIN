@@ -106,6 +106,9 @@ export const Header: React.FC<HeaderProps> = ({ currentPath = '/' }) => {
     penoraKeyAuth.logout();
     await supabase.auth.signOut();
     setProfileDropdownOpen(false);
+    if (typeof window !== 'undefined' && (window.location.pathname.startsWith('/profile/me') || window.location.pathname.startsWith('/editor'))) {
+      window.location.href = '/';
+    }
   };
 
   const openLogin = () => {

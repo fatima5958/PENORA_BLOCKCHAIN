@@ -35,7 +35,7 @@ describe('OTP Security Leak Prevention & Audit Suite', () => {
     expect((res as any).code).toBeUndefined();
     expect((res as any).otp).toBeUndefined();
     expect((res as any).rawOtpCode).toBeUndefined();
-    expect(res.deliveryNotice).not.toMatch(/\b\d{6}\b/); // notice must NOT contain a 6-digit number
+    expect(res.deliveryNotice).not.toMatch(/\b\d{6,8}\b/); // notice must NOT contain a plaintext OTP
   });
 
   it('never outputs OTP codes to console.log during dispatch', async () => {
@@ -46,7 +46,7 @@ describe('OTP Security Leak Prevention & Audit Suite', () => {
     });
 
     const calls = consoleSpy.mock.calls.map(c => c.join(' '));
-    const leakedCall = calls.find(msg => /OTP verification code/i.test(msg) || /\b\d{6}\b/.test(msg));
+    const leakedCall = calls.find(msg => /OTP verification code/i.test(msg) || /\b\d{6,8}\b/.test(msg));
     expect(leakedCall).toBeUndefined();
     consoleSpy.mockRestore();
   });

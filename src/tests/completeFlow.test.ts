@@ -44,7 +44,7 @@ describe('PENORA Complete User Lifecycle Integration Test', () => {
     // Retrieve internal test OTP
     const testOtp = emailVerificationService._getTestCodeForTestingOnly(email);
     expect(testOtp).toBeDefined();
-    expect(testOtp).toMatch(/^\d{6}$/);
+    expect(testOtp).toMatch(/^\d{8}$/);
 
     // ------------------------------------------------------------------------
     // Step 2: Verify OTP -> Proof Token

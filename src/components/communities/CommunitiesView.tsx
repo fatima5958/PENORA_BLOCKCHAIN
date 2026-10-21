@@ -7,11 +7,15 @@ import {
   Users,
   Search,
   BookOpen,
+  Plus,
+  Check,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
-import { joinCommunity, leaveCommunity } from '../../lib/api/communities';
+import { getCommunities, joinCommunity, leaveCommunity, isCommunityMember } from '../../lib/api/communities';
 import { SpatialAuthModalV4 } from '../design-v4/SpatialAuthModalV4';
+import { penoraKeyAuth, type PenoraUser } from '../../lib/auth/penoraKeyAuth';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
+import type { CommunityRecord } from '../../lib/api/types';
 
 interface CommunitiesViewProps {
   communities: Community[];
@@ -23,14 +27,14 @@ export const CommunitiesView: React.FC<CommunitiesViewProps> = ({
   communities: fallbackCommunities,
 }) => {
   const [user, setUser] = useState<SupabaseUser | null>(null);
+  const [keyUser, setKeyUser] = useState<PenoraUser | null>(null);
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [joinedMap, setJoinedMap] = useState<Record<string, boolean>>({
-    'spatial-design-ux': true,
-    'longform-solitude': true,
-  });
+  const [communities, setCommunities] = useState<Community[]>(fallbackCommunities);
+  const [joinedMap, setJoinedMap] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
+    const unsubKey = penoraKeyAuth.subscribe(ku => setKeyUser(ku));
     supabase.auth.getSession().then(({ data }) => {
       setUser(data.session?.user ?? null);
     });
@@ -39,26 +43,61 @@ export const CommunitiesView: React.FC<CommunitiesViewProps> = ({
       setUser(session?.user ?? null);
     });
 
-    return () => subscription.unsubscribe();
+    // Hydrate real communities from Supabase
+    getCommunities().then(res => {
+      if (res.data && res.data.length > 0) {
+        const mapped: Community[] = res.data.map((c: CommunityRecord) => ({
+          id: c.id,
+          name: c.name,
+          slug: c.slug,
+          description: c.description || '',
+          iconName: 'Users',
+          articleCount: 0,
+          memberCount: 1,
+          isJoined: false,
+        }));
+        setCommunities(mapped);
+      }
+    });
+
+    return () => {
+      unsubKey();
+      subscription.unsubscribe();
+    };
   }, []);
 
+  // Hydrate join status for current user
+  useEffect(() => {
+    const activeUserId = keyUser?.id || user?.id;
+    if (!activeUserId) return;
+
+    communities.forEach(c => {
+      isCommunityMember(activeUserId, c.id).then(joined => {
+        if (joined) {
+          setJoinedMap(prev => ({ ...prev, [c.id]: true }));
+        }
+      });
+    });
+  }, [keyUser, user, communities]);
+
   const handleToggleJoin = async (communityId: string) => {
-    if (!user) {
+    const activeUserId = keyUser?.id || user?.id;
+    if (!activeUserId) {
       setAuthModalOpen(true);
       return;
     }
 
-    const isJoined = joinedMap[communityId];
+    const isJoined = Boolean(joinedMap[communityId]);
     setJoinedMap(prev => ({ ...prev, [communityId]: !isJoined }));
 
     if (isJoined) {
-      await leaveCommunity(user.id, communityId);
+      await leaveCommunity(activeUserId, communityId);
     } else {
-      await joinCommunity(user.id, communityId);
+      await joinCommunity(activeUserId, communityId);
     }
   };
 
-  const filtered = fallbackCommunities.filter(c =>
+  const filtered = communities.filter(c =>
     c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     c.description.toLowerCase().includes(searchQuery.toLowerCase())
   );

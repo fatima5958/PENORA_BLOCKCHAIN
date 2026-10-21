@@ -94,6 +94,8 @@ export const SpatialAuthModalV4: React.FC<SpatialAuthModalV4Props> = ({
   const [shouldRender, setShouldRender] = useState(isOpen);
   const [isClosing, setIsClosing] = useState(false);
   const dialogRef = useRef<HTMLDivElement>(null);
+  const verifyingRef = useRef(false);
+  const sendingRef = useRef(false);
   const usernameInputRef = useRef<HTMLInputElement>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
 
@@ -138,6 +140,19 @@ export const SpatialAuthModalV4: React.FC<SpatialAuthModalV4Props> = ({
       setDeliveryNotice(null);
       setBackupConfirmed(false);
       setBackupDownloaded(false);
+
+      // Refresh-resume: if a code was already sent and is still usable, return to code entry
+      // instead of forcing the user to restart signup (which would send a NEW code and
+      // invalidate the one already in their inbox).
+      if (initialMode === 'register' && !initialWizardStep) {
+        const pending = penoraKeyAuth.getPendingVerification();
+        if (pending) {
+          setSignupEmail(pending.email);
+          setSignupUsername(pending.username);
+          setDeliveryNotice(`A code was already sent to ${pending.email}. Enter the most recent code from your inbox.`);
+          setWizardStep('otp');
+        }
+      }
     } else if (shouldRender) {
       setIsClosing(true);
       const timer = window.setTimeout(() => {
@@ -235,7 +250,10 @@ export const SpatialAuthModalV4: React.FC<SpatialAuthModalV4Props> = ({
   // --------------------------------------------------------------------------
   const handleSendVerificationCode = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (isSendingOtp) return;
+    // Synchronous ref guard: each send REPLACES the previous code server-side, so a double-click
+    // would invalidate the code the user is about to read.
+    if (sendingRef.current || isSendingOtp) return;
+    sendingRef.current = true;
     setSignupError(null);
 
     const cleanUsername = signupUsername.trim().toLowerCase();
@@ -243,19 +261,23 @@ export const SpatialAuthModalV4: React.FC<SpatialAuthModalV4Props> = ({
 
     if (!cleanUsername || cleanUsername.length < 3) {
       setSignupError('Username must be at least 3 characters.');
+      sendingRef.current = false;
       return;
     }
     if (!/^[a-z0-9_-]+$/.test(cleanUsername)) {
       setSignupError('Username may only contain lowercase letters, numbers, dashes, and underscores.');
+      sendingRef.current = false;
       return;
     }
     if (!cleanEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
       setSignupError('Please enter a valid email address.');
+      sendingRef.current = false;
       return;
     }
 
     if (!penoraKeyAuth.isUsernameAvailable(cleanUsername)) {
       setSignupError(`Username @${cleanUsername} is already registered. Please choose another.`);
+      sendingRef.current = false;
       return;
     }
 
@@ -269,21 +291,31 @@ export const SpatialAuthModalV4: React.FC<SpatialAuthModalV4Props> = ({
         if (res.cooldownSeconds) setCooldown(res.cooldownSeconds);
       } else {
         setCooldown(res.cooldownSeconds || 60);
-        setDeliveryNotice(res.deliveryNotice || null);
+        setDeliveryNotice(
+          (res.deliveryNotice || 'A verification code was sent.') +
+            ' Always enter the most recent email — requesting a new code replaces the previous one.'
+        );
+        setOtpCode('');
         setWizardStep('otp');
       }
     } catch (err: any) {
       setIsSendingOtp(false);
       setSignupError(err.message || 'Error requesting verification code.');
+    } finally {
+      sendingRef.current = false;
     }
   };
 
   // --------------------------------------------------------------------------
-  // Step 2: Verify 6-digit Code & Generate Keys Locally
+  // Step 2: Verify OTP Code & Generate Keys Locally
   // --------------------------------------------------------------------------
   const handleVerifyOtp = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (otpCode.length !== 6 || isVerifyingOtp) return;
+    // Synchronous ref guard: React state updates are async, so a rapid double-click / Enter-key repeat
+    // could otherwise submit the same single-use code twice. Accepts both 8-digit and 6-digit codes.
+    const isCodeLengthValid = otpCode.length === 8 || otpCode.length === 6;
+    if (verifyingRef.current || !isCodeLengthValid || isVerifyingOtp) return;
+    verifyingRef.current = true;
 
     setSignupError(null);
     setIsVerifyingOtp(true);
@@ -294,6 +326,7 @@ export const SpatialAuthModalV4: React.FC<SpatialAuthModalV4Props> = ({
 
       if (!res.success || !res.proof) {
         setSignupError(res.error || 'Invalid verification code.');
+        if (res.needsResend) setOtpCode('');
       } else {
         setSignupError(null);
         setVerificationProof(res.proof);
@@ -305,6 +338,8 @@ export const SpatialAuthModalV4: React.FC<SpatialAuthModalV4Props> = ({
     } catch (err: any) {
       setIsVerifyingOtp(false);
       setSignupError(err.message || 'Error verifying code. Please check your network connection.');
+    } finally {
+      verifyingRef.current = false;
     }
   };
 
@@ -783,7 +818,7 @@ export const SpatialAuthModalV4: React.FC<SpatialAuthModalV4Props> = ({
                       Verify Your Email Address
                     </h3>
                     <p className="text-xs text-[#384B61] leading-relaxed">
-                      Enter the 6-digit verification code for <strong>{signupEmail}</strong> to unlock local cryptographic key generation.
+                      Enter the verification code sent to <strong>{signupEmail}</strong> to unlock local cryptographic key generation.
                     </p>
                   </div>
 
@@ -797,19 +832,19 @@ export const SpatialAuthModalV4: React.FC<SpatialAuthModalV4Props> = ({
 
                   <div className="space-y-1.5 text-center">
                     <label htmlFor="otp-input" className="block text-xs font-bold text-[#0A2540]">
-                      6-Digit Verification Code
+                      Verification Code
                     </label>
                     <input
                       id="otp-input"
                       type="text"
                       inputMode="numeric"
-                      maxLength={6}
+                      maxLength={8}
                       autoFocus
                       required
                       value={otpCode}
-                      onChange={e => setOtpCode(e.target.value.replace(/\D/g, ''))}
-                      placeholder="123456"
-                      className="pn-input text-center text-xl font-mono font-bold tracking-[0.3em] h-12 max-w-[210px] mx-auto rounded-2xl bg-white/95 border-[#9EC2E0]"
+                      onChange={e => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 8))}
+                      placeholder="12345678"
+                      className="pn-input text-center text-xl font-mono font-bold tracking-[0.25em] h-12 max-w-[240px] mx-auto rounded-2xl bg-white/95 border-[#9EC2E0]"
                     />
                   </div>
 
@@ -838,7 +873,7 @@ export const SpatialAuthModalV4: React.FC<SpatialAuthModalV4Props> = ({
                     </button>
                     <button
                       type="submit"
-                      disabled={isVerifyingOtp || otpCode.length !== 6}
+                      disabled={isVerifyingOtp || (otpCode.length !== 8 && otpCode.length !== 6)}
                       className="pn-icy-cta w-2/3"
                     >
                       {isVerifyingOtp ? (

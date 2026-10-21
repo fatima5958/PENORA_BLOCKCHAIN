@@ -157,15 +157,19 @@ class PenoraKeyAuthService {
   }
 
   /**
-   * Sends a 6-digit email verification code with 60s cooldown and rate limiting.
+   * Sends an email verification code with 60s cooldown and rate limiting.
    */
   public async sendVerificationCode(email: string, username: string) {
     return emailVerificationService.sendVerificationCode({ email, username });
   }
 
   /**
-   * Verifies the 6-digit email code and returns a signed verification proof.
+   * Verifies the email OTP code and returns a signed verification proof.
    */
+  public getPendingVerification() {
+    return emailVerificationService.getPendingVerification();
+  }
+
   public async verifyEmailCode(email: string, code: string) {
     return emailVerificationService.verifyCode({ email, code });
   }
@@ -196,10 +200,12 @@ class PenoraKeyAuthService {
     };
 
     // Ensure every real account has a genuine database-backed UUID (RFC 4122)
+    const { data: sessionData } = await supabase.auth.getSession();
+    const sessionUserId = sessionData?.session?.user?.id;
     const proof = params.emailVerificationProof
       ? emailVerificationService.getProof(params.emailVerificationProof)
       : null;
-    const userId = proof?.userId || generateCryptoUuid();
+    const userId = sessionUserId || proof?.userId || generateCryptoUuid();
 
     // 1. Register with trusted auth broker (validates email proof and public keys)
     const regRes = authBroker.registerAccount({
@@ -215,28 +221,32 @@ class PenoraKeyAuthService {
       return { success: false, error: regRes.error || 'Registration failed' };
     }
 
-    // 2. Synchronize to Supabase profiles & account_authorities if remote tables exist
+    // 2. Synchronize to Supabase profiles & account_authorities when authenticated session exists
     try {
-      await supabase.from('profiles').upsert(
-        {
-          id: userId,
-          username: cleanUsername,
-          display_name: params.displayName || cleanUsername,
-        },
-        { onConflict: 'id' }
-      );
+      if (sessionUserId) {
+        await supabase.from('profiles').upsert(
+          {
+            id: sessionUserId,
+            username: cleanUsername,
+            display_name: params.displayName || cleanUsername,
+          },
+          { onConflict: 'id' }
+        );
 
-      await supabase.from('account_authorities').upsert(
-        {
-          account_id: userId,
+        // Use .insert() rather than .upsert() to avoid triggering the "Disallow direct client key updates" UPDATE RLS policy
+        const { error: authInsertErr } = await supabase.from('account_authorities').insert({
+          account_id: sessionUserId,
           owner_public_key: publicAuthorities.owner_public_key,
           active_public_key: publicAuthorities.active_public_key,
           posting_public_key: publicAuthorities.posting_public_key,
           memo_public_key: publicAuthorities.memo_public_key,
           key_version: 1,
-        },
-        { onConflict: 'account_id' }
-      );
+        });
+
+        if (authInsertErr && !authInsertErr.message?.includes('duplicate key') && authInsertErr.code !== '23505') {
+          console.warn('Supabase account_authorities insert notice:', authInsertErr.message);
+        }
+      }
     } catch {
       // Gracefully continue; broker maintains authorities securely in all environments
     }

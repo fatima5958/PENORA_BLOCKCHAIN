@@ -10,41 +10,28 @@ import {
   Send,
   Check,
   Loader2,
+  Trash2,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
+import { getArticleBySlug } from '../../lib/api/articles';
 import { castVote, getVotesForPost, type PostVoteStats } from '../../lib/api/votes';
-import { getCommentsForPost, addComment } from '../../lib/api/comments';
+import { getCommentsForPost, addComment, deleteComment } from '../../lib/api/comments';
 import { toggleBookmark, isPostBookmarked } from '../../lib/api/bookmarks';
-import { followUser } from '../../lib/api/follows';
+import { followUser, isFollowing } from '../../lib/api/follows';
 import { SpatialAuthModalV4 } from '../design-v4/SpatialAuthModalV4';
 import { penoraKeyAuth, type PenoraUser } from '../../lib/auth/penoraKeyAuth';
-import type { CommentRecord } from '../../lib/api/types';
+import type { CommentRecord, PostRecord } from '../../lib/api/types';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 
 interface ArticleReaderProps {
   article: Article;
 }
 
-const GUEST_VOTER_KEY = 'penora_guest_voter_id_v1';
-
-function getVoterId(keyUser: PenoraUser | null, user: SupabaseUser | null): string {
-  if (keyUser?.id) return keyUser.id;
-  if (user?.id) return user.id;
-  if (typeof window !== 'undefined' && window.localStorage) {
-    let guestId = window.localStorage.getItem(GUEST_VOTER_KEY);
-    if (!guestId) {
-      guestId = `voter_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-      window.localStorage.setItem(GUEST_VOTER_KEY, guestId);
-    }
-    return guestId;
-  }
-  return 'voter_session';
-}
-
-export const ArticleReader: React.FC<ArticleReaderProps> = ({ article }) => {
+export const ArticleReader: React.FC<ArticleReaderProps> = ({ article: initialArticle }) => {
   const [user, setUser] = useState<SupabaseUser | null>(null);
   const [keyUser, setKeyUser] = useState<PenoraUser | null>(null);
   const [authModalOpen, setAuthModalOpen] = useState(false);
+  const [article, setArticle] = useState<Article>(initialArticle);
 
   const [voteStats, setVoteStats] = useState<PostVoteStats>({
     upvotes: 0,
@@ -58,10 +45,53 @@ export const ArticleReader: React.FC<ArticleReaderProps> = ({ article }) => {
   const [copiedLink, setCopiedLink] = useState(false);
 
   const [comments, setComments] = useState<
-    Array<{ id?: string; author: string; rep: number; text: string; time: string }>
+    Array<{ id?: string; authorId?: string; author: string; rep: number; text: string; time: string }>
   >([]);
   const [newCommentText, setNewCommentText] = useState('');
   const [submittingComment, setSubmittingComment] = useState(false);
+
+  // Hydrate real post from Supabase if viewing by slug
+  useEffect(() => {
+    let mounted = true;
+    const pathSlug = typeof window !== 'undefined'
+      ? window.location.pathname.replace(/^\/story\//, '').replace(/\/$/, '')
+      : initialArticle.slug;
+    const targetSlug = pathSlug || initialArticle.slug;
+
+    if (targetSlug) {
+      getArticleBySlug(targetSlug).then(res => {
+        if (!mounted || !res.data) return;
+        const p: PostRecord = res.data;
+        setArticle({
+          id: p.id,
+          slug: p.slug,
+          title: p.title,
+          excerpt: p.excerpt || p.content.slice(0, 160) + '...',
+          content: p.content,
+          coverImage: p.cover_image_url || initialArticle.coverImage,
+          category: p.tags?.[0] || 'Protocol',
+          publishedAt: p.created_at,
+          readTime: `${Math.max(1, Math.ceil(p.content.split(/\s+/).length / 200))} min read`,
+          author: {
+            id: p.author_id,
+            name: p.author?.display_name || p.author?.username || 'PENORA Creator',
+            handle: p.author?.username || 'creator',
+            avatar: p.author?.avatar_url || initialArticle.author.avatar,
+            bio: p.author?.bio || '',
+            reputationScore: p.author?.reputation ?? 25,
+            isTopContributor: (p.author?.reputation ?? 25) >= 50,
+            followersCount: 0,
+          },
+          curationScore: 0,
+          tags: p.tags || [],
+        });
+      });
+    }
+
+    return () => {
+      mounted = false;
+    };
+  }, [initialArticle.slug]);
 
   useEffect(() => {
     const unsubKey = penoraKeyAuth.subscribe(ku => {
@@ -71,8 +101,12 @@ export const ArticleReader: React.FC<ArticleReaderProps> = ({ article }) => {
     supabase.auth.getSession().then(({ data }) => {
       const u = data.session?.user ?? null;
       setUser(u);
-      if (u) {
-        isPostBookmarked(u.id, article.id).then(b => setBookmarked(b));
+      const activeId = u?.id || penoraKeyAuth.getCurrentUser()?.id;
+      if (activeId) {
+        isPostBookmarked(activeId, article.id).then(b => setBookmarked(b));
+        if (article.author.id) {
+          isFollowing(activeId, article.author.id).then(f => setFollowingAuthor(f));
+        }
       }
     });
 
@@ -84,6 +118,7 @@ export const ArticleReader: React.FC<ArticleReaderProps> = ({ article }) => {
       if (res.data && res.data.length > 0) {
         const mapped = res.data.map((c: CommentRecord) => ({
           id: c.id,
+          authorId: c.author_id,
           author: c.author?.display_name || c.author?.username || 'Community Member',
           rep: c.author?.reputation ?? 25,
           text: c.body,
@@ -97,17 +132,22 @@ export const ArticleReader: React.FC<ArticleReaderProps> = ({ article }) => {
       unsubKey();
       subscription.unsubscribe();
     };
-  }, [article.id]);
+  }, [article.id, article.author.id]);
 
   useEffect(() => {
-    const voterId = getVoterId(keyUser, user);
+    const voterId = keyUser?.id || user?.id || '';
     getVotesForPost(article.id, voterId).then(stats => {
       setVoteStats(stats);
     });
   }, [article.id, keyUser, user]);
 
   const handleVote = async (direction: 1 | -1) => {
-    const voterId = getVoterId(keyUser, user);
+    const voterId = keyUser?.id || user?.id;
+    if (!voterId) {
+      setAuthModalOpen(true);
+      return;
+    }
+
     let nextUp = voteStats.upvotes;
     let nextDown = voteStats.downvotes;
     let nextUserVote: 1 | -1 | null = direction;
@@ -139,19 +179,25 @@ export const ArticleReader: React.FC<ArticleReaderProps> = ({ article }) => {
   };
 
   const handleBookmark = async () => {
+    const voterId = keyUser?.id || user?.id;
+    if (!voterId) {
+      setAuthModalOpen(true);
+      return;
+    }
     const next = !bookmarked;
     setBookmarked(next);
-    const voterId = getVoterId(keyUser, user);
     await toggleBookmark(voterId, article.id);
   };
 
   const handleFollow = async () => {
+    const voterId = keyUser?.id || user?.id;
+    if (!voterId) {
+      setAuthModalOpen(true);
+      return;
+    }
     const next = !followingAuthor;
     setFollowingAuthor(next);
-    const voterId = getVoterId(keyUser, user);
-    if (article.author.handle) {
-      await followUser(voterId, article.author.handle);
-    }
+    await followUser(voterId, article.author.id || article.author.handle);
   };
 
   const handleShare = () => {
@@ -162,9 +208,16 @@ export const ArticleReader: React.FC<ArticleReaderProps> = ({ article }) => {
     }
   };
 
+  const handleDeleteComment = async (commentId?: string) => {
+    if (!commentId) return;
+    setComments(prev => prev.filter(c => c.id !== commentId));
+    await deleteComment(commentId);
+  };
+
   const handlePostComment = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user && !keyUser) {
+    const authorId = keyUser?.id || user?.id;
+    if (!authorId) {
       setAuthModalOpen(true);
       return;
     }
@@ -174,9 +227,12 @@ export const ArticleReader: React.FC<ArticleReaderProps> = ({ article }) => {
     setSubmittingComment(true);
 
     const authorHandle = keyUser?.username || user?.email?.split('@')[0] || 'You';
+    const tempId = `temp_${Date.now()}`;
     setComments(prev => [
       ...prev,
       {
+        id: tempId,
+        authorId,
         author: authorHandle,
         rep: 25,
         text,
@@ -186,13 +242,15 @@ export const ArticleReader: React.FC<ArticleReaderProps> = ({ article }) => {
     setNewCommentText('');
 
     try {
-      const authorId = keyUser?.id || user?.id || getVoterId(keyUser, user);
-      await addComment({
+      const res = await addComment({
         post_id: article.id,
         author_id: authorId,
         body: text,
         author_name: authorHandle,
       });
+      if (res.data?.id) {
+        setComments(prev => prev.map(c => c.id === tempId ? { ...c, id: res.data!.id } : c));
+      }
     } finally {
       setSubmittingComment(false);
     }
@@ -381,18 +439,37 @@ export const ArticleReader: React.FC<ArticleReaderProps> = ({ article }) => {
 
         {comments.length > 0 && (
           <div className="space-y-3 pt-4 border-t border-[#0A2540]/8">
-            {comments.map((c, i) => (
-              <div key={c.id || i} className="p-4 rounded-2xl bg-[#F4F7FA] border border-[#0A2540]/6 space-y-1.5">
-                <div className="flex items-center justify-between text-xs">
-                  <div className="flex items-center gap-2">
-                    <span className="font-semibold text-[#0A2540]">@{c.author}</span>
-                    <span className="pn-tag">Rep {c.rep}</span>
+            {comments.map((c, i) => {
+              const currentUserId = keyUser?.id || user?.id;
+              const currentUsername = keyUser?.username || user?.email?.split('@')[0];
+              const isOwnComment = (c.authorId && c.authorId === currentUserId) || (c.author && c.author === currentUsername);
+
+              return (
+                <div key={c.id || i} className="p-4 rounded-2xl bg-[#F4F7FA] border border-[#0A2540]/6 space-y-1.5">
+                  <div className="flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold text-[#0A2540]">@{c.author}</span>
+                      <span className="pn-tag">Rep {c.rep}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="pn-meta">{c.time}</span>
+                      {isOwnComment && c.id && (
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteComment(c.id)}
+                          className="text-[#8C9BAE] hover:text-[#D93838] transition-colors p-1"
+                          title="Delete comment"
+                          aria-label="Delete comment"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </button>
+                      )}
+                    </div>
                   </div>
-                  <span className="pn-meta">{c.time}</span>
+                  <p className="text-xs sm:text-sm text-[#4A5B70] leading-relaxed">{c.text}</p>
                 </div>
-                <p className="text-xs sm:text-sm text-[#4A5B70] leading-relaxed">{c.text}</p>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

@@ -57,7 +57,7 @@ describe('PENORA Email Verification & Onboarding Security Suite', () => {
     const email = 'creator@penora.io';
     await emailService.sendVerificationCode({ email, username: 'alice' });
     const code = emailService._getTestCodeForTestingOnly(email)!;
-    expect(code).toMatch(/^\d{6}$/);
+    expect(code).toMatch(/^\d{8}$/);
 
     // Verify 5-minute (300,000ms) TTL was configured
     const record = (emailService as any).verifications.get(email);
@@ -78,7 +78,7 @@ describe('PENORA Email Verification & Onboarding Security Suite', () => {
 
     // 5 incorrect attempts
     for (let i = 0; i < 5; i++) {
-      const res = await emailService.verifyCode({ email, code: '000000' });
+      const res = await emailService.verifyCode({ email, code: '00000000' });
       expect(res.success).toBe(false);
     }
 

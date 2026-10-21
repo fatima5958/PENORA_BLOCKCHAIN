@@ -1,7 +1,7 @@
 // src/components/explore/ExploreView.tsx
 // PENORA Blockchain Brand Suite & UI/UX System
 // Browsing topics, trending categories, and editorial circles.
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import type { Topic } from '../../types';
 import {
   Search,
@@ -12,7 +12,10 @@ import {
   Feather,
   Cpu,
   Users,
+  ExternalLink,
 } from 'lucide-react';
+import { getPublishedArticles } from '../../lib/api/articles';
+import type { PostRecord } from '../../lib/api/types';
 
 interface ExploreViewProps {
   topics: Topic[];
@@ -27,6 +30,31 @@ const iconMap: Record<string, React.FC<{ className?: string }>> = {
 
 export const ExploreView: React.FC<ExploreViewProps> = ({ topics }) => {
   const [searchQuery, setSearchQuery] = useState('');
+  const [matchingArticles, setMatchingArticles] = useState<PostRecord[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const q = new URLSearchParams(window.location.search).get('q');
+    if (q) setSearchQuery(q);
+  }, []);
+
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setMatchingArticles([]);
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      setIsSearching(true);
+      getPublishedArticles({ search: searchQuery.trim(), limit: 10 }).then(res => {
+        setIsSearching(false);
+        if (res.data) setMatchingArticles(res.data);
+      });
+    }, 250);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   const filteredTopics = topics.filter(t => {
     const matchesSearch =
@@ -63,6 +91,44 @@ export const ExploreView: React.FC<ExploreViewProps> = ({ topics }) => {
           </div>
         </div>
       </div>
+
+      {/* Live Search Results (Real Published Articles) */}
+      {searchQuery.trim() && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="font-display text-lg font-bold text-[#0A2540]">
+              Articles matching "{searchQuery}"
+            </h2>
+            <span className="text-xs text-[#4A5E75]">
+              {isSearching ? 'Searching…' : `${matchingArticles.length} found`}
+            </span>
+          </div>
+
+          {matchingArticles.length > 0 ? (
+            <div className="space-y-3">
+              {matchingArticles.map(p => (
+                <div key={p.id} className="pn-card pn-card-interactive p-4 flex items-center justify-between gap-4">
+                  <div>
+                    <span className="pn-tag text-[10px] uppercase mb-1 inline-block">{p.tags?.[0] || 'Article'}</span>
+                    <a href={`/story/${p.slug}`}>
+                      <h3 className="pn-h3 text-base hover:text-[#007C8B] transition-colors">{p.title}</h3>
+                    </a>
+                    <p className="text-xs text-[#4A5B70] line-clamp-1 mt-0.5">{p.excerpt || p.content.slice(0, 120)}</p>
+                  </div>
+                  <a href={`/story/${p.slug}`} className="pn-btn pn-btn-secondary pn-btn-sm flex-shrink-0">
+                    <span>Read</span>
+                    <ExternalLink className="h-3 w-3" />
+                  </a>
+                </div>
+              ))}
+            </div>
+          ) : !isSearching ? (
+            <div className="pn-card p-6 text-center text-xs text-[#4A5E75]">
+              No published articles matched "{searchQuery}". Try exploring topics below.
+            </div>
+          ) : null}
+        </div>
+      )}
 
       {/* Featured Spatial Categories Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

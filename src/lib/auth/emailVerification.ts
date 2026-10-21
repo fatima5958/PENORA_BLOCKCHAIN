@@ -2,7 +2,7 @@
 // ============================================================================
 // PENORA BLOCKCHAIN — SECURE EMAIL VERIFICATION SERVICE
 // Server-side email OTP verification service with:
-// 1. Single-use 6-digit OTP codes sent ONLY to the user's verified email.
+// 1. Single-use OTP codes sent ONLY to the user's verified email.
 // 2. Strict 5-minute expiry (OTP_TTL_MS = 5 min).
 // 3. Single-use enforcement and replay protection.
 // 4. Resend cooldown (60 seconds) and hourly attempt limits.
@@ -59,6 +59,8 @@ export interface SendVerificationResult {
 export interface VerifyCodeResult {
   success: boolean;
   error?: string;
+  /** True when the code is definitively unusable and the user should request a new one */
+  needsResend?: boolean;
   proof?: VerificationProof;
 }
 
@@ -67,6 +69,7 @@ const OTP_TTL_MS = 5 * 60 * 1000; // 5 minutes strict expiry
 const RESEND_COOLDOWN_MS = 60 * 1000; // 60 seconds resend cooldown
 const MAX_ATTEMPTS = 5; // 5 failed tries invalidates code
 const PROOF_TTL_MS = 30 * 60 * 1000; // 30 minutes to complete key onboarding
+const PENDING_RESUME_MS = 60 * 60 * 1000; // Resume code entry after refresh within the server OTP lifetime
 
 const STORAGE_VERIFICATIONS_KEY = 'penora_email_verifications_v1';
 const STORAGE_PROOFS_KEY = 'penora_email_proofs_v1';
@@ -78,6 +81,7 @@ export class EmailVerificationService {
   private emailSendCounts = new Map<string, number[]>(); // email -> timestamps
   private verifiedEmails = new Set<string>(); // set of already registered emails
   private inFlightVerification = new Set<string>(); // Prevent duplicate in-flight verification requests
+  private inFlightSend = new Set<string>(); // Prevent duplicate in-flight code sends (each send replaces the prior code)
   // Test-only memory store for isolated unit tests (never exposed to browser or API responses)
   private testCodes = new Map<string, string>();
 
@@ -182,10 +186,11 @@ export class EmailVerificationService {
 
     if (isUnitTest) {
       // In isolated unit tests: create cryptographically hashed record for state machine verification
+      // Generates an 8-digit OTP matching Supabase project configuration
       const randomUint32 = new Uint32Array(1);
       const bytes = nacl.randomBytes(4);
       new Uint8Array(randomUint32.buffer).set(bytes);
-      const codeNumber = (randomUint32[0] % 900000) + 100000;
+      const codeNumber = (randomUint32[0] % 90000000) + 10000000;
       const testCode = codeNumber.toString();
 
       const salt = `penora_otp_salt_${email}_${username}`;
@@ -216,7 +221,13 @@ export class EmailVerificationService {
       };
     }
 
-    // 6. Production / Browser: Dispatch OTP securely via Supabase Auth server
+    // 6. Production / Browser: Dispatch OTP securely via Supabase Auth server.
+    // Every signInWithOtp call REPLACES the previous code server-side, so concurrent/duplicate
+    // sends are blocked: a second email would silently invalidate the code the user is reading.
+    if (this.inFlightSend.has(email)) {
+      return { success: false, error: 'A verification code is already being sent. Please wait a moment.' };
+    }
+    this.inFlightSend.add(email);
     try {
       const { error } = await supabase.auth.signInWithOtp({
         email,
@@ -266,18 +277,35 @@ export class EmailVerificationService {
         success: true,
         cooldownSeconds: 60,
         deliveryChannel: 'supabase-smtp',
-        deliveryNotice: `A 6-digit verification code was sent to ${email}. Please check your inbox and spam folder.`,
+        deliveryNotice: `A verification code was sent to ${email}. Please check your inbox and spam folder.`,
       };
     } catch (err: any) {
       return {
         success: false,
         error: err.message || 'Failed to dispatch verification email. Please check network connection.',
       };
+    } finally {
+      this.inFlightSend.delete(email);
     }
   }
 
+  /**
+   * Returns the still-usable pending verification (code sent, not yet verified) so that a page
+   * refresh resumes at the code-entry step instead of restarting signup.
+   */
+  public getPendingVerification(): { email: string; username: string } | null {
+    this.hydrateFromStorage();
+    const now = Date.now();
+    for (const rec of this.verifications.values()) {
+      if (!rec.used && rec.attempts < MAX_ATTEMPTS && now - rec.createdAt < PENDING_RESUME_MS) {
+        return { email: rec.email, username: rec.username };
+      }
+    }
+    return null;
+  }
+
   // --------------------------------------------------------------------------
-  // Verify 6-digit OTP Code (Server-Side Validation)
+  // Verify OTP Code (Server-Side Validation)
   // --------------------------------------------------------------------------
 
   public async verifyCode(params: {
@@ -289,8 +317,9 @@ export class EmailVerificationService {
     const email = params.email.trim().toLowerCase();
     const code = params.code.trim();
 
-    if (!code || code.length !== 6 || !/^\d{6}$/.test(code)) {
-      return { success: false, error: 'Please enter a valid 6-digit verification code.' };
+    // Accepts the configured OTP length (6 to 8 digits)
+    if (!code || !/^\d{6,8}$/.test(code)) {
+      return { success: false, error: 'Please enter a valid verification code.' };
     }
 
     // Duplicate request prevention: block parallel in-flight verifications for same email
@@ -310,8 +339,11 @@ export class EmailVerificationService {
       }
 
       const now = Date.now();
-      if (now > record.expiresAt) {
-        return { success: false, error: 'Verification code has expired. Please request a new code.' };
+      // Local expiry is enforced only for the isolated test sandbox. In the browser the server
+      // (GoTrue) is the single source of truth, so a delayed-but-valid code is never rejected locally.
+      const sandbox = typeof process !== 'undefined' && process.env?.NODE_ENV === 'test';
+      if (sandbox && now > record.expiresAt) {
+        return { success: false, needsResend: true, error: 'Verification code has expired. Please request a new code.' };
       }
 
       // Brute force protection: maximum 5 attempts per code
@@ -362,56 +394,45 @@ export class EmailVerificationService {
         };
 
         try {
-          // 1. Primary: 'email' (the exact OTP type generated by signInWithOtp)
-          let verifyRes = await supabase.auth.verifyOtp({
+          // The code was issued by signInWithOtp, so it is verified EXACTLY ONCE with type 'email'.
+          // We never retry the same code with another type: a token is single-use server-side and
+          // a second attempt can only mask the real error (or consume a token that was valid).
+          verifyRes = await supabase.auth.verifyOtp({
             email,
             token: code,
             type: 'email',
           });
 
-          // If network failed, do NOT attempt a second call and do NOT deduct attempts
-          if (verifyRes.error && isNetworkError(verifyRes.error)) {
-            return {
-              success: false,
-              error: 'Network connection error while contacting authentication server. Please check your connection or ad-blocker. (Attempts not deducted).',
-            };
-          }
-
-          // 2. Fallback: If 'email' was rejected as invalid, try 'signup' (in case project uses signup confirmation tokens)
-          if (verifyRes.error && !isNetworkError(verifyRes.error)) {
-            const signupRes = await supabase.auth.verifyOtp({
-              email,
-              token: code,
-              type: 'signup',
-            });
-            if (!signupRes.error) {
-              verifyRes = signupRes;
-            } else if (!isNetworkError(signupRes.error)) {
-              verifyRes = signupRes;
-            } else {
-              return {
-                success: false,
-                error: 'Network connection error while contacting authentication server. Please check your connection. (Attempts not deducted).',
-              };
-            }
-          }
-
           if (verifyRes.error) {
-            // Check again for network failure: NEVER deduct attempts on network failures
-            if (isNetworkError(verifyRes.error)) {
+            const status = (verifyRes.error as any).status as number | undefined;
+            const errCode = (verifyRes.error as any).code as string | undefined;
+
+            // Network failures / server-side outages: NEVER count as an invalid attempt
+            if (isNetworkError(verifyRes.error) || (status !== undefined && status >= 500)) {
               return {
                 success: false,
-                error: 'Network error connecting to verification server. Please check your internet connection. (Attempts not deducted).',
+                error: 'Could not reach the verification server. Please check your connection and try again. (Attempt not counted.)',
               };
             }
 
-            // Confirmed invalid / expired code: deduct 1 attempt
+            // Supabase rate limit: not an invalid code
+            if (status === 429 || errCode === 'over_request_rate_limit') {
+              return {
+                success: false,
+                error: 'Too many verification requests. Please wait a minute and try again. (Attempt not counted.)',
+              };
+            }
+
+            // Confirmed rejection by GoTrue (403 otp_expired covers wrong, expired, consumed or replaced codes)
             record.attempts += 1;
             this.persistToStorage();
             const remaining = Math.max(0, MAX_ATTEMPTS - record.attempts);
             return {
               success: false,
-              error: `Token has expired or is invalid. ${remaining} attempt${remaining === 1 ? '' : 's'} remaining. (Please enter the latest code sent to your email).`,
+              needsResend: true,
+              error:
+                `This code is incorrect, expired, or was replaced by a newer email. ` +
+                `Use the most recent code, or tap Resend Code. ${remaining} attempt${remaining === 1 ? '' : 's'} remaining.`,
             };
           }
         } catch (err: any) {

@@ -121,27 +121,11 @@ const CATEGORIES = [
   'Creativity',
 ] as const;
 
-const GUEST_VOTER_KEY = 'penora_guest_voter_id_v1';
-
-function getOrCreateVoterId(keyUser: PenoraUser | null, user: SupabaseUser | null): string {
-  if (keyUser?.id) return keyUser.id;
-  if (user?.id) return user.id;
-  if (typeof window !== 'undefined' && window.localStorage) {
-    let guestId = window.localStorage.getItem(GUEST_VOTER_KEY);
-    if (!guestId) {
-      guestId = `voter_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-      window.localStorage.setItem(GUEST_VOTER_KEY, guestId);
-    }
-    return guestId;
-  }
-  return 'voter_session';
-}
-
 export const SpatialFeedV4: React.FC = () => {
   const [user, setUser] = useState<SupabaseUser | null>(null);
   const [keyUser, setKeyUser] = useState<PenoraUser | null>(null);
-  const [articles, setArticles] = useState<FeedArticleItem[]>(CURATED_FALLBACK_ARTICLES);
-  const [loading, setLoading] = useState(false);
+  const [articles, setArticles] = useState<FeedArticleItem[]>([]);
+  const [loading, setLoading] = useState(true);
   const [isPendingMigration, setIsPendingMigration] = useState(false);
   const [activeCategory, setActiveCategory] = useState<string>('For You');
   const [activeNav, setActiveNav] = useState<'Home' | 'Explore' | 'Communities' | 'Profile' | 'Bookmarks'>('Home');
@@ -150,7 +134,7 @@ export const SpatialFeedV4: React.FC = () => {
   const [voteStatsMap, setVoteStatsMap] = useState<Record<string, PostVoteStats>>({});
   const [commentsCountMap, setCommentsCountMap] = useState<Record<string, number>>({});
   const [bookmarkedMap, setBookmarkedMap] = useState<Record<string, boolean>>({});
-  const [followedMap, setFollowedMap] = useState<Record<string, boolean>>({ erostova: true });
+  const [followedMap, setFollowedMap] = useState<Record<string, boolean>>({});
   const [joinedCommunities, setJoinedCommunities] = useState<Record<string, boolean>>({
     'spatial-design': true,
   });
@@ -180,39 +164,44 @@ export const SpatialFeedV4: React.FC = () => {
     };
   }, []);
 
-  // Fetch articles from Supabase
+  // Fetch real published articles from Supabase
   useEffect(() => {
     let mounted = true;
+    setLoading(true);
     getPublishedArticles({ limit: 20 }).then(res => {
       if (!mounted) return;
       if (res.isPendingMigration) {
         setIsPendingMigration(true);
-      } else if (res.data && res.data.length > 0) {
-        const mapped: FeedArticleItem[] = res.data.map((p: PostRecord) => ({
-          id: p.id,
-          slug: p.slug,
-          category: p.tags?.[0] || 'Protocol',
-          categoryGroup: 'Tech',
-          readTime: `${Math.max(1, Math.ceil(p.content.split(/\s+/).length / 200))} min read`,
-          title: p.title,
-          excerpt: p.excerpt || p.content.slice(0, 160) + '...',
-          author: {
-            id: p.author_id,
-            name: p.author?.display_name || p.author?.username || 'PENORA Creator',
-            handle: p.author?.username || 'creator',
-            avatar:
-              p.author?.avatar_url ||
-              'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=160&q=80',
-            reputation: p.author?.reputation ?? 25,
-            verified: true,
-          },
-          publishedAgo: new Date(p.created_at).toLocaleDateString(),
-          thumbnail:
-            p.cover_image_url ||
-            'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&w=640&q=80',
-          isDbRecord: true,
-        }));
-        setArticles(mapped);
+      } else if (res.data) {
+        if (res.data.length > 0) {
+          const mapped: FeedArticleItem[] = res.data.map((p: PostRecord) => ({
+            id: p.id,
+            slug: p.slug,
+            category: p.tags?.[0] || 'Protocol',
+            categoryGroup: 'Tech',
+            readTime: `${Math.max(1, Math.ceil(p.content.split(/\s+/).length / 200))} min read`,
+            title: p.title,
+            excerpt: p.excerpt || p.content.slice(0, 160) + '...',
+            author: {
+              id: p.author_id,
+              name: p.author?.display_name || p.author?.username || 'PENORA Creator',
+              handle: p.author?.username || 'creator',
+              avatar:
+                p.author?.avatar_url ||
+                'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=160&q=80',
+              reputation: p.author?.reputation ?? 25,
+              verified: true,
+            },
+            publishedAgo: new Date(p.created_at).toLocaleDateString(),
+            thumbnail:
+              p.cover_image_url ||
+              'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&w=640&q=80',
+            isDbRecord: true,
+          }));
+          setArticles(mapped);
+        } else {
+          setArticles([]);
+        }
       }
       setLoading(false);
     });
@@ -242,8 +231,8 @@ export const SpatialFeedV4: React.FC = () => {
   );
 
   useEffect(() => {
-    const voterId = getOrCreateVoterId(keyUser, user);
-    refreshArticleMetrics(articles, voterId);
+    const activeVoterId = keyUser?.id || user?.id || '';
+    refreshArticleMetrics(articles, activeVoterId);
   }, [articles, keyUser, user, refreshArticleMetrics]);
 
   // Filtered articles
@@ -263,7 +252,13 @@ export const SpatialFeedV4: React.FC = () => {
 
   // Functional Upvote ▲ and Downvote ▼ handler
   const handleVote = async (articleId: string, direction: 1 | -1) => {
-    const voterId = getOrCreateVoterId(keyUser, user);
+    const voterId = keyUser?.id || user?.id;
+    if (!voterId) {
+      setAuthMode('login');
+      setAuthModalOpen(true);
+      return;
+    }
+
     const current: PostVoteStats = voteStatsMap[articleId] ?? {
       upvotes: 0,
       downvotes: 0,
@@ -314,25 +309,34 @@ export const SpatialFeedV4: React.FC = () => {
 
   // Handle bookmark
   const handleBookmark = async (articleId: string) => {
+    const voterId = keyUser?.id || user?.id;
+    if (!voterId) {
+      setAuthMode('login');
+      setAuthModalOpen(true);
+      return;
+    }
+
     const isBookmarked = bookmarkedMap[articleId];
     setBookmarkedMap(prev => ({ ...prev, [articleId]: !isBookmarked }));
-
-    if (user) {
-      await toggleBookmark(user.id, articleId);
-    }
+    await toggleBookmark(voterId, articleId);
   };
 
   // Handle follow
   const handleFollow = async (handle: string, authorId?: string) => {
+    const voterId = keyUser?.id || user?.id;
+    if (!voterId) {
+      setAuthMode('login');
+      setAuthModalOpen(true);
+      return;
+    }
+
     const isFollowed = followedMap[handle];
     setFollowedMap(prev => ({ ...prev, [handle]: !isFollowed }));
 
-    if (user && authorId) {
-      if (isFollowed) {
-        await unfollowUser(user.id, authorId);
-      } else {
-        await followUser(user.id, authorId);
-      }
+    if (isFollowed) {
+      await unfollowUser(voterId, authorId || handle);
+    } else {
+      await followUser(voterId, authorId || handle);
     }
   };
 

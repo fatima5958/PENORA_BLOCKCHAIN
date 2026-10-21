@@ -17,7 +17,7 @@ describe('PENORA OTP Email Delivery & GoTrue Diagnostics', () => {
     penoraKeyAuth.logout();
   });
 
-  it('1. verifies isolated test environment generates and validates real 6-digit code without leaks', async () => {
+  it('1. verifies isolated test environment generates and validates real 8-digit code without leaks', async () => {
     const res = await emailVerificationService.sendVerificationCode({
       email: testEmail,
       username: testUsername,
@@ -29,10 +29,10 @@ describe('PENORA OTP Email Delivery & GoTrue Diagnostics', () => {
     expect((res as any).code).toBeUndefined();
     expect((res as any).otp).toBeUndefined();
 
-    // Verify 6-digit code format
+    // Verify 8-digit code format matching Supabase project configuration
     const code = emailVerificationService._getTestCodeForTestingOnly(testEmail);
     expect(code).toBeDefined();
-    expect(code).toMatch(/^\d{6}$/);
+    expect(code).toMatch(/^\d{8}$/);
 
     // Verify code successfully yields proof
     const verifyRes = await emailVerificationService.verifyCode({
@@ -97,7 +97,7 @@ describe('PENORA OTP Email Delivery & GoTrue Diagnostics', () => {
     expect(error).not.toBeNull();
     expect(error?.status).toBe(500);
     expect(error?.message).toMatch(/Error sending (confirmation|magic link) email/i);
-  });
+  }, 15000);
 
   it('5. verifies OTP verification immediately unlocks Step 3: Key Suite generation', async () => {
     await emailVerificationService.sendVerificationCode({

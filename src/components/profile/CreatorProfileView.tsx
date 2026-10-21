@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import type { Author, Article, Topic, Community } from '../../types';
 import { CompactPostCard } from '../feed/CompactPostCard';
 import { RightSidebar } from '../layout/RightSidebar';
@@ -14,7 +14,15 @@ import {
   Repeat,
   Compass,
   Sparkles,
+  ArrowRight,
 } from 'lucide-react';
+import { supabase } from '../../lib/supabaseClient';
+import { penoraKeyAuth, type PenoraUser } from '../../lib/auth/penoraKeyAuth';
+import { followUser, unfollowUser, isFollowing as checkIsFollowing, getFollowCounts } from '../../lib/api/follows';
+import { getUserArticles } from '../../lib/api/articles';
+import { SpatialAuthModalV4 } from '../design-v4/SpatialAuthModalV4';
+import type { PostRecord, ProfileRecord } from '../../lib/api/types';
+import type { User as SupabaseUser } from '@supabase/supabase-js';
 
 interface CreatorProfileViewProps {
   author: Author;
@@ -24,26 +32,159 @@ interface CreatorProfileViewProps {
 }
 
 export const CreatorProfileView: React.FC<CreatorProfileViewProps> = ({
-  author,
-  articles,
+  author: initialAuthor,
+  articles: fallbackArticles,
   topics,
 }) => {
-  const [activeTab, setActiveTab] = useState<'blog' | 'posts' | 'comments' | 'replies'>('posts');
-  const [isFollowing, setIsFollowing] = useState(false);
-  const [followersCount, setFollowersCount] = useState(author.followersCount || 30);
+  const [user, setUser] = useState<SupabaseUser | null>(null);
+  const [keyUser, setKeyUser] = useState<PenoraUser | null>(null);
+  const [authModalOpen, setAuthModalOpen] = useState(false);
 
-  const handleFollowToggle = () => {
-    if (isFollowing) {
-      setFollowersCount(prev => prev - 1);
-      setIsFollowing(false);
+  const [activeTab, setActiveTab] = useState<'posts' | 'blog'>('posts');
+  const [isFollowing, setIsFollowing] = useState(false);
+  const [followersCount, setFollowersCount] = useState(0);
+  const [followingCount, setFollowingCount] = useState(0);
+
+  const [creatorProfile, setCreatorProfile] = useState<Author>(initialAuthor);
+  const [creatorPosts, setCreatorPosts] = useState<Article[]>([]);
+  const [loadingPosts, setLoadingPosts] = useState(true);
+
+  // Subscribe to auth
+  useEffect(() => {
+    const unsubKey = penoraKeyAuth.subscribe(ku => setKeyUser(ku));
+    supabase.auth.getSession().then(({ data }) => setUser(data.session?.user ?? null));
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+    });
+
+    return () => {
+      unsubKey();
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  // Hydrate real creator profile & posts from Supabase
+  useEffect(() => {
+    let mounted = true;
+    const handle = initialAuthor.handle;
+
+    async function loadCreatorData() {
+      setLoadingPosts(true);
+      try {
+        const { data: prof } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('username', handle.toLowerCase())
+          .maybeSingle();
+
+        if (prof && mounted) {
+          const p: ProfileRecord = prof;
+          setCreatorProfile(prev => ({
+            ...prev,
+            id: p.id,
+            name: p.display_name || p.username,
+            handle: p.username,
+            bio: p.bio || prev.bio,
+            avatar: p.avatar_url || prev.avatar,
+            coverImage: p.cover_url || prev.coverImage,
+            reputationScore: p.reputation ?? 25,
+            joinedDate: new Date(p.created_at).toLocaleDateString(undefined, { month: 'long', year: 'numeric' }),
+          }));
+
+          // Fetch follow counts
+          const fc = await getFollowCounts(p.id);
+          if (mounted) {
+            setFollowersCount(fc.followers);
+            setFollowingCount(fc.following);
+          }
+
+          // Fetch real published posts
+          const postsRes = await getUserArticles(p.id);
+          if (mounted) {
+            if (postsRes.data && postsRes.data.length > 0) {
+              const mapped: Article[] = postsRes.data
+                .filter(post => post.published)
+                .map((post: PostRecord) => ({
+                  id: post.id,
+                  slug: post.slug,
+                  title: post.title,
+                  excerpt: post.excerpt || post.content.slice(0, 160) + '...',
+                  content: post.content,
+                  coverImage: post.cover_image_url || undefined,
+                  category: post.tags?.[0] || 'Protocol',
+                  publishedAt: new Date(post.created_at).toLocaleDateString(),
+                  readTime: `${Math.max(1, Math.ceil(post.content.split(/\s+/).length / 200))} min read`,
+                  author: {
+                    id: p.id,
+                    name: p.display_name || p.username,
+                    handle: p.username,
+                    avatar: p.avatar_url || initialAuthor.avatar,
+                    reputationScore: p.reputation ?? 25,
+                    isTopContributor: (p.reputation ?? 25) >= 50,
+                    followersCount: fc.followers,
+                  },
+                  curationScore: 0,
+                  tags: post.tags || [],
+                }));
+              setCreatorPosts(mapped);
+            } else {
+              setCreatorPosts([]);
+            }
+          }
+        } else if (mounted) {
+          // If no remote profile found, filter fallback articles for this author
+          const matched = fallbackArticles.filter(a => a.author.handle === handle || a.author.id === initialAuthor.id);
+          setCreatorPosts(matched);
+          setFollowersCount(initialAuthor.followersCount || 0);
+        }
+      } catch {
+        if (mounted) {
+          const matched = fallbackArticles.filter(a => a.author.handle === handle);
+          setCreatorPosts(matched);
+        }
+      } finally {
+        if (mounted) setLoadingPosts(false);
+      }
+    }
+
+    loadCreatorData();
+
+    return () => {
+      mounted = false;
+    };
+  }, [initialAuthor.handle, initialAuthor.id]);
+
+  // Check if current visitor is following this author
+  useEffect(() => {
+    const activeUserId = keyUser?.id || user?.id;
+    const authorId = creatorProfile.id;
+    if (activeUserId && authorId) {
+      checkIsFollowing(activeUserId, authorId).then(following => {
+        setIsFollowing(following);
+      });
+    }
+  }, [keyUser, user, creatorProfile.id]);
+
+  const handleFollowToggle = async () => {
+    const activeUserId = keyUser?.id || user?.id;
+    if (!activeUserId) {
+      setAuthModalOpen(true);
+      return;
+    }
+
+    const nextState = !isFollowing;
+    setIsFollowing(nextState);
+    setFollowersCount(prev => (nextState ? prev + 1 : Math.max(0, prev - 1)));
+
+    if (nextState) {
+      await followUser(activeUserId, creatorProfile.id || creatorProfile.handle);
     } else {
-      setFollowersCount(prev => prev + 1);
-      setIsFollowing(true);
+      await unfollowUser(activeUserId, creatorProfile.id || creatorProfile.handle);
     }
   };
 
-  const authorArticles = articles.filter(a => a.author.handle === author.handle || a.author.id === author.id);
-  const displayArticles = authorArticles.length > 0 ? authorArticles : articles.slice(0, 2);
+  const author = creatorProfile;
+  const displayArticles = creatorPosts;
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
@@ -135,22 +276,18 @@ export const CreatorProfileView: React.FC<CreatorProfileViewProps> = ({
             </div>
             <div className="text-[#0A2540]/20">•</div>
             <div>
-              <span className="font-bold text-[#0A2540]">{author.postsCount || 1013}</span>{' '}
-              <span className="text-[#4A5E75] font-normal">posts</span>
+              <span className="font-bold text-[#0A2540]">{displayArticles.length}</span>{' '}
+              <span className="text-[#4A5E75] font-normal">published posts</span>
             </div>
             <div className="text-[#0A2540]/20">•</div>
             <div>
-              <span className="font-bold text-[#0A2540]">{author.followingCount || 3}</span>{' '}
+              <span className="font-bold text-[#0A2540]">{followingCount}</span>{' '}
               <span className="text-[#4A5E75] font-normal">following</span>
             </div>
             <div className="text-[#0A2540]/20">•</div>
             <div className="flex items-center gap-1 text-[#007C8B]">
               <Award className="h-3.5 w-3.5" />
-              <span>{author.reputationScore * 25} Rep Points</span>
-            </div>
-            <div className="text-[#0A2540]/20">•</div>
-            <div className="text-[#4A5E75] font-normal">
-              Rank #{author.reputationScore >= 90 ? '42' : '60,632'}
+              <span>{author.reputationScore} Reputation</span>
             </div>
           </div>
 
@@ -162,11 +299,11 @@ export const CreatorProfileView: React.FC<CreatorProfileViewProps> = ({
             </span>
             <span className="flex items-center gap-1.5">
               <Calendar className="h-3.5 w-3.5 text-[#007C8B]" />
-              <span>{author.joinedDate || 'Joined November 2024'}</span>
+              <span>{author.joinedDate || 'Member'}</span>
             </span>
             <span className="flex items-center gap-1.5">
               <Clock className="h-3.5 w-3.5 text-[#7B8FA6]" />
-              <span>{author.activeStatus || 'Active today'}</span>
+              <span>Verified Creator</span>
             </span>
           </div>
 
@@ -188,7 +325,7 @@ export const CreatorProfileView: React.FC<CreatorProfileViewProps> = ({
             </a>
             
             <div className="pt-2 pb-1 px-3 text-[10px] font-bold uppercase tracking-wider text-[#7B8FA6]">
-              Creator Profile
+              Creator Publications
             </div>
 
             <button
@@ -199,33 +336,6 @@ export const CreatorProfileView: React.FC<CreatorProfileViewProps> = ({
               <BookOpen className="h-4 w-4" />
               <span>Posts ({displayArticles.length})</span>
             </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveTab('blog')}
-              className={`pn-nav-item w-full text-left ${activeTab === 'blog' ? 'active' : ''}`}
-            >
-              <Sparkles className="h-4 w-4" />
-              <span>Blog Curation</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveTab('comments')}
-              className={`pn-nav-item w-full text-left ${activeTab === 'comments' ? 'active' : ''}`}
-            >
-              <MessageSquare className="h-4 w-4" />
-              <span>Comments (38)</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveTab('replies')}
-              className={`pn-nav-item w-full text-left ${activeTab === 'replies' ? 'active' : ''}`}
-            >
-              <Repeat className="h-4 w-4" />
-              <span>Replies (19)</span>
-            </button>
           </div>
         </div>
 
@@ -233,18 +343,34 @@ export const CreatorProfileView: React.FC<CreatorProfileViewProps> = ({
         <main className="lg:col-span-6 space-y-4">
           <div className="flex items-center justify-between px-1">
             <h2 className="font-display text-lg font-bold text-[#0A2540] capitalize">
-              {author.name}'s {activeTab}
+              {author.name}'s Publications
             </h2>
             <span className="text-xs text-[#4A5E75]">
-              {displayArticles.length} published dispatches
+              {displayArticles.length} published essays
             </span>
           </div>
 
-          <div className="space-y-3.5">
-            {displayArticles.map((article) => (
-              <CompactPostCard key={article.id} article={article} />
-            ))}
-          </div>
+          {loadingPosts ? (
+            <div className="pn-card p-10 text-center text-xs text-[#4A5E75]">
+              Loading publications…
+            </div>
+          ) : displayArticles.length === 0 ? (
+            <div className="pn-card p-10 text-center space-y-3">
+              <div className="h-10 w-10 rounded-2xl bg-[#00E5F4]/15 text-[#007C8B] flex items-center justify-center mx-auto">
+                <BookOpen className="h-5 w-5" />
+              </div>
+              <h3 className="pn-h2">No essays published yet</h3>
+              <p className="text-xs text-[#4A5B70] max-w-sm mx-auto leading-relaxed">
+                @{author.handle} has not published any public essays yet. Check back soon for new perspectives.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3.5">
+              {displayArticles.map((article) => (
+                <CompactPostCard key={article.id} article={article} />
+              ))}
+            </div>
+          )}
         </main>
 
         {/* Right Sidebar Column */}
@@ -254,6 +380,12 @@ export const CreatorProfileView: React.FC<CreatorProfileViewProps> = ({
 
       </div>
 
+      <SpatialAuthModalV4
+        isOpen={authModalOpen}
+        onClose={() => setAuthModalOpen(false)}
+        initialMode="login"
+        presentation="centered-modal"
+      />
     </div>
   );
 };

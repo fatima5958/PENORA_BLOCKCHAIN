@@ -28,6 +28,9 @@ import {
   Trash2,
   Loader2,
   Key,
+  AlertTriangle,
+  X,
+  Lock,
 } from 'lucide-react';
 
 function emailInitials(email: string): string {
@@ -59,6 +62,13 @@ export const MyProfileView: React.FC = () => {
   const [saveStatus, setSaveStatus] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
+  // Danger zone & account deletion state
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [deletePrivateKey, setDeletePrivateKey] = useState('');
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
   const handleDeleteArticle = async (id: string, title: string) => {
     if (!window.confirm(`Are you sure you want to permanently delete "${title}"?`)) {
       return;
@@ -70,6 +80,34 @@ export const MyProfileView: React.FC = () => {
       alert(`Failed to delete essay: ${res.error}`);
     } else {
       setArticles(prev => prev.filter(a => a.id !== id));
+    }
+  };
+
+  const handleExecuteAccountDeletion = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!activeCreator) return;
+    if (deleteConfirmText.trim().toLowerCase() !== activeCreator.username.toLowerCase()) {
+      setDeleteError(`Please type your username "${activeCreator.username}" exactly to confirm.`);
+      return;
+    }
+    setIsDeletingAccount(true);
+    setDeleteError(null);
+
+    try {
+      const res = await penoraKeyAuth.deleteAccount(
+        activeCreator.username,
+        deletePrivateKey.trim() || undefined
+      );
+      if (!res.success && activeCreator.isKeyAuth) {
+        setDeleteError(res.error || 'Failed to delete account.');
+        setIsDeletingAccount(false);
+        return;
+      }
+      await supabase.auth.signOut().catch(() => {});
+      window.location.href = '/';
+    } catch (err: any) {
+      setDeleteError(err?.message || 'Error deleting account.');
+      setIsDeletingAccount(false);
     }
   };
 
@@ -514,6 +552,164 @@ export const MyProfileView: React.FC = () => {
           <span>
             Authenticated via Supabase Auth. Remote profile and article tables are staged and ready for owner migration approval.
           </span>
+        </div>
+      )}
+
+      {/* Account Authority & Danger Zone */}
+      <div className="pn-card p-6 border-red-500/20 bg-gradient-to-b from-white to-red-500/[0.02] space-y-4">
+        <div className="flex items-center justify-between border-b border-[#0A2540]/10 pb-3">
+          <div className="flex items-center gap-2">
+            <Lock className="h-4 w-4 text-[#4A5B70]" />
+            <h3 className="pn-h3 text-sm">Account Authority & Security</h3>
+          </div>
+          <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
+            Active Session
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+          <div className="p-3 rounded-xl bg-[#F8FAFC] border border-[#0A2540]/5 space-y-1">
+            <p className="text-[#6E7D90] font-medium">Identity Account ID</p>
+            <p className="font-mono text-[11px] text-[#0A2540] truncate" title={activeCreator.id}>
+              {activeCreator.id}
+            </p>
+          </div>
+          <div className="p-3 rounded-xl bg-[#F8FAFC] border border-[#0A2540]/5 space-y-1">
+            <p className="text-[#6E7D90] font-medium">Key Authority Role</p>
+            <p className="font-semibold text-[#007C8B] uppercase">
+              {activeCreator.keyRole} Authority
+            </p>
+          </div>
+          <div className="p-3 rounded-xl bg-[#F8FAFC] border border-[#0A2540]/5 space-y-1">
+            <p className="text-[#6E7D90] font-medium">Session Verification</p>
+            <p className="font-semibold text-emerald-600">Cryptographically Signed</p>
+          </div>
+        </div>
+
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between pt-3 border-t border-[#0A2540]/10 gap-3">
+          <div className="space-y-0.5">
+            <h4 className="text-xs font-bold text-[#D93838]">Danger Zone</h4>
+            <p className="text-[11px] text-[#6E7D90]">
+              Irreversibly delete your account, remove private key authorities, and erase profile data.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setDeleteConfirmText('');
+              setDeletePrivateKey('');
+              setDeleteError(null);
+              setShowDeleteModal(true);
+            }}
+            className="pn-btn pn-btn-sm text-red-600 hover:bg-red-50 border-red-200"
+          >
+            <Trash2 className="h-3.5 w-3.5 text-red-600" />
+            <span>Delete Creator Account</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Account Deletion Confirmation Modal */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+          <div className="pn-card max-w-md w-full p-6 space-y-5 bg-white border-red-500/30 shadow-2xl relative">
+            <div className="flex items-start justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-full bg-red-100 text-red-600">
+                  <AlertTriangle className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="pn-h2 text-lg text-[#0A2540]">Delete Account</h3>
+                  <p className="text-xs text-[#6E7D90]">This action is permanent and irreversible.</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowDeleteModal(false)}
+                className="text-[#6E7D90] hover:text-[#0A2540] p-1"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="p-3 rounded-xl bg-red-50/60 border border-red-200/60 text-xs text-red-700 space-y-1">
+              <p className="font-semibold">What will happen:</p>
+              <ul className="list-disc list-inside space-y-0.5 text-[11px] opacity-90">
+                <li>Your profile and key authorities will be revoked.</li>
+                <li>Your local encrypted keys and session will be wiped.</li>
+                <li>Your username will be released for fresh registration.</li>
+              </ul>
+            </div>
+
+            <form onSubmit={handleExecuteAccountDeletion} className="space-y-4">
+              <div>
+                <label className="pn-field-label">
+                  Confirm by typing your username <strong className="text-[#0A2540]">{activeCreator.username}</strong>:
+                </label>
+                <input
+                  type="text"
+                  value={deleteConfirmText}
+                  onChange={e => setDeleteConfirmText(e.target.value)}
+                  placeholder={activeCreator.username}
+                  className="pn-input font-mono"
+                  required
+                />
+              </div>
+
+              {activeCreator.isKeyAuth && (
+                <div>
+                  <label className="pn-field-label">
+                    Active Key or Owner Key (WIF format):
+                  </label>
+                  <input
+                    type="password"
+                    value={deletePrivateKey}
+                    onChange={e => setDeletePrivateKey(e.target.value)}
+                    placeholder="5J... or 5K..."
+                    className="pn-input font-mono"
+                    required
+                  />
+                  <p className="text-[10px] text-[#6E7D90] mt-1">
+                    Required to prove ownership of the cryptographic key suite.
+                  </p>
+                </div>
+              )}
+
+              {deleteError && (
+                <div className="p-2.5 rounded-lg bg-red-50 border border-red-200 text-xs text-red-600">
+                  {deleteError}
+                </div>
+              )}
+
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowDeleteModal(false)}
+                  disabled={isDeletingAccount}
+                  className="pn-btn pn-btn-secondary pn-btn-sm"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isDeletingAccount || deleteConfirmText.trim().toLowerCase() !== activeCreator.username.toLowerCase()}
+                  className="pn-btn pn-btn-sm bg-red-600 text-white hover:bg-red-700 border-transparent disabled:opacity-50"
+                >
+                  {isDeletingAccount ? (
+                    <>
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      <span>Deleting Account…</span>
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="h-3.5 w-3.5" />
+                      <span>Permanently Delete</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </div>
