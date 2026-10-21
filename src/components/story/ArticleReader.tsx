@@ -1,5 +1,5 @@
 // src/components/story/ArticleReader.tsx
-// PENORA Blockchain — Longform Essay Reader & Curation View
+// PENORA Blockchain — Longform Blog Reader & Curation View
 import React, { useState, useEffect } from 'react';
 import type { Article } from '../../types';
 import {
@@ -23,16 +23,27 @@ import { SpatialAuthModalV4 } from '../design-v4/SpatialAuthModalV4';
 import { penoraKeyAuth, type PenoraUser } from '../../lib/auth/penoraKeyAuth';
 import type { CommentRecord, PostRecord } from '../../lib/api/types';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
+import { ArticleMarkdown } from '../editor/ArticleMarkdown';
 
 interface ArticleReaderProps {
-  article: Article;
+  article?: Article;
 }
 
-export const ArticleReader: React.FC<ArticleReaderProps> = ({ article: initialArticle }) => {
+const EMPTY_ARTICLE: Article = {
+  id: '', slug: '', title: '', subtitle: '', excerpt: '', content: [], coverImage: '', coverImageAlt: '',
+  publishedAt: '', readTimeMinutes: 0, topic: '', tags: [],
+  author: { id: '', name: '', handle: '', avatar: '', reputationScore: 0, role: 'Creator' },
+  stats: { votesCount: 0, commentsCount: 0, bookmarksCount: 0, reputationPoints: 0 },
+};
+
+export const ArticleReader: React.FC<ArticleReaderProps> = ({ article: initialArticle = EMPTY_ARTICLE }) => {
   const [user, setUser] = useState<SupabaseUser | null>(null);
   const [keyUser, setKeyUser] = useState<PenoraUser | null>(null);
   const [authModalOpen, setAuthModalOpen] = useState(false);
-  const [article, setArticle] = useState<Article>(initialArticle);
+  const [article, setArticle] = useState<Article>(EMPTY_ARTICLE);
+  const [articleLoading, setArticleLoading] = useState(true);
+  const [articleError, setArticleError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const [voteStats, setVoteStats] = useState<PostVoteStats>({
     upvotes: 0,
@@ -51,50 +62,37 @@ export const ArticleReader: React.FC<ArticleReaderProps> = ({ article: initialAr
   const [newCommentText, setNewCommentText] = useState('');
   const [submittingComment, setSubmittingComment] = useState(false);
 
-  // Hydrate real post from Supabase if viewing by slug
+  // Pretty story URLs are rewritten to the static reader shell on Vercel.
   useEffect(() => {
     let mounted = true;
-    const pathSlug = typeof window !== 'undefined'
-      ? window.location.pathname.replace(/^\/story\//, '').replace(/\/$/, '')
-      : initialArticle.slug;
-    const targetSlug = pathSlug || initialArticle.slug;
-
-    if (targetSlug) {
-      getArticleBySlug(targetSlug).then(res => {
-        if (!mounted || !res.data) return;
-        const p: PostRecord = res.data;
-        setArticle({
-          id: p.id,
-          slug: p.slug,
-          title: p.title,
-          excerpt: p.excerpt || p.content.slice(0, 160) + '...',
-          content: p.content,
-          coverImage: p.cover_image_url || initialArticle.coverImage,
-          category: p.tags?.[0] || 'Protocol',
-          publishedAt: p.created_at,
-          readTime: `${Math.max(1, Math.ceil(p.content.split(/\s+/).length / 200))} min read`,
-          author: {
-            id: p.author_id,
-            name: p.author?.display_name || p.author?.username || 'PENORA Creator',
-            handle: p.author?.username || 'creator',
-            avatar: p.author?.avatar_url || initialArticle.author.avatar,
-            bio: p.author?.bio || '',
-            reputationScore: p.author?.reputation ?? 25,
-            isTopContributor: (p.author?.reputation ?? 25) >= 50,
-            followersCount: 0,
-          },
-          curationScore: 0,
-          tags: p.tags || [],
-        });
+    const url = new URL(window.location.href);
+    const pathSlug = url.pathname.startsWith('/story/') ? url.pathname.slice(7).replace(/\/$/, '') : '';
+    let targetSlug = url.searchParams.get('slug') || pathSlug || initialArticle.slug;
+    try { targetSlug = decodeURIComponent(targetSlug); } catch { /* use the original value */ }
+    if (!targetSlug) { setArticleError('This blog link is incomplete.'); setArticleLoading(false); return; }
+    getArticleBySlug(targetSlug).then(res => {
+      if (!mounted) return;
+      setArticleLoading(false);
+      if (!res.data) { setArticleError(res.error || 'This blog was not found or is not public.'); return; }
+      const p = res.data;
+      setArticle({
+        id: p.id, slug: p.slug, title: p.title, subtitle: '', excerpt: p.excerpt || '', content: [p.content],
+        coverImage: p.cover_image_url || '', coverImageAlt: p.title, publishedAt: p.created_at,
+        readTimeMinutes: Math.max(1, Math.ceil(p.content.trim().split(/\s+/).length / 200)),
+        topic: p.tags?.[0] || 'Blog', tags: p.tags || [],
+        author: {
+          id: p.author_id, name: p.author?.display_name || p.author?.username || 'PENORA Creator',
+          handle: p.author?.username || '', avatar: p.author?.avatar_url || '/brand/penora-celestial-cover-default.jpg',
+          bio: p.author?.bio || '', reputationScore: p.author?.reputation ?? 0, role: 'Creator',
+        },
+        stats: { votesCount: 0, commentsCount: 0, bookmarksCount: 0, reputationPoints: 0 },
       });
-    }
-
-    return () => {
-      mounted = false;
-    };
+    });
+    return () => { mounted = false; };
   }, [initialArticle.slug]);
 
   useEffect(() => {
+    if (!article.id) return;
     const unsubKey = penoraKeyAuth.subscribe(ku => {
       setKeyUser(ku);
     });
@@ -136,6 +134,7 @@ export const ArticleReader: React.FC<ArticleReaderProps> = ({ article: initialAr
   }, [article.id, article.author.id]);
 
   useEffect(() => {
+    if (!article.id) return;
     const voterId = keyUser?.id || user?.id || '';
     getVotesForPost(article.id, voterId).then(stats => {
       setVoteStats(stats);
@@ -257,6 +256,15 @@ export const ArticleReader: React.FC<ArticleReaderProps> = ({ article: initialAr
     }
   };
 
+  if (articleLoading || articleError) return (
+    <div className="w-full max-w-4xl mx-auto px-4 py-12">
+      <a href="/" className="pn-btn pn-btn-secondary pn-btn-sm mb-6">Back to Feed</a>
+      <div className="pn-card p-8" role={articleError ? 'alert' : 'status'}>
+        {articleLoading ? 'Loading blog…' : articleError}
+      </div>
+    </div>
+  );
+
   return (
     <div className="w-full max-w-4xl mx-auto px-4 sm:px-6 py-8 space-y-6">
       {/* Top Bar */}
@@ -345,11 +353,7 @@ export const ArticleReader: React.FC<ArticleReaderProps> = ({ article: initialAr
         )}
 
         <div className="text-base sm:text-[17px] text-[#0A2540] leading-relaxed space-y-6">
-          {Array.isArray(article.content) ? (
-            article.content.map((para: string, i: number) => <p key={i}>{para}</p>)
-          ) : (
-            <p>{String(article.content)}</p>
-          )}
+          <ArticleMarkdown content={article.content.join('\n\n')} />
         </div>
 
         {/* Steemit-Inspired Curation Voting Dock */}
@@ -391,9 +395,9 @@ export const ArticleReader: React.FC<ArticleReaderProps> = ({ article: initialAr
             </span>
             <span className="text-xs text-[#4A5B70]">
               {voteStats.userVote === 1
-                ? 'You upvoted this essay'
+                ? 'You upvoted this blog'
                 : voteStats.userVote === -1
-                ? 'You downvoted this essay'
+                ? 'You downvoted this blog'
                 : 'Curate to reward creator reputation'}
             </span>
           </div>
@@ -404,7 +408,7 @@ export const ArticleReader: React.FC<ArticleReaderProps> = ({ article: initialAr
             className={`pn-btn pn-btn-sm ${bookmarked ? 'pn-btn-subtle' : 'pn-btn-secondary'}`}
           >
             <Bookmark className={`h-3.5 w-3.5 ${bookmarked ? 'fill-current text-[#007C8B]' : ''}`} />
-            <span>{bookmarked ? 'Saved to Bookmarks' : 'Save Essay'}</span>
+            <span>{bookmarked ? 'Saved to Bookmarks' : 'Save Blog'}</span>
           </button>
         </div>
       </article>

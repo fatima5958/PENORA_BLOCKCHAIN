@@ -495,7 +495,7 @@ export const DesignV4Preview: React.FC = () => {
                     </div>
                     <div className="space-y-2 text-[#61534D]">
                       <div className="p-2 rounded-xl bg-white/60">
-                        <strong className="text-[#1D2729]">Elena Park</strong> published a new essay in{' '}
+                        <strong className="text-[#1D2729]">Elena Park</strong> published a new blog in{' '}
                         <span className="text-[#367B6F] font-medium">Lifestyle</span>.
                       </div>
                       <div className="p-2 rounded-xl bg-white/60">

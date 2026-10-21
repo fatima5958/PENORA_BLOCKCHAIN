@@ -51,17 +51,17 @@ export async function updateProfile(
 ): Promise<ProfileResult> {
   try {
     // 1. Length & format validation guards
-    if (updates.display_name !== undefined && updates.display_name.trim().length > 50) {
+    if (updates.display_name !== undefined && (updates.display_name ?? '').trim().length > 50) {
       return { data: null, error: 'Display name cannot exceed 50 characters.' };
     }
-    if (updates.bio !== undefined && updates.bio.trim().length > 300) {
+    if (updates.bio !== undefined && (updates.bio ?? '').trim().length > 300) {
       return { data: null, error: 'Bio cannot exceed 300 characters.' };
     }
-    if (updates.location !== undefined && updates.location.trim().length > 50) {
+    if (updates.location !== undefined && (updates.location ?? '').trim().length > 50) {
       return { data: null, error: 'Location cannot exceed 50 characters.' };
     }
-    if (updates.website !== undefined && updates.website.trim().length > 0) {
-      const trimmedUrl = updates.website.trim();
+    if (updates.website !== undefined && (updates.website ?? '').trim().length > 0) {
+      const trimmedUrl = (updates.website ?? '').trim();
       try {
         const parsed = new URL(trimmedUrl);
         if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
@@ -108,12 +108,12 @@ export async function updateProfile(
 
     // 3. Prepare sanitized payload (direct reputation update is rejected)
     const payload: Record<string, any> = {};
-    if (updates.display_name !== undefined) payload.display_name = updates.display_name.trim();
-    if (updates.bio !== undefined) payload.bio = updates.bio.trim();
+    if (updates.display_name !== undefined) payload.display_name = (updates.display_name ?? '').trim();
+    if (updates.bio !== undefined) payload.bio = (updates.bio ?? '').trim();
     if (updates.avatar_url !== undefined) payload.avatar_url = updates.avatar_url;
     if (updates.cover_url !== undefined) payload.cover_url = updates.cover_url;
-    if (updates.location !== undefined) payload.location = updates.location.trim();
-    if (updates.website !== undefined) payload.website = updates.website.trim();
+    if (updates.location !== undefined) payload.location = (updates.location ?? '').trim();
+    if (updates.website !== undefined) payload.website = (updates.website ?? '').trim();
     if (updates.interests !== undefined) payload.interests = updates.interests.map(t => t.trim().replace(/^#/, ''));
 
     let { data, error } = await supabase

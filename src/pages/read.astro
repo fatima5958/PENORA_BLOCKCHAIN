@@ -1,0 +1,7 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { ArticleReader } from '../components/story/ArticleReader';
+---
+<BaseLayout title="Read a blog — PENORA" description="Read a published blog on PENORA.">
+  <ArticleReader client:load />
+</BaseLayout>

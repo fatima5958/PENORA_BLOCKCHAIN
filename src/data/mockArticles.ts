@@ -29,7 +29,7 @@ export const MOCK_COMMUNITIES: Community[] = [
     id: 'beauty-of-craft',
     slug: 'editorial-craft',
     name: 'Art of Typographic Craft',
-    description: 'Masterclass essays, tactile margins, serif revivals, and slow journalism.',
+    description: 'Masterclass blogs, tactile margins, serif revivals, and slow journalism.',
     avatar: 'https://images.unsplash.com/photo-1457369804613-52c61a468e7d?auto=format&fit=crop&w=150&q=80',
     subscriberCount: 2780,
     activePostsCount: 189,
@@ -147,7 +147,7 @@ export const MOCK_ARTICLES: Article[] = [
     subtitle: 'How reputation-weighted community voting restores editorial integrity over click-optimized rage bait.',
     excerpt: 'Algorithmic feeds prioritize emotional volatility because anger generates instant engagement. A transparent peer-voting model backed by non-transferable reputation points shifts incentives toward durability and insight.',
     content: [
-      'The modern social feed was engineered around an unspoken metric: time-in-app at any human cost. When algorithms reward outrage, nuanced essays disappear beneath sensationalist headlines.',
+      'The modern social feed was engineered around an unspoken metric: time-in-app at any human cost. When algorithms reward outrage, nuanced blogs disappear beneath sensationalist headlines.',
       'Early decentralized networks proved that aligning reader consensus with community curation creates vibrant publishing ecosystems. However, early models suffered from plutocratic voting, where capital outweighed insight.',
       'PENORA’s Phase 1 foundation re-imagines curation around meritocratic, non-cash reputation points. Influence is earned through editorial consistency, peer citations, and rigorous community participation, rather than coin speculation.'
     ],

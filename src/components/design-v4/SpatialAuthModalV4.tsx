@@ -1116,7 +1116,7 @@ export const SpatialAuthModalV4: React.FC<SpatialAuthModalV4Props> = ({
                   <div className="p-3 rounded-2xl bg-white/85 border border-white max-w-xs mx-auto text-xs text-[#0A2540] shadow-xs">
                     <p className="font-bold text-[#006876]">Session Authority: [POSTING]</p>
                     <p className="text-[10.5px] text-[#52657C]">
-                      Publish essays, vote, comment, and curate across PENORA.
+                      Publish blogs, vote, comment, and curate across PENORA.
                     </p>
                   </div>
 
