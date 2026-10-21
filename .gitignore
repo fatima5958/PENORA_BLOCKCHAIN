@@ -1,3 +1,9 @@
+# Hardhat
+artifacts/
+artifacts_hardhat/
+cache/
+cache_hardhat/
+
 # Dependencies
 node_modules/
 

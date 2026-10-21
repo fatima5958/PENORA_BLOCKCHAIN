@@ -21,7 +21,30 @@ export async function getProfileById(id: string): Promise<ProfileResult> {
       const isPending = error.code === '42P01' || error.message.includes('relation');
       return { data: null, error: error.message, isPendingMigration: isPending };
     }
-    return { data, error: null };
+
+    if (data) {
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem(`penora_cached_profile_${id}`, JSON.stringify(data));
+          if (data.username) {
+            localStorage.setItem(`penora_cached_profile_user_${data.username.toLowerCase()}`, JSON.stringify(data));
+          }
+        } catch {}
+      }
+      return { data, error: null };
+    }
+
+    // Check localStorage cache fallback
+    if (typeof window !== 'undefined') {
+      try {
+        const cached = localStorage.getItem(`penora_cached_profile_${id}`);
+        if (cached) {
+          return { data: JSON.parse(cached), error: null };
+        }
+      } catch {}
+    }
+
+    return { data: null, error: null };
   } catch (err: any) {
     return { data: null, error: err.message || 'Failed to fetch profile' };
   }
@@ -32,14 +55,35 @@ export async function getProfileByUsername(username: string): Promise<ProfileRes
     const { data, error } = await supabase
       .from('profiles')
       .select('*')
-      .eq('username', username)
+      .eq('username', username.toLowerCase())
       .maybeSingle();
 
     if (error) {
       const isPending = error.code === '42P01' || error.message.includes('relation');
       return { data: null, error: error.message, isPendingMigration: isPending };
     }
-    return { data, error: null };
+
+    if (data) {
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem(`penora_cached_profile_${data.id}`, JSON.stringify(data));
+          localStorage.setItem(`penora_cached_profile_user_${username.toLowerCase()}`, JSON.stringify(data));
+        } catch {}
+      }
+      return { data, error: null };
+    }
+
+    // Check localStorage cache fallback
+    if (typeof window !== 'undefined') {
+      try {
+        const cached = localStorage.getItem(`penora_cached_profile_user_${username.toLowerCase()}`);
+        if (cached) {
+          return { data: JSON.parse(cached), error: null };
+        }
+      } catch {}
+    }
+
+    return { data: null, error: null };
   } catch (err: any) {
     return { data: null, error: err.message || 'Failed to fetch profile' };
   }
@@ -123,6 +167,33 @@ export async function updateProfile(
       .select()
       .maybeSingle();
 
+    // If update returned null and authenticated via GoTrue, ensure the row is upserted
+    if (!data && !error && sessionUser) {
+      const fallbackUsername =
+        keyUser?.username ||
+        sessionUser.user_metadata?.username ||
+        sessionUser.email?.split('@')[0] ||
+        'creator';
+
+      const upsertRes = await supabase
+        .from('profiles')
+        .upsert(
+          {
+            id: targetId,
+            username: fallbackUsername.toLowerCase(),
+            ...payload,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: 'id' }
+        )
+        .select()
+        .maybeSingle();
+
+      if (!upsertRes.error && upsertRes.data) {
+        data = upsertRes.data;
+      }
+    }
+
     // If new V5 columns do not yet exist on the remote database, fall back gracefully to saving base columns
     if (error && (error.message.includes('column') || error.code === '42703')) {
       const basePayload: Record<string, any> = {};
@@ -139,13 +210,28 @@ export async function updateProfile(
         .maybeSingle();
 
       if (!fallback.error) {
+        const combined = {
+          ...(fallback.data || {
+            id: targetId,
+            display_name: payload.display_name,
+            bio: payload.bio,
+            avatar_url: payload.avatar_url,
+            cover_url: payload.cover_url,
+          }),
+          location: payload.location ?? null,
+          website: payload.website ?? null,
+          interests: payload.interests ?? [],
+        };
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.setItem(`penora_cached_profile_${targetId}`, JSON.stringify(combined));
+            if (combined.username) {
+              localStorage.setItem(`penora_cached_profile_user_${combined.username.toLowerCase()}`, JSON.stringify(combined));
+            }
+          } catch {}
+        }
         return {
-          data: {
-            ...fallback.data,
-            location: payload.location ?? null,
-            website: payload.website ?? null,
-            interests: payload.interests ?? [],
-          },
+          data: combined,
           error: null,
           isPendingMigration: true,
         };
@@ -157,6 +243,29 @@ export async function updateProfile(
       const isPending = error.code === '42P01' || error.message.includes('relation');
       return { data: null, error: error.message, isPendingMigration: isPending };
     }
+
+    // Persist to local cache so page reloads are instantaneous without flicker
+    if (data && typeof window !== 'undefined') {
+      try {
+        localStorage.setItem(`penora_cached_profile_${targetId}`, JSON.stringify(data));
+        if (data.username) {
+          localStorage.setItem(`penora_cached_profile_user_${data.username.toLowerCase()}`, JSON.stringify(data));
+        }
+      } catch {}
+    }
+
+    // Also update Supabase auth user metadata if authenticated via GoTrue
+    if (sessionUser && (payload.display_name || payload.avatar_url)) {
+      try {
+        await supabase.auth.updateUser({
+          data: {
+            ...(payload.display_name && { full_name: payload.display_name }),
+            ...(payload.avatar_url && { avatar_url: payload.avatar_url }),
+          },
+        });
+      } catch {}
+    }
+
     return { data, error: null };
   } catch (err: any) {
     return { data: null, error: err.message || 'Failed to update profile' };

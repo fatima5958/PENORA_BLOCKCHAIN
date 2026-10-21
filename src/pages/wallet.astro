@@ -1,0 +1,11 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { WalletView } from '../components/wallet/WalletView';
+---
+
+<BaseLayout
+  title="Hybrid Wallet & Polygon Amoy Rewards — PENORA"
+  description="Manage onchain rewards, governance balance, and Polygon Amoy testnet Web3 connection for PENORA creators."
+>
+  <WalletView client:load />
+</BaseLayout>

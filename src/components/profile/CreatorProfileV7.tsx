@@ -42,6 +42,7 @@ import {
   ArrowRight,
   Sparkles,
   ChevronRight,
+  Wallet,
 } from 'lucide-react';
 
 interface CreatorProfileV7Props {
@@ -94,6 +95,23 @@ export const CreatorProfileV7: React.FC<CreatorProfileV7Props> = ({
   const [creatorPosts, setCreatorPosts] = useState<Article[]>([]);
   const [loadingPosts, setLoadingPosts] = useState(true);
 
+  // Sync creatorProfile whenever initialAuthor prop updates (e.g. after Supabase fetch completes)
+  useEffect(() => {
+    if (initialAuthor) {
+      setCreatorProfile(prev => ({
+        ...prev,
+        ...initialAuthor,
+        name: initialAuthor.name || prev.name,
+        bio: initialAuthor.bio !== undefined && initialAuthor.bio !== null ? initialAuthor.bio : prev.bio,
+        avatar: initialAuthor.avatar || prev.avatar,
+        coverImage: initialAuthor.coverImage || prev.coverImage,
+        location: initialAuthor.location !== undefined && initialAuthor.location !== null ? initialAuthor.location : prev.location,
+        website: initialAuthor.website !== undefined && initialAuthor.website !== null ? initialAuthor.website : prev.website,
+        interests: initialAuthor.interests || prev.interests,
+      }));
+    }
+  }, [initialAuthor]);
+
   // Secondary tab data
   const [creatorReplies, setCreatorReplies] = useState<CommentRecord[]>([]);
   const [loadingReplies, setLoadingReplies] = useState(false);
@@ -111,41 +129,57 @@ export const CreatorProfileV7: React.FC<CreatorProfileV7Props> = ({
       setUser(session?.user ?? null);
     });
 
+    // Support opening edit modal via URL query (?edit=true) or custom event
+    const openEditHandler = () => setEditModalOpen(true);
+    window.addEventListener('penora:open-edit-profile', openEditHandler);
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('edit') === 'true') {
+        setEditModalOpen(true);
+      }
+    }
+
     return () => {
       unsubKey();
       subscription.unsubscribe();
+      window.removeEventListener('penora:open-edit-profile', openEditHandler);
     };
   }, []);
 
   // Hydrate real creator profile & real published essays from Supabase
   useEffect(() => {
     let mounted = true;
+    const activeId = initialAuthor?.id || keyUser?.id || user?.id;
     const targetHandle = initialAuthor?.handle || keyUser?.username || user?.email?.split('@')[0] || 'mateenfatima';
 
     async function loadCreatorData() {
       setLoadingPosts(true);
       try {
-        const { data: prof } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('username', targetHandle.toLowerCase())
-          .maybeSingle();
+        let prof: ProfileRecord | null = null;
+        if (activeId && activeId !== 'mateenfatima') {
+          const res = await getProfileById(activeId);
+          prof = res.data;
+        }
+        if (!prof && targetHandle) {
+          const res = await getProfileByUsername(targetHandle.toLowerCase());
+          prof = res.data;
+        }
 
         if (prof && mounted) {
           const p: ProfileRecord = prof;
           setCreatorProfile(prev => ({
             ...prev,
             id: p.id,
-            name: p.display_name || p.username,
-            handle: p.username,
-            bio: p.bio || prev.bio,
-            avatar: p.avatar_url || prev.avatar || '/brand/penora-avatar-mateen.jpg',
-            coverImage: p.cover_url || prev.coverImage || '/brand/penora-celestial-cover-default.jpg',
-            location: p.location || prev.location || 'Lahore, Pakistan',
-            website: p.website || prev.website || '',
-            interests: p.interests && p.interests.length > 0 ? p.interests : (prev.interests || ['Writing', 'Tech', 'Faith', 'Productivity', 'Onchain']),
-            reputationScore: p.reputation ?? 25,
-            joinedDate: new Date(p.created_at).toLocaleDateString(undefined, { month: 'short', year: 'numeric' }),
+            name: p.display_name || prev.name,
+            handle: p.username || prev.handle,
+            bio: p.bio !== undefined && p.bio !== null ? p.bio : prev.bio,
+            avatar: p.avatar_url || prev.avatar,
+            coverImage: p.cover_url || prev.coverImage,
+            location: p.location !== undefined && p.location !== null ? p.location : prev.location,
+            website: p.website !== undefined && p.website !== null ? p.website : prev.website,
+            interests: p.interests && p.interests.length > 0 ? p.interests : prev.interests,
+            reputationScore: p.reputation ?? prev.reputationScore ?? 25,
+            joinedDate: p.created_at ? new Date(p.created_at).toLocaleDateString(undefined, { month: 'short', year: 'numeric' }) : prev.joinedDate,
           }));
 
           // Real follow counts
@@ -472,6 +506,14 @@ export const CreatorProfileV7: React.FC<CreatorProfileV7Props> = ({
             >
               <Bookmark className="h-4 w-4 text-[#4A5E75]" />
               <span>Bookmarks</span>
+            </a>
+
+            <a
+              href="/wallet"
+              className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-medium text-[#4A5E75] hover:text-[#0A2540] hover:bg-white/90 transition-all"
+            >
+              <Wallet className="h-4 w-4 text-[#4A5E75]" />
+              <span>Wallet</span>
             </a>
 
             {/* Profile (Active in Reference) */}
@@ -1211,6 +1253,22 @@ export const CreatorProfileV7: React.FC<CreatorProfileV7Props> = ({
             avatar: updated.avatar_url || prev.avatar,
             coverImage: updated.cover_url || prev.coverImage,
           }));
+
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(
+              new CustomEvent('penora:profile-updated', {
+                detail: {
+                  avatar_url: updated.avatar_url,
+                  display_name: updated.display_name,
+                  bio: updated.bio,
+                  location: updated.location,
+                  website: updated.website,
+                  interests: updated.interests,
+                  cover_url: updated.cover_url,
+                },
+              })
+            );
+          }
         }}
       />
 

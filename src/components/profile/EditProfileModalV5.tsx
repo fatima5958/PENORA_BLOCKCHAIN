@@ -253,6 +253,22 @@ export const EditProfileModalV5: React.FC<EditProfileModalV5Props> = ({
         cover_url: finalCoverUrl,
       });
 
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(
+          new CustomEvent('penora:profile-updated', {
+            detail: {
+              avatar_url: finalAvatarUrl,
+              display_name: trimmedName,
+              bio: trimmedBio,
+              location: trimmedLoc,
+              website: trimmedWeb,
+              interests: interests,
+              cover_url: finalCoverUrl,
+            },
+          })
+        );
+      }
+
       setTimeout(() => {
         onClose();
       }, 1000);

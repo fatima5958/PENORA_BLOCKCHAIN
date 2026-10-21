@@ -16,8 +16,14 @@ import {
   Home,
   CheckCircle2,
   ArrowRight,
+  ChevronDown,
+  Edit3,
+  Wallet,
+  Settings,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
+import { getProfileById } from '../../lib/api/profiles';
+import type { ProfileRecord } from '../../lib/api/types';
 import { SpatialAuthModalV4 } from '../design-v4/SpatialAuthModalV4';
 import { PenoraLogo } from '../brand/PenoraLogo';
 import { penoraKeyAuth, type PenoraUser } from '../../lib/auth/penoraKeyAuth';
@@ -27,17 +33,22 @@ interface HeaderProps {
   currentPath?: string;
 }
 
-/** Returns 1–2 uppercase initials from an email address. */
-function emailInitials(email: string): string {
-  const local = email.split('@')[0] ?? '';
-  const parts = local.split(/[._-]/);
-  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
-  return local.slice(0, 2).toUpperCase();
+/** Returns 1–2 uppercase initials from a name, username, or email address. */
+function getInitials(nameOrEmail: string): string {
+  if (!nameOrEmail) return 'U';
+  const clean = nameOrEmail.replace(/^@/, '').trim();
+  const parts = clean.split(/[._\s-]/).filter(Boolean);
+  if (parts.length >= 2) {
+    return (parts[0][0] + parts[1][0]).toUpperCase();
+  }
+  return clean.slice(0, 2).toUpperCase();
 }
 
 export const Header: React.FC<HeaderProps> = ({ currentPath = '/' }) => {
   const [user, setUser] = useState<SupabaseUser | null>(null);
   const [keyUser, setKeyUser] = useState<PenoraUser | null>(null);
+  const [profile, setProfile] = useState<ProfileRecord | null>(null);
+  const [avatarImageError, setAvatarImageError] = useState(false);
   const [authLoading, setAuthLoading] = useState(true);
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
@@ -102,6 +113,89 @@ export const Header: React.FC<HeaderProps> = ({ currentPath = '/' }) => {
       window.removeEventListener('keydown', onKeyDown);
     };
   }, []);
+
+  // Fetch real authenticated creator profile from Supabase
+  useEffect(() => {
+    let mounted = true;
+
+    async function fetchUserProfile() {
+      const activeId = keyUser?.id || user?.id;
+      if (!activeId) {
+        setProfile(null);
+        return;
+      }
+
+      try {
+        const res = await getProfileById(activeId);
+        if (mounted && res.data) {
+          setProfile(res.data);
+          setAvatarImageError(false);
+        }
+      } catch {
+        // Fallback gracefully to initials
+      }
+    }
+
+    if (keyUser || user) {
+      fetchUserProfile();
+    } else {
+      setProfile(null);
+    }
+
+    return () => {
+      mounted = false;
+    };
+  }, [keyUser?.id, user?.id]);
+
+  // Listen for immediate profile and avatar changes across components
+  useEffect(() => {
+    const handleProfileUpdate = (e: Event) => {
+      const ce = e as CustomEvent<{
+        avatar_url?: string;
+        display_name?: string;
+        username?: string;
+      }>;
+      if (ce.detail) {
+        setProfile(prev => ({
+          ...(prev || {
+            id: keyUser?.id || user?.id || '',
+            username: ce.detail.username || user?.email?.split('@')[0] || 'creator',
+            display_name: ce.detail.display_name || user?.email?.split('@')[0] || 'creator',
+            created_at: new Date().toISOString(),
+          }),
+          ...(ce.detail.avatar_url !== undefined && { avatar_url: ce.detail.avatar_url }),
+          ...(ce.detail.display_name && { display_name: ce.detail.display_name }),
+          ...(ce.detail.username && { username: ce.detail.username }),
+        }));
+        setAvatarImageError(false);
+      }
+    };
+
+    window.addEventListener('penora:profile-updated', handleProfileUpdate);
+    return () => {
+      window.removeEventListener('penora:profile-updated', handleProfileUpdate);
+    };
+  }, [keyUser?.id, user?.id]);
+
+  const activeUser = keyUser || user;
+
+  const displayUsername =
+    profile?.username ||
+    keyUser?.username ||
+    (user?.user_metadata?.username as string | undefined) ||
+    user?.email?.split('@')[0] ||
+    'creator';
+
+  const displayName =
+    profile?.display_name ||
+    keyUser?.displayName ||
+    (user?.user_metadata?.full_name as string | undefined) ||
+    displayUsername;
+
+  const avatarUrl =
+    profile?.avatar_url ||
+    (user?.user_metadata?.avatar_url as string | undefined) ||
+    null;
 
   const handleLogout = async (e?: React.MouseEvent) => {
     if (e) {
@@ -239,7 +333,7 @@ export const Header: React.FC<HeaderProps> = ({ currentPath = '/' }) => {
             {/* User Auth Section */}
             {authLoading ? (
               <div className="h-9 w-9 rounded-full bg-[#0A2540]/8 animate-pulse" />
-            ) : keyUser ? (
+            ) : activeUser ? (
               <div className="flex items-center gap-2">
                 {/* Notifications */}
                 <a
@@ -251,137 +345,130 @@ export const Header: React.FC<HeaderProps> = ({ currentPath = '/' }) => {
                   <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-[#00E5F4] ring-2 ring-white" />
                 </a>
 
-                {/* Profile Avatar Pill */}
+                {/* Profile Avatar Button: ONLY Circular Profile Picture (with initials fallback) */}
                 <div className="relative" ref={profileDropdownRef}>
                   <button
                     type="button"
                     onClick={() => setProfileDropdownOpen(v => !v)}
                     aria-expanded={profileDropdownOpen}
                     aria-haspopup="menu"
-                    className="pn-focus flex items-center gap-2 p-1 pl-1 pr-3 rounded-full bg-white border border-[#0A2540]/10 hover:border-[#00B3C4]/50 shadow-2xs transition-all"
+                    aria-label={`Open account menu for @${displayUsername}`}
+                    className="pn-focus p-0.5 rounded-full bg-white border border-[#0A2540]/12 hover:border-[#00E5F4] hover:shadow-[0_0_12px_rgba(0,229,244,0.35)] shadow-2xs transition-all cursor-pointer flex items-center justify-center"
                   >
-                    <div className="pn-avatar-initials h-7 w-7 text-[11px] bg-[#007C8B] text-white">
-                      {keyUser.username.slice(0, 2).toUpperCase()}
-                    </div>
-                    <span className="text-xs font-semibold text-[#0A2540] hidden sm:inline max-w-[120px] truncate">
-                      @{keyUser.username}
-                    </span>
-                    <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-[#007C8B]/10 text-[#007C8B]">
-                      {keyUser.keyRole}
-                    </span>
+                    {/* Circular Avatar with Fallback Initials */}
+                    {avatarUrl && !avatarImageError ? (
+                      <img
+                        src={avatarUrl}
+                        alt={`@${displayUsername}`}
+                        onError={() => setAvatarImageError(true)}
+                        className="h-8 w-8 rounded-full object-cover ring-1 ring-[#007C8B]/25 flex-shrink-0 bg-white"
+                      />
+                    ) : (
+                      <div className="pn-avatar-initials h-8 w-8 text-xs bg-[#007C8B] text-white rounded-full flex items-center justify-center font-bold flex-shrink-0">
+                        {getInitials(displayName || displayUsername)}
+                      </div>
+                    )}
                   </button>
 
+                  {/* Polished Profile Dropdown */}
                   {profileDropdownOpen && (
-                    <div className="pn-dropdown absolute right-0 mt-2 w-64 p-2 text-xs z-50">
-                      <div className="p-3 border-b border-[#0A2540]/8">
-                        <div className="font-semibold text-[#0A2540] truncate">@{keyUser.username}</div>
-                        <div className="text-[11px] text-[#007C8B] mt-1 flex items-center gap-1.5 font-medium">
-                          <CheckCircle2 className="h-3.5 w-3.5" />
-                          <span>{keyUser.keyRole.toUpperCase()} KEY Authority</span>
+                    <div
+                      role="menu"
+                      aria-orientation="vertical"
+                      className="pn-dropdown absolute right-0 mt-2 w-64 p-2 text-xs z-50 bg-white rounded-2xl border border-[#007C8B]/15 shadow-xl animate-fade-in"
+                    >
+                      {/* User Identity Header Card */}
+                      <div className="p-3 border-b border-[#0A2540]/8 flex items-center gap-2.5">
+                        {avatarUrl && !avatarImageError ? (
+                          <img
+                            src={avatarUrl}
+                            alt={`@${displayUsername}`}
+                            onError={() => setAvatarImageError(true)}
+                            className="h-9 w-9 rounded-full object-cover ring-1 ring-[#007C8B]/25 flex-shrink-0 bg-white"
+                          />
+                        ) : (
+                          <div className="pn-avatar-initials h-9 w-9 text-xs bg-[#007C8B] text-white rounded-full flex items-center justify-center font-bold flex-shrink-0">
+                            {getInitials(displayName || displayUsername)}
+                          </div>
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <div className="font-bold text-[#0A2540] truncate text-xs leading-snug">
+                            {displayName}
+                          </div>
+                          <div className="text-[11px] text-[#4A5B70] truncate leading-tight">
+                            @{displayUsername}
+                          </div>
                         </div>
                       </div>
-                      <div className="py-1">
+
+                      {/* Dropdown Menu Options */}
+                      <div className="py-1.5 space-y-0.5">
+                        {/* 1. My Profile */}
                         <a
                           href="/profile/me"
+                          role="menuitem"
                           onClick={() => setProfileDropdownOpen(false)}
-                          className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-[#0A2540] hover:bg-[#F4F7FA] transition-colors font-medium"
+                          className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-[#0A2540] hover:bg-[#F4F7FA] hover:text-[#007C8B] transition-colors font-medium"
                         >
                           <User className="h-4 w-4 text-[#007C8B]" />
-                          <span>My Creator Profile</span>
+                          <span>My Profile</span>
                         </a>
+
+                        {/* 2. Edit Profile */}
                         <a
-                          href="/editor"
-                          onClick={() => setProfileDropdownOpen(false)}
-                          className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-[#0A2540] hover:bg-[#F4F7FA] transition-colors font-medium"
+                          href="/profile/me?edit=true"
+                          role="menuitem"
+                          onClick={(e) => {
+                            setProfileDropdownOpen(false);
+                            if (typeof window !== 'undefined' && window.location.pathname.startsWith('/profile/me')) {
+                              e.preventDefault();
+                              window.dispatchEvent(new CustomEvent('penora:open-edit-profile'));
+                            }
+                          }}
+                          className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-[#0A2540] hover:bg-[#F4F7FA] hover:text-[#007C8B] transition-colors font-medium"
                         >
-                          <PenLine className="h-4 w-4 text-[#007C8B]" />
-                          <span>Write in Article Studio</span>
+                          <Edit3 className="h-4 w-4 text-[#007C8B]" />
+                          <span>Edit Profile</span>
+                        </a>
+
+                        {/* 3. Wallet (Hybrid V1) */}
+                        <a
+                          href="/wallet"
+                          role="menuitem"
+                          onClick={() => setProfileDropdownOpen(false)}
+                          className="flex items-center justify-between px-3 py-2 rounded-xl text-[#0A2540] hover:bg-[#F4F7FA] hover:text-[#007C8B] transition-colors font-medium"
+                        >
+                          <div className="flex items-center gap-2.5">
+                            <Wallet className="h-4 w-4 text-[#007C8B]" />
+                            <span>Wallet</span>
+                          </div>
+                          <span className="text-[9px] font-bold uppercase tracking-wider text-[#007C8B] bg-[#00E5F4]/15 px-2 py-0.5 rounded-full">
+                            Hybrid V1
+                          </span>
+                        </a>
+
+                        {/* 4. Settings */}
+                        <a
+                          href="/profile/me?tab=about"
+                          role="menuitem"
+                          onClick={() => setProfileDropdownOpen(false)}
+                          className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-[#0A2540] hover:bg-[#F4F7FA] hover:text-[#007C8B] transition-colors font-medium"
+                        >
+                          <Settings className="h-4 w-4 text-[#007C8B]" />
+                          <span>Settings</span>
                         </a>
                       </div>
+
+                      {/* 5. Sign Out */}
                       <div className="pt-1 border-t border-[#0A2540]/8">
                         <button
                           type="button"
+                          role="menuitem"
                           onClick={handleLogout}
-                          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[#D93838] hover:bg-[#D93838]/10 transition-colors font-medium text-left"
+                          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[#D0384B] hover:bg-[#FDECEE] transition-colors font-medium text-left cursor-pointer"
                         >
                           <LogOut className="h-4 w-4" />
                           <span>Sign Out</span>
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            ) : user ? (
-              <div className="flex items-center gap-2">
-                {/* Notifications */}
-                <a
-                  href="/notifications"
-                  className="pn-icon-btn h-9 w-9 relative"
-                  title="Notifications"
-                >
-                  <Bell className="h-4 w-4 text-[#0A2540]" />
-                  <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-[#00E5F4] ring-2 ring-white" />
-                </a>
-
-                {/* Profile Avatar Pill */}
-                <div className="relative" ref={profileDropdownRef}>
-                  <button
-                    type="button"
-                    onClick={() => setProfileDropdownOpen(v => !v)}
-                    aria-expanded={profileDropdownOpen}
-                    aria-haspopup="menu"
-                    className="pn-focus flex items-center gap-2 p-1 pl-1 pr-3 rounded-full bg-white border border-[#0A2540]/10 hover:border-[#00B3C4]/50 shadow-2xs transition-all"
-                  >
-                    <div className="pn-avatar-initials h-7 w-7 text-[11px]">
-                      {emailInitials(user.email ?? '')}
-                    </div>
-                    <span className="text-xs font-semibold text-[#0A2540] hidden sm:inline max-w-[120px] truncate">
-                      {user.email?.split('@')[0]}
-                    </span>
-                  </button>
-
-                  {profileDropdownOpen && (
-                    <div className="pn-dropdown absolute right-0 mt-2 w-64 p-2 text-xs z-50">
-                      <div className="p-3 border-b border-[#0A2540]/8">
-                        <div className="font-semibold text-[#0A2540] truncate">{user.email}</div>
-                        <div className="text-[11px] text-[#4A5B70] mt-1 flex items-center gap-1.5">
-                          {user.email_confirmed_at ? (
-                            <>
-                              <CheckCircle2 className="h-3.5 w-3.5 text-[#007C8B]" />
-                              <span>Verified Creator Identity</span>
-                            </>
-                          ) : (
-                            <span className="text-amber-700">⚠ Email confirmation pending</span>
-                          )}
-                        </div>
-                      </div>
-                      <div className="py-1">
-                        <a
-                          href="/profile/me"
-                          onClick={() => setProfileDropdownOpen(false)}
-                          className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-[#0A2540] hover:bg-[#F4F7FA] transition-colors font-medium"
-                        >
-                          <User className="h-4 w-4 text-[#007C8B]" />
-                          <span>My Profile & Articles</span>
-                        </a>
-                        <a
-                          href="/editor"
-                          onClick={() => setProfileDropdownOpen(false)}
-                          className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-[#0A2540] hover:bg-[#F4F7FA] transition-colors font-medium"
-                        >
-                          <PenLine className="h-4 w-4 text-[#007C8B]" />
-                          <span>Write in Article Studio</span>
-                        </a>
-                      </div>
-                      <div className="pt-1 border-t border-[#0A2540]/8">
-                        <button
-                          type="button"
-                          onClick={handleLogout}
-                          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[#D0384B] hover:bg-[#FDECEE] transition-colors text-left font-semibold"
-                        >
-                          <LogOut className="h-4 w-4" />
-                          <span>Sign out</span>
                         </button>
                       </div>
                     </div>
@@ -442,10 +529,32 @@ export const Header: React.FC<HeaderProps> = ({ currentPath = '/' }) => {
           <a href="/editor" className="pn-nav-item" aria-current={currentPath.startsWith('/editor') ? 'page' : undefined}>
             <PenLine className="h-4 w-4" /> Write Article
           </a>
-          {(keyUser || user) ? (
-            <a href="/profile/me" className="pn-nav-item" aria-current={currentPath.startsWith('/profile/me') ? 'page' : undefined}>
-              <User className="h-4 w-4" /> My Profile (@{keyUser?.username || user?.email?.split('@')[0]})
-            </a>
+          {activeUser ? (
+            <div className="space-y-1 pt-2 border-t border-[#0A2540]/8">
+              <a
+                href="/profile/me"
+                className="pn-nav-item"
+                aria-current={currentPath.startsWith('/profile/me') ? 'page' : undefined}
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                <User className="h-4 w-4" /> My Profile (@{displayUsername})
+              </a>
+              <a
+                href="/wallet"
+                className="pn-nav-item"
+                aria-current={currentPath.startsWith('/wallet') ? 'page' : undefined}
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                <Wallet className="h-4 w-4" /> Wallet & Rewards
+              </a>
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="pn-nav-item w-full justify-start text-[#D0384B] hover:bg-[#FDECEE]"
+              >
+                <LogOut className="h-4 w-4" /> Sign Out
+              </button>
+            </div>
           ) : (
             <div className="grid grid-cols-2 gap-2 pt-2 border-t border-[#0A2540]/8">
               <button

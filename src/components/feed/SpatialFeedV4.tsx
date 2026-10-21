@@ -16,6 +16,7 @@ import {
   TrendingUp,
   Check,
   ShieldCheck,
+  Wallet,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 import { getPublishedArticles } from '../../lib/api/articles';
@@ -369,6 +370,7 @@ export const SpatialFeedV4: React.FC = () => {
                 { key: 'Explore' as const, label: 'Explore Topics', icon: Compass, href: '/explore' },
                 { key: 'Communities' as const, label: 'Communities', icon: Users, href: '/communities' },
                 { key: 'Bookmarks' as const, label: 'Saved Bookmarks', icon: Bookmark, href: '#bookmarks' },
+                { key: 'Wallet' as const, label: 'Wallet & Rewards', icon: Wallet, href: '/wallet' },
                 { key: 'Profile' as const, label: 'My Profile', icon: UserIcon, href: (keyUser || user) ? '/profile/me' : '#auth' },
               ].map(item => {
                 const Icon = item.icon;
@@ -385,6 +387,10 @@ export const SpatialFeedV4: React.FC = () => {
                       }
                       if (item.key === 'Communities') {
                         window.location.href = '/communities';
+                        return;
+                      }
+                      if (item.key === 'Wallet') {
+                        window.location.href = '/wallet';
                         return;
                       }
                       if (item.key === 'Profile') {

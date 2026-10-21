@@ -14,18 +14,60 @@ import type { Author } from '../../types';
 
 export const MyProfileView: React.FC = () => {
   const [user, setUser] = useState<SupabaseUser | null>(null);
-  const [keyUser, setKeyUser] = useState<PenoraUser | null>(null);
+  const [keyUser, setKeyUser] = useState<PenoraUser | null>(() => penoraKeyAuth.getCurrentUser());
   const [loading, setLoading] = useState(true);
-  const [profile, setProfile] = useState<ProfileRecord | null>(null);
+  const [profile, setProfile] = useState<ProfileRecord | null>(() => {
+    if (typeof window !== 'undefined') {
+      const ku = penoraKeyAuth.getCurrentUser();
+      if (ku?.id) {
+        try {
+          const cached = localStorage.getItem(`penora_cached_profile_${ku.id}`);
+          if (cached) return JSON.parse(cached);
+        } catch {}
+      }
+    }
+    return null;
+  });
   const [articles, setArticles] = useState<PostRecord[]>([]);
   const [followCounts, setFollowCounts] = useState({ followers: 1200, following: 320 });
 
   useEffect(() => {
     let mounted = true;
 
+    // Listen for live profile updates
+    const handleProfileUpdated = (e: Event) => {
+      const ce = e as CustomEvent<{
+        avatar_url?: string;
+        display_name?: string;
+        bio?: string;
+        location?: string;
+        website?: string;
+        interests?: string[];
+      }>;
+      if (ce.detail) {
+        setProfile(prev => ({
+          ...(prev || {
+            id: keyUser?.id || user?.id || '',
+            username: keyUser?.username || user?.email?.split('@')[0] || 'creator',
+            created_at: new Date().toISOString(),
+          }),
+          ...(ce.detail.display_name !== undefined && { display_name: ce.detail.display_name }),
+          ...(ce.detail.bio !== undefined && { bio: ce.detail.bio }),
+          ...(ce.detail.avatar_url !== undefined && { avatar_url: ce.detail.avatar_url }),
+          ...(ce.detail.location !== undefined && { location: ce.detail.location }),
+          ...(ce.detail.website !== undefined && { website: ce.detail.website }),
+          ...(ce.detail.interests !== undefined && { interests: ce.detail.interests }),
+        }));
+      }
+    };
+    window.addEventListener('penora:profile-updated', handleProfileUpdated);
+
     // 1. Listen for Steemit-style key session changes
     const unsubKey = penoraKeyAuth.subscribe(kUser => {
       setKeyUser(kUser);
+      if (kUser) {
+        loadUserData(null, kUser);
+      }
     });
 
     // 2. Fetch current Supabase auth session
@@ -53,6 +95,16 @@ export const MyProfileView: React.FC = () => {
         return;
       }
 
+      // Check localStorage cache first
+      if (typeof window !== 'undefined') {
+        try {
+          const cached = localStorage.getItem(`penora_cached_profile_${activeId}`);
+          if (cached && mounted) {
+            setProfile(JSON.parse(cached));
+          }
+        } catch {}
+      }
+
       try {
         const [profRes, artRes, fc] = await Promise.all([
           getProfileById(activeId),
@@ -61,7 +113,9 @@ export const MyProfileView: React.FC = () => {
         ]);
 
         if (mounted) {
-          if (profRes.data) setProfile(profRes.data);
+          if (profRes.data) {
+            setProfile(profRes.data);
+          }
           if (artRes.data) setArticles(artRes.data);
           setFollowCounts({
             followers: fc.followers || 1200,
@@ -79,6 +133,7 @@ export const MyProfileView: React.FC = () => {
       mounted = false;
       unsubKey();
       subscription.unsubscribe();
+      window.removeEventListener('penora:profile-updated', handleProfileUpdated);
     };
   }, []);
 
