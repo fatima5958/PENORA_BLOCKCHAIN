@@ -446,6 +446,19 @@ export const WalletView: React.FC = () => {
           </div>
         </div>
 
+        {!showPowerUpModal && !showPowerDownModal && actionSuccess && (
+          <div role="status" className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-sm text-emerald-800 flex items-start gap-2">
+            <CheckCircle2 className="h-4 w-4 shrink-0 mt-0.5" />
+            <span className="break-all">{actionSuccess}</span>
+          </div>
+        )}
+        {!showPowerUpModal && !showPowerDownModal && actionError && (
+          <div role="alert" className="p-4 rounded-2xl bg-red-50 border border-red-200 text-sm text-red-700 flex items-start gap-2">
+            <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+            <span className="break-all">{actionError}</span>
+          </div>
+        )}
+
         {(activeTab === 'send' || activeTab === 'deposit') && (
           <div className="flex flex-wrap items-center gap-3 rounded-2xl bg-[var(--wallet-surface)] p-4 border border-[#007C8B]/15">
             <label htmlFor="wallet-asset" className="font-semibold text-sm">Choose token</label>

@@ -51,3 +51,25 @@ The repository-wide suite also contains tests that contact the remote Supabase p
 The wallet targets Polygon Amoy chain 80002. The default public RPC was aligned with [Polygon's current network documentation](https://docs.polygon.technology/pos/reference/rpc-endpoints) and can be overridden using the public `PUBLIC_AMOY_RPC_URL` setting. Never place private service credentials in a `PUBLIC_` variable.
 
 Transaction history currently combines recent ERC-20 logs with local send records. Complete historical indexing and all staking event history still need an indexer or a dedicated contract-event reader. Public testnet history lookup failures fall back to local records; this fallback is not proof of an empty onchain history.
+
+## Connected browser verification — 22 October 2026
+
+Added the opt-in `scripts/verify-wallet-local.cjs` regression harness. It creates an isolated in-process Hardhat chain with chain ID 80002, deploys the actual Solidity contracts locally, builds a separate fixture site, and connects its browser provider to that local chain. External browser requests are blocked. Fixture addresses and funds never enter the normal production build.
+
+The connected browser test passed with no uncaught React errors:
+
+- Rendered actual local PNR and test-USDT balances.
+- Sent `1.000001` test USDT and `1.000000000000000001` PNR through the wallet UI; exact recipient balances were verified in the deployed local token contracts.
+- Completed approval and a 26-PNR Power Up, then verified 26 PP in both the UI and escrow.
+- Started a 13-PNR Power Down, verified the initial claim button was disabled, advanced local time seven days, claimed the first 1-PNR installment, then cancelled the remainder and verified restored available power.
+- Received a new PNR deposit and verified its transaction hash appeared in wallet history.
+
+This test exposed a UI bug: installment claims and schedule cancellations completed onchain but their confirmation/error messages were only rendered inside the Power Up/Down modals. Added visible status/error feedback outside the modals and reran the complete connected flow successfully. TypeScript and whitespace checks also passed.
+
+Run with Playwright and its browser installed:
+
+```bash
+PENORA_WALLET_E2E=1 npx hardhat run scripts/verify-wallet-local.cjs --network hardhat
+```
+
+`PENORA_CHROMIUM_EXECUTABLE` optionally selects an existing Chromium binary. The test refuses a remote Hardhat network. Its local-time advancement and unlocked fixture accounts are testing tools only. This does not replace the outstanding actual-Amoy and authenticated-database verification above.

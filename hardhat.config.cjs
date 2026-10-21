@@ -16,7 +16,8 @@ module.exports = {
   },
   networks: {
     hardhat: {
-      chainId: 31337,
+      // Browser E2E uses an isolated local chain with the application's Amoy ID.
+      chainId: process.env.PENORA_WALLET_E2E === '1' ? 80002 : 31337,
     },
     polygonAmoy: {
       url: "https://rpc-amoy.polygon.technology",
