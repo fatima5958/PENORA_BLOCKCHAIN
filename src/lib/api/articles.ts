@@ -1,6 +1,7 @@
 // src/lib/api/articles.ts
 import { supabase } from '../supabaseClient';
 import type { PostRecord } from './types';
+import { articleSlug } from '../articleEditor';
 
 export interface ArticlesListResult {
   data: PostRecord[];
@@ -104,62 +105,36 @@ export async function createPost(post: {
   slug: string;
   excerpt?: string;
   content: string;
-  cover_image_url?: string;
+  cover_image_url?: string | null;
   tags?: string[];
   published?: boolean;
 }): Promise<SingleArticleResult> {
-  let resolvedAuthorId = post.author_id;
-
-  if (!isUuid(resolvedAuthorId)) {
-    return {
-      data: null,
-      error: 'Invalid author ID format: author_id must be a valid account UUID.',
-    };
+  if (!isUuid(post.author_id)) {
+    return { data: null, error: 'Invalid author ID format: author_id must be a valid account UUID.' };
   }
-
-  // Ensure author_id exists in public.profiles to satisfy posts_author_id_fkey
+  const baseSlug = post.slug || articleSlug(post.title);
+  let slug = baseSlug;
   try {
-    const { data: profileCheck } = await supabase
-      .from('profiles')
-      .select('id')
-      .eq('id', resolvedAuthorId)
-      .maybeSingle();
-
-    if (!profileCheck?.id && post.author_username) {
-      const { data: profileByUsername } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('username', post.author_username.toLowerCase().trim())
-        .maybeSingle();
-
-      if (profileByUsername?.id) {
-        resolvedAuthorId = profileByUsername.id;
-      }
-    }
-  } catch {
-    // Continue with original ID if lookup encounters transient network error
-  }
-
-  try {
-    const { data, error } = await supabase
-      .from('posts')
-      .insert({
-        author_id: resolvedAuthorId,
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const { data, error } = await supabase.from('posts').insert({
+        author_id: post.author_id,
         title: post.title,
-        slug: post.slug,
+        slug,
         excerpt: post.excerpt || null,
         content: post.content,
         cover_image_url: post.cover_image_url || null,
         tags: post.tags || [],
         published: post.published ?? false,
-      })
-      .select()
-      .maybeSingle();
-
-    if (error) {
-      return { data: null, error: error.message, isPendingMigration: checkIsPendingMigration(error) };
+      }).select().maybeSingle();
+      if (error?.code === '23505' && error.message.toLowerCase().includes('slug')) {
+        slug = `${baseSlug}-${crypto.randomUUID().slice(0, 8)}`;
+        continue;
+      }
+      if (error) return { data: null, error: error.message, isPendingMigration: checkIsPendingMigration(error) };
+      if (!data) return { data: null, error: 'The database did not confirm this blog was saved. Your browser draft is still available.' };
+      return { data: data as PostRecord, error: null };
     }
-    return { data: (data as PostRecord) || null, error: null };
+    return { data: null, error: 'Could not create a unique blog link. Please try publishing again.' };
   } catch (err: any) {
     return { data: null, error: err.message || 'Failed to create post' };
   }
@@ -180,7 +155,8 @@ export async function updatePost(
     if (error) {
       return { data: null, error: error.message, isPendingMigration: checkIsPendingMigration(error) };
     }
-    return { data: (data as PostRecord) || null, error: null };
+    if (!data) return { data: null, error: 'This blog could not be updated. It may have been removed or you may not have permission.' };
+    return { data: data as PostRecord, error: null };
   } catch (err: any) {
     return { data: null, error: err.message || 'Failed to update post' };
   }
@@ -188,8 +164,9 @@ export async function updatePost(
 
 export async function deletePost(id: string): Promise<{ success: boolean; error: string | null; isPendingMigration?: boolean }> {
   try {
-    const { error } = await supabase.from('posts').delete().eq('id', id);
+    const { data, error } = await supabase.from('posts').delete().eq('id', id).select('id');
     if (error) return { success: false, error: error.message, isPendingMigration: checkIsPendingMigration(error) };
+    if (!data?.length) return { success: false, error: 'This blog could not be deleted. It may have been removed or you may not have permission.' };
     return { success: true, error: null };
   } catch (err: any) {
     return { success: false, error: err.message || 'Failed to delete post' };

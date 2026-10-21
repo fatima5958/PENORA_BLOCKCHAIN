@@ -60,7 +60,7 @@ export const CreatorProfileV5: React.FC<CreatorProfileV5Props> = ({
   const [editModalOpen, setEditModalOpen] = useState(false);
 
   // 6 profile tabs
-  const [activeTab, setActiveTab] = useState<'essays' | 'replies' | 'media' | 'bookmarks' | 'communities' | 'about'>('essays');
+  const [activeTab, setActiveTab] = useState<'blogs' | 'replies' | 'media' | 'bookmarks' | 'communities' | 'about'>('blogs');
 
   // Follow states
   const [isFollowing, setIsFollowing] = useState(false);
@@ -95,7 +95,7 @@ export const CreatorProfileV5: React.FC<CreatorProfileV5Props> = ({
     };
   }, []);
 
-  // Hydrate real creator profile & real published essays from Supabase
+  // Hydrate real creator profile & real published blogs from Supabase
   useEffect(() => {
     let mounted = true;
     const handle = initialAuthor.handle;
@@ -263,7 +263,7 @@ export const CreatorProfileV5: React.FC<CreatorProfileV5Props> = ({
     }
   };
 
-  // Handle upvote / downvote on published essays with vote-switching
+  // Handle upvote / downvote on published blogs with vote-switching
   const handleVote = async (postId: string, direction: 1 | -1) => {
     const activeUserId = keyUser?.id || user?.id;
     if (!activeUserId) {
@@ -300,7 +300,7 @@ export const CreatorProfileV5: React.FC<CreatorProfileV5Props> = ({
     }));
 
     const res = await castVote({
-      postId,
+      post_id: postId,
       voter_id: activeUserId,
       value: direction,
     });
@@ -325,7 +325,7 @@ export const CreatorProfileV5: React.FC<CreatorProfileV5Props> = ({
   // Clean join date (prevents "Joined Joined November 2021")
   const cleanJoinedDate = (author.joinedDate || 'October 2024').replace(/^joined\s+/i, '');
 
-  // Media gallery items extracted from real essays
+  // Media gallery items extracted from real blogs
   const mediaItems = displayArticles
     .filter(a => Boolean(a.coverImage))
     .map(a => ({
@@ -530,7 +530,7 @@ export const CreatorProfileV5: React.FC<CreatorProfileV5Props> = ({
             {/* Compact Statistics in a Single Row */}
             <span><strong className="font-semibold text-[#0A2540]">{followersCount}</strong> followers</span>
             <span><strong className="font-semibold text-[#0A2540]">{followingCount}</strong> following</span>
-            <span><strong className="font-semibold text-[#0A2540]">{displayArticles.length}</strong> essays</span>
+            <span><strong className="font-semibold text-[#0A2540]">{displayArticles.length}</strong> blogs</span>
             <span className="inline-flex items-center gap-1 text-[#007C8B]">
               <Award className="h-3.5 w-3.5" />
               <strong className="font-semibold text-[#0A2540]">{author.reputationScore}</strong> Rep
@@ -574,15 +574,15 @@ export const CreatorProfileV5: React.FC<CreatorProfileV5Props> = ({
           <div className="border-b border-[#0A2540]/10 flex items-center gap-6 overflow-x-auto">
             <button
               type="button"
-              onClick={() => setActiveTab('essays')}
+              onClick={() => setActiveTab('blogs')}
               className={`pb-3 text-xs sm:text-sm whitespace-nowrap transition-colors border-b-2 flex items-center gap-1.5 ${
-                activeTab === 'essays'
+                activeTab === 'blogs'
                   ? 'border-[#007C8B] text-[#007C8B] font-semibold'
                   : 'border-transparent text-[#5A6E85] hover:text-[#0A2540] font-medium'
               }`}
             >
               <BookOpen className="h-3.5 w-3.5" />
-              <span>Essays ({displayArticles.length})</span>
+              <span>Blogs ({displayArticles.length})</span>
             </button>
 
             <button
@@ -651,18 +651,18 @@ export const CreatorProfileV5: React.FC<CreatorProfileV5Props> = ({
             </button>
           </div>
 
-          {/* TAB 1: ESSAYS (REFINED EDITORIAL FOCUS) */}
-          {activeTab === 'essays' && (
+          {/* TAB 1: BLOGS (REFINED EDITORIAL FOCUS) */}
+          {activeTab === 'blogs' && (
             <div className="space-y-5">
               {loadingPosts ? (
                 <div className="py-8 text-center text-xs text-[#5A6E85]">
-                  Loading published essays…
+                  Loading published blogs…
                 </div>
               ) : displayArticles.length === 0 ? (
                 <div className="py-8 px-6 text-center border border-dashed border-[#0A2540]/12 rounded-xl bg-[#FAFBFD] space-y-1.5">
-                  <p className="text-sm font-medium text-[#0A2540]">No published essays yet</p>
+                  <p className="text-sm font-medium text-[#0A2540]">No published blogs yet</p>
                   <p className="text-xs text-[#5A6E85] max-w-sm mx-auto leading-relaxed">
-                    @{author.handle} has not published any public essays yet. Once published, articles and onchain vote records will appear here.
+                    @{author.handle} has not published any public blogs yet. Once published, articles and onchain vote records will appear here.
                   </p>
                 </div>
               ) : (
@@ -765,14 +765,14 @@ export const CreatorProfileV5: React.FC<CreatorProfileV5Props> = ({
                             <button
                               type="button"
                               className="pn-icon-btn"
-                              title="Bookmark essay"
+                              title="Bookmark blog"
                             >
                               <Bookmark className="h-3.5 w-3.5" />
                             </button>
                             <button
                               type="button"
                               className="pn-icon-btn"
-                              title="Share essay"
+                              title="Share blog"
                             >
                               <Share2 className="h-3.5 w-3.5" />
                             </button>
@@ -797,7 +797,7 @@ export const CreatorProfileV5: React.FC<CreatorProfileV5Props> = ({
                 <div className="py-8 px-6 text-center border border-dashed border-[#0A2540]/12 rounded-xl bg-[#FAFBFD] space-y-1.5">
                   <p className="text-sm font-medium text-[#0A2540]">No replies yet</p>
                   <p className="text-xs text-[#5A6E85] max-w-sm mx-auto leading-relaxed">
-                    Comments and discussions published by @{author.handle} on PENORA essays will be listed here.
+                    Comments and discussions published by @{author.handle} on PENORA blogs will be listed here.
                   </p>
                 </div>
               ) : (
@@ -826,7 +826,7 @@ export const CreatorProfileV5: React.FC<CreatorProfileV5Props> = ({
                 <div className="py-8 px-6 text-center border border-dashed border-[#0A2540]/12 rounded-xl bg-[#FAFBFD] space-y-1.5">
                   <p className="text-sm font-medium text-[#0A2540]">No media published yet</p>
                   <p className="text-xs text-[#5A6E85] max-w-sm mx-auto leading-relaxed">
-                    Images and cover visuals from @{author.handle}'s published essays will appear in this gallery.
+                    Images and cover visuals from @{author.handle}'s published blogs will appear in this gallery.
                   </p>
                 </div>
               ) : (
@@ -870,7 +870,7 @@ export const CreatorProfileV5: React.FC<CreatorProfileV5Props> = ({
                 <div className="py-8 px-6 text-center border border-dashed border-[#0A2540]/12 rounded-xl bg-[#FAFBFD] space-y-1.5">
                   <p className="text-sm font-medium text-[#0A2540]">No bookmarks saved yet</p>
                   <p className="text-xs text-[#5A6E85] max-w-sm mx-auto leading-relaxed">
-                    When you bookmark insightful essays across PENORA, they will be organized here.
+                    When you bookmark insightful blogs across PENORA, they will be organized here.
                   </p>
                 </div>
               ) : (

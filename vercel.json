@@ -1,0 +1,5 @@
+{
+  "rewrites": [
+    { "source": "/story/:slug", "destination": "/read?slug=:slug" }
+  ]
+}

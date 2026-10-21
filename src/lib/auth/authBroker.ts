@@ -437,10 +437,10 @@ export class PenoraAuthBroker {
 
     // Notify server RPC consume_auth_challenge if remote DB is active
     try {
-      supabase.rpc('consume_auth_challenge', {
+      Promise.resolve(supabase.rpc('consume_auth_challenge', {
         p_challenge_id: params.challengeId,
         p_username: cleanUsername,
-      }).then(() => {}).catch(() => {});
+      })).catch(() => {});
     } catch {
       // Ignore RPC connection errors
     }

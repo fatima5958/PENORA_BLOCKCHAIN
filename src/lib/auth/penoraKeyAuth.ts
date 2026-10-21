@@ -106,8 +106,7 @@ class PenoraKeyAuthService {
               }
               this.notifyListeners(false);
             }
-          })
-          .catch(() => {});
+          }, () => {});
       } else {
         this.clearStorage(broadcast);
       }

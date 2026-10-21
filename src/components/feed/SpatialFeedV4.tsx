@@ -478,15 +478,15 @@ export const SpatialFeedV4: React.FC = () => {
               <div className="mx-auto w-fit">
                 <PenoraLogo variant="app-icon" size="sm" />
               </div>
-              <h3 className="pn-h2">No essays in this view yet</h3>
+              <h3 className="pn-h2">No blogs in this view yet</h3>
               <p className="text-xs text-[#4A5B70] max-w-sm mx-auto leading-relaxed">
                 {activeNav === 'Bookmarks'
-                  ? "You haven't saved any bookmarks yet. Click the bookmark icon on any essay to build your reading list."
+                  ? "You haven't saved any bookmarks yet. Click the bookmark icon on any blog to build your reading list."
                   : 'Be the first creator to publish a longform perspective in this topic.'}
               </p>
               <div className="pt-1">
                 <a href="/editor" className="pn-btn pn-btn-brand pn-btn-sm">
-                  <span>Write an Essay</span>
+                  <span>Write a Blog</span>
                   <ArrowRight className="h-3.5 w-3.5" />
                 </a>
               </div>
@@ -669,7 +669,7 @@ export const SpatialFeedV4: React.FC = () => {
               <div className="flex items-center gap-2.5">
                 <ShieldCheck className="h-4 w-4 text-[#007C8B] flex-shrink-0" />
                 <span>
-                  Showing curated editorial essays. Remote Supabase tables are staged and ready for owner migration approval.
+                  Showing curated editorial blogs. Remote Supabase tables are staged and ready for owner migration approval.
                 </span>
               </div>
             </div>
@@ -695,7 +695,7 @@ export const SpatialFeedV4: React.FC = () => {
                   Join the Curation Community
                 </h3>
                 <p className="text-xs text-[#B8D4E3] leading-relaxed">
-                  Earn verifiable reputation, publish longform essays, and support independent creators.
+                  Earn verifiable reputation, publish longform blogs, and support independent creators.
                 </p>
               </div>
               <div className="relative z-10 space-y-2">
@@ -755,7 +755,7 @@ export const SpatialFeedV4: React.FC = () => {
                 </div>
               </div>
               <a href="/editor" className="pn-btn pn-btn-primary pn-btn-block pn-btn-sm">
-                <span>Write New Essay</span>
+                <span>Write New Blog</span>
                 <ArrowRight className="h-3.5 w-3.5 text-[#00E5F4]" />
               </a>
             </div>
@@ -843,7 +843,7 @@ export const SpatialFeedV4: React.FC = () => {
                   avatar: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=120&q=80',
                 },
                 {
-                  id: 'longform-essays',
+                  id: 'longform-blogs',
                   name: 'Longform & Solitude',
                   members: 1820,
                   avatar: 'https://images.unsplash.com/photo-1457369804613-52c61a468e7d?auto=format&fit=crop&w=120&q=80',

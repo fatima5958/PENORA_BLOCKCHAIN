@@ -66,7 +66,7 @@ export const CreatorProfileV7: React.FC<CreatorProfileV7Props> = ({
   const [editModalOpen, setEditModalOpen] = useState(false);
 
   // 6 profile tabs
-  const [activeTab, setActiveTab] = useState<'essays' | 'replies' | 'media' | 'bookmarks' | 'communities' | 'about'>('essays');
+  const [activeTab, setActiveTab] = useState<'blogs' | 'replies' | 'media' | 'bookmarks' | 'communities' | 'about'>('blogs');
 
   // Follow states
   const [isFollowing, setIsFollowing] = useState(false);
@@ -146,7 +146,7 @@ export const CreatorProfileV7: React.FC<CreatorProfileV7Props> = ({
     };
   }, []);
 
-  // Hydrate real creator profile & real published essays from Supabase
+  // Hydrate real creator profile & real published blogs from Supabase
   useEffect(() => {
     let mounted = true;
     const activeId = initialAuthor?.id || keyUser?.id || user?.id;
@@ -370,7 +370,7 @@ export const CreatorProfileV7: React.FC<CreatorProfileV7Props> = ({
     }
   };
 
-  // Handle upvote / downvote on published essays with strict vote-switching
+  // Handle upvote / downvote on published blogs with strict vote-switching
   const handleVote = async (postId: string, direction: 1 | -1) => {
     const activeUserId = keyUser?.id || user?.id;
     if (!activeUserId) {
@@ -412,7 +412,7 @@ export const CreatorProfileV7: React.FC<CreatorProfileV7Props> = ({
     }));
 
     const res = await castVote({
-      postId,
+      post_id: postId,
       voter_id: activeUserId,
       value: direction,
     });
@@ -436,7 +436,7 @@ export const CreatorProfileV7: React.FC<CreatorProfileV7Props> = ({
 
   const cleanJoinedDate = (author.joinedDate || 'Oct 2026').replace(/^joined\s+/i, '');
 
-  // Media gallery items extracted from real essays
+  // Media gallery items extracted from real blogs
   const mediaItems = displayArticles
     .filter(a => Boolean(a.coverImage))
     .map(a => ({
@@ -771,15 +771,15 @@ export const CreatorProfileV7: React.FC<CreatorProfileV7Props> = ({
           <div className="bg-white/90 backdrop-blur-md rounded-2xl p-1.5 border border-[#007C8B]/10 shadow-xs flex items-center justify-between overflow-x-auto gap-1">
             <button
               type="button"
-              onClick={() => setActiveTab('essays')}
+              onClick={() => setActiveTab('blogs')}
               className={`px-4 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-1.5 ${
-                activeTab === 'essays'
+                activeTab === 'blogs'
                   ? 'bg-gradient-to-r from-[#007C8B] via-[#00B3C4] to-[#00E5F4] text-white font-bold shadow-[0_4px_14px_rgba(0,188,212,0.35)]'
                   : 'text-[#5A6E85] hover:text-[#0A2540] hover:bg-white'
               }`}
             >
-              <BookOpen className={`h-3.5 w-3.5 ${activeTab === 'essays' ? 'text-white' : ''}`} />
-              <span>Essays</span>
+              <BookOpen className={`h-3.5 w-3.5 ${activeTab === 'blogs' ? 'text-white' : ''}`} />
+              <span>Blogs</span>
             </button>
 
             <button
@@ -848,18 +848,18 @@ export const CreatorProfileV7: React.FC<CreatorProfileV7Props> = ({
             </button>
           </div>
 
-          {/* 4. TAB CONTENT: ESSAYS FEED (TWO-COLUMN CARD ARRANGEMENT MATCHING REFERENCE) */}
-          {activeTab === 'essays' && (
+          {/* 4. TAB CONTENT: BLOGS FEED (TWO-COLUMN CARD ARRANGEMENT MATCHING REFERENCE) */}
+          {activeTab === 'blogs' && (
             <div className="space-y-4">
               {loadingPosts ? (
                 <div className="py-10 text-center text-xs text-[#5A6E85]">
-                  Loading published essays…
+                  Loading published blogs…
                 </div>
               ) : displayArticles.length === 0 ? (
                 <div className="py-10 px-6 text-center border border-dashed border-[#0A2540]/12 rounded-3xl bg-white/70 space-y-2">
-                  <p className="text-sm font-medium text-[#0A2540]">No published essays yet</p>
+                  <p className="text-sm font-medium text-[#0A2540]">No published blogs yet</p>
                   <p className="text-xs text-[#5A6E85] max-w-sm mx-auto leading-relaxed">
-                    @{author.handle} has not published any public essays yet. Once published, articles and onchain vote records will appear here.
+                    @{author.handle} has not published any public blogs yet. Once published, articles and onchain vote records will appear here.
                   </p>
                 </div>
               ) : (
@@ -1119,7 +1119,7 @@ export const CreatorProfileV7: React.FC<CreatorProfileV7Props> = ({
                 <span className="block font-serif text-base sm:text-lg font-bold text-[#0A2540]">
                   {displayArticles.length || 28}
                 </span>
-                <span className="text-[10px] text-[#6E7D90] uppercase tracking-wider block">Essays</span>
+                <span className="text-[10px] text-[#6E7D90] uppercase tracking-wider block">Blogs</span>
               </div>
               <div className="px-1">
                 <span className="block font-serif text-base sm:text-lg font-bold text-[#007C8B]">

@@ -51,10 +51,10 @@ export const CommunitiesView: React.FC<CommunitiesViewProps> = ({
           name: c.name,
           slug: c.slug,
           description: c.description || '',
-          iconName: 'Users',
-          articleCount: 0,
-          memberCount: 1,
-          isJoined: false,
+          avatar: c.avatar_url || '',
+          subscriberCount: 0,
+          activePostsCount: 0,
+          isSubscribed: false,
         }));
         setCommunities(mapped);
       }
@@ -176,7 +176,7 @@ export const CommunitiesView: React.FC<CommunitiesViewProps> = ({
                 </div>
                 <div className="flex items-center gap-1.5">
                   <BookOpen className="h-3.5 w-3.5 text-[#007C8B]" />
-                  <span>{community.activePostsCount} essays</span>
+                  <span>{community.activePostsCount} blogs</span>
                 </div>
               </div>
             </div>
