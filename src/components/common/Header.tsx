@@ -46,6 +46,7 @@ export const Header: React.FC<HeaderProps> = ({ currentPath = '/' }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const profileDropdownRef = useRef<HTMLDivElement>(null);
 
   // Initialize session, subscribe to auth state changes, and support ?auth= URL trigger
   useEffect(() => {
@@ -102,11 +103,21 @@ export const Header: React.FC<HeaderProps> = ({ currentPath = '/' }) => {
     };
   }, []);
 
-  const handleLogout = async () => {
-    penoraKeyAuth.logout();
-    await supabase.auth.signOut();
+  const handleLogout = async (e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
     setProfileDropdownOpen(false);
-    if (typeof window !== 'undefined' && (window.location.pathname.startsWith('/profile/me') || window.location.pathname.startsWith('/editor'))) {
+    penoraKeyAuth.logout();
+    setKeyUser(null);
+    setUser(null);
+    try {
+      await supabase.auth.signOut();
+    } catch {
+      // Ignore
+    }
+    if (typeof window !== 'undefined') {
       window.location.href = '/';
     }
   };
@@ -124,7 +135,14 @@ export const Header: React.FC<HeaderProps> = ({ currentPath = '/' }) => {
   // Close dropdown or mobile menu when clicking outside or pressing Escape
   useEffect(() => {
     if (!profileDropdownOpen && !mobileMenuOpen) return;
-    const closeOnOutside = () => setProfileDropdownOpen(false);
+    const closeOnOutside = (e: MouseEvent) => {
+      if (
+        profileDropdownRef.current &&
+        !profileDropdownRef.current.contains(e.target as Node)
+      ) {
+        setProfileDropdownOpen(false);
+      }
+    };
     const closeOnEsc = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         setProfileDropdownOpen(false);
@@ -234,7 +252,7 @@ export const Header: React.FC<HeaderProps> = ({ currentPath = '/' }) => {
                 </a>
 
                 {/* Profile Avatar Pill */}
-                <div className="relative">
+                <div className="relative" ref={profileDropdownRef}>
                   <button
                     type="button"
                     onClick={() => setProfileDropdownOpen(v => !v)}
@@ -307,7 +325,7 @@ export const Header: React.FC<HeaderProps> = ({ currentPath = '/' }) => {
                 </a>
 
                 {/* Profile Avatar Pill */}
-                <div className="relative">
+                <div className="relative" ref={profileDropdownRef}>
                   <button
                     type="button"
                     onClick={() => setProfileDropdownOpen(v => !v)}

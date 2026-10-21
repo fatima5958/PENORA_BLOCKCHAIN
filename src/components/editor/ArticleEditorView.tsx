@@ -269,6 +269,7 @@ export const ArticleEditorView: React.FC = () => {
       } else {
         res = await createPost({
           author_id: authorId,
+          author_username: keyUser?.username || user?.email?.split('@')[0],
           title: title.trim() || 'Untitled Draft',
           slug,
           excerpt: excerpt.trim() || (content.trim() ? content.trim().slice(0, 160) + '...' : ''),
@@ -358,6 +359,7 @@ export const ArticleEditorView: React.FC = () => {
       } else {
         res = await createPost({
           author_id: authorId,
+          author_username: keyUser?.username || user?.email?.split('@')[0],
           title: title.trim(),
           slug,
           excerpt: excerpt.trim() || content.trim().slice(0, 160) + '...',

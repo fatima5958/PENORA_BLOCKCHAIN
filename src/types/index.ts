@@ -12,6 +12,8 @@ export interface Author {
   followingCount?: number;
   postsCount?: number;
   location?: string;
+  website?: string;
+  interests?: string[];
   joinedDate?: string;
   activeStatus?: string;
 }

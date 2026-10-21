@@ -20,6 +20,7 @@ import {
 import { supabase } from '../../lib/supabaseClient';
 import { getPublishedArticles } from '../../lib/api/articles';
 import { castVote, getVotesForPost, type PostVoteStats } from '../../lib/api/votes';
+import { getArticleRewardState } from '../../lib/api/rewards';
 import { getCommentsForPost } from '../../lib/api/comments';
 import { toggleBookmark } from '../../lib/api/bookmarks';
 import { followUser, unfollowUser } from '../../lib/api/follows';
@@ -591,6 +592,13 @@ export const SpatialFeedV4: React.FC = () => {
                                 <span>{vStats.downvotes}</span>
                               </button>
                             </div>
+
+                            <span
+                              className="text-xs font-mono font-medium text-[#4A5E75] select-none cursor-help px-0.5"
+                              title={getArticleRewardState(vStats.score).tooltip}
+                            >
+                              · {getArticleRewardState(vStats.score).displayUsd}
+                            </span>
 
                             {/* Comments */}
                             <a

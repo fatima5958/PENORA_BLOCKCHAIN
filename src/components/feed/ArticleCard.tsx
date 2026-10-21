@@ -5,6 +5,7 @@ import { SpatialBadge } from '../3d/SpatialBadge';
 import { ReputationIndicator } from './ReputationIndicator';
 import { ArrowUpRight, MessageSquare, Bookmark, Share2, Check, Sparkles } from 'lucide-react';
 import { castVote, getVotesForPost, type PostVoteStats } from '../../lib/api/votes';
+import { getArticleRewardState } from '../../lib/api/rewards';
 import { penoraKeyAuth } from '../../lib/auth/penoraKeyAuth';
 
 interface ArticleCardProps {
@@ -221,6 +222,13 @@ export const ArticleCard: React.FC<ArticleCardProps> = ({
               <span>{voteStats.downvotes}</span>
             </button>
           </div>
+
+          <span
+            className="text-xs font-mono font-medium text-penora-cocoa-muted select-none cursor-help px-0.5"
+            title={getArticleRewardState(voteStats.score).tooltip}
+          >
+            · {getArticleRewardState(voteStats.score).displayUsd}
+          </span>
 
           <a
             href={`/story/${article.slug}#comments`}

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import type { Article } from '../../types';
 import { MessageSquare, Bookmark, Share2, Check } from 'lucide-react';
 import { castVote, getVotesForPost, type PostVoteStats } from '../../lib/api/votes';
+import { getArticleRewardState } from '../../lib/api/rewards';
 import { penoraKeyAuth } from '../../lib/auth/penoraKeyAuth';
 import { supabase } from '../../lib/supabaseClient';
 
@@ -227,6 +228,13 @@ export const CompactPostCard: React.FC<CompactPostCardProps> = ({
               <span>{voteStats.downvotes}</span>
             </button>
           </div>
+
+          <span
+            className="text-xs font-mono font-medium text-[#4A5E75] select-none cursor-help px-0.5"
+            title={getArticleRewardState(voteStats.score).tooltip}
+          >
+            · {getArticleRewardState(voteStats.score).displayUsd}
+          </span>
 
           <a
             href={`/story/${article.slug}#comments`}

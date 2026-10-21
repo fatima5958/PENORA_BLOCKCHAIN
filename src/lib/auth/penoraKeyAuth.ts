@@ -88,6 +88,26 @@ class PenoraKeyAuthService {
           permissions: val.session.permissions,
         };
         this.notifyListeners(broadcast);
+
+        // Verify and align ID with remote Supabase profile to satisfy foreign key constraints
+        const currentUname = val.session.username;
+        supabase
+          .from('profiles')
+          .select('id')
+          .eq('username', currentUname)
+          .maybeSingle()
+          .then(({ data: remoteProf }) => {
+            if (remoteProf?.id && this.currentUser && this.currentUser.username === currentUname && this.currentUser.id !== remoteProf.id) {
+              this.currentUser.id = remoteProf.id;
+              if (this.currentSession) this.currentSession.userId = remoteProf.id;
+              authBroker.updateAccountUserId(currentUname, remoteProf.id);
+              if (typeof window !== 'undefined' && window.localStorage) {
+                window.localStorage.setItem('penora_auth_user', JSON.stringify(this.currentUser));
+              }
+              this.notifyListeners(false);
+            }
+          })
+          .catch(() => {});
       } else {
         this.clearStorage(broadcast);
       }
@@ -285,15 +305,18 @@ class PenoraKeyAuthService {
 
     // 1. Fetch user public authorities from broker (with Supabase remote fallback)
     let account = authBroker.getAccount(cleanUsername);
-    if (!account) {
-      try {
-        const { data: prof } = await supabase
-          .from('profiles')
-          .select('id, username, display_name')
-          .eq('username', cleanUsername)
-          .maybeSingle();
+    try {
+      const { data: prof } = await supabase
+        .from('profiles')
+        .select('id, username, display_name')
+        .eq('username', cleanUsername)
+        .maybeSingle();
 
-        if (prof) {
+      if (prof) {
+        if (account && account.userId !== prof.id) {
+          authBroker.updateAccountUserId(cleanUsername, prof.id);
+          account = authBroker.getAccount(cleanUsername);
+        } else if (!account) {
           const { data: authRow } = await supabase
             .from('account_authorities')
             .select('*')
@@ -317,9 +340,9 @@ class PenoraKeyAuthService {
             account = reg.account || null;
           }
         }
-      } catch {
-        // Fallback to local check
       }
+    } catch {
+      // Fallback to local check
     }
 
     if (!account) {

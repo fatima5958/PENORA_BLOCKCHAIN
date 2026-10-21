@@ -8,6 +8,9 @@ export interface ProfileRecord {
   avatar_url?: string | null;
   cover_url?: string | null;
   bio?: string | null;
+  location?: string | null;
+  website?: string | null;
+  interests?: string[] | null;
   reputation: number;
   created_at: string;
 }

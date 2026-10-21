@@ -298,3 +298,5 @@ export async function getVotesForPost(
     return localStats;
   }
 }
+
+export const getPostVoteStats = getVotesForPost;

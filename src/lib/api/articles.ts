@@ -99,6 +99,7 @@ export async function getUserArticles(authorId: string): Promise<ArticlesListRes
 
 export async function createPost(post: {
   author_id: string;
+  author_username?: string;
   title: string;
   slug: string;
   excerpt?: string;
@@ -107,17 +108,43 @@ export async function createPost(post: {
   tags?: string[];
   published?: boolean;
 }): Promise<SingleArticleResult> {
-  if (!isUuid(post.author_id)) {
+  let resolvedAuthorId = post.author_id;
+
+  if (!isUuid(resolvedAuthorId)) {
     return {
       data: null,
       error: 'Invalid author ID format: author_id must be a valid account UUID.',
     };
   }
+
+  // Ensure author_id exists in public.profiles to satisfy posts_author_id_fkey
+  try {
+    const { data: profileCheck } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('id', resolvedAuthorId)
+      .maybeSingle();
+
+    if (!profileCheck?.id && post.author_username) {
+      const { data: profileByUsername } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('username', post.author_username.toLowerCase().trim())
+        .maybeSingle();
+
+      if (profileByUsername?.id) {
+        resolvedAuthorId = profileByUsername.id;
+      }
+    }
+  } catch {
+    // Continue with original ID if lookup encounters transient network error
+  }
+
   try {
     const { data, error } = await supabase
       .from('posts')
       .insert({
-        author_id: post.author_id,
+        author_id: resolvedAuthorId,
         title: post.title,
         slug: post.slug,
         excerpt: post.excerpt || null,

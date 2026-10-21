@@ -74,6 +74,37 @@ export async function getCommentsForPost(postId: string): Promise<CommentsListRe
   }
 }
 
+export async function getUserComments(authorId: string): Promise<CommentsListResult> {
+  const localList = readLocalComments().filter(c => c.author_id === authorId);
+
+  if (!isUuid(authorId)) {
+    return { data: localList, error: null };
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('comments')
+      .select('*, author:profiles!author_id(*)')
+      .eq('author_id', authorId)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      const isPending = error.code === '42P01' || error.message.includes('relation');
+      return { data: localList, error: error.message, isPendingMigration: isPending };
+    }
+    const combined = [...(data as CommentRecord[] || []), ...localList];
+    const seen = new Set<string>();
+    const deduped = combined.filter(c => {
+      if (seen.has(c.id)) return false;
+      seen.add(c.id);
+      return true;
+    });
+    return { data: deduped, error: null };
+  } catch (err: any) {
+    return { data: localList, error: err.message || 'Failed to fetch creator comments' };
+  }
+}
+
 export async function addComment(comment: {
   post_id: string;
   author_id: string;

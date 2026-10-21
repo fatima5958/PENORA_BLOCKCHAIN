@@ -15,6 +15,7 @@ import {
 import { supabase } from '../../lib/supabaseClient';
 import { getArticleBySlug } from '../../lib/api/articles';
 import { castVote, getVotesForPost, type PostVoteStats } from '../../lib/api/votes';
+import { getArticleRewardState } from '../../lib/api/rewards';
 import { getCommentsForPost, addComment, deleteComment } from '../../lib/api/comments';
 import { toggleBookmark, isPostBookmarked } from '../../lib/api/bookmarks';
 import { followUser, isFollowing } from '../../lib/api/follows';
@@ -382,6 +383,12 @@ export const ArticleReader: React.FC<ArticleReaderProps> = ({ article: initialAr
                 <span>{voteStats.downvotes}</span>
               </button>
             </div>
+            <span
+              className="text-xs font-mono font-medium text-[#4A5E75] select-none cursor-help px-0.5"
+              title={getArticleRewardState(voteStats.score).tooltip}
+            >
+              · {getArticleRewardState(voteStats.score).displayUsd}
+            </span>
             <span className="text-xs text-[#4A5B70]">
               {voteStats.userVote === 1
                 ? 'You upvoted this essay'

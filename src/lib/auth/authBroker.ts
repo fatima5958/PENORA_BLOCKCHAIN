@@ -252,6 +252,23 @@ export class PenoraAuthBroker {
     return this.accountsById.get(userId) || null;
   }
 
+  public updateAccountUserId(username: string, newUserId: string): void {
+    this.hydrateFromStorage();
+    const cleanUsername = username.trim().toLowerCase();
+    const account = this.accounts.get(cleanUsername);
+    if (account) {
+      this.accountsById.delete(account.userId);
+      account.userId = newUserId;
+      this.accountsById.set(newUserId, account);
+      for (const session of this.sessions.values()) {
+        if (session.username === cleanUsername) {
+          session.userId = newUserId;
+        }
+      }
+      this.persistToStorage();
+    }
+  }
+
   public isUsernameAvailable(username: string): boolean {
     this.hydrateFromStorage();
     return !this.accounts.has(username.trim().toLowerCase());
