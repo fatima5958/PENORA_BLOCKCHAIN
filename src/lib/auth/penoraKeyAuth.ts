@@ -500,32 +500,20 @@ class PenoraKeyAuthService {
     const timestamp = new Date().toISOString();
     const cleanUsername = username.trim().toLowerCase();
 
-    // Create an authenticated encrypted vault bundle (XSalsa20-Poly1305)
-    // keyed by double-SHA256(owner_private_wif : username)
-    const vaultJson = JSON.stringify({
-      version: 'PENORA-VAULT-1.0',
-      username: cleanUsername,
-      generatedAt: timestamp,
-      keys: {
-        owner: { pub: keySuite.owner.publicKeyPen, wif: keySuite.owner.privateKeyWif },
-        active: { pub: keySuite.active.publicKeyPen, wif: keySuite.active.privateKeyWif },
-        posting: { pub: keySuite.posting.publicKeyPen, wif: keySuite.posting.privateKeyWif },
-        memo: { pub: keySuite.memo.publicKeyPen, wif: keySuite.memo.privateKeyWif },
-      },
-    });
-    const secretKey = doubleSha256(
-      new TextEncoder().encode(`PENORA-VAULT-KEY:${cleanUsername}:${keySuite.owner.privateKeyWif}`)
-    );
-    const nonce = nacl.randomBytes(nacl.secretbox.nonceLength);
-    const cipherBytes = nacl.secretbox(new TextEncoder().encode(vaultJson), nonce, secretKey);
     const toHex = (arr: Uint8Array) =>
       Array.from(arr)
         .map(b => b.toString(16).padStart(2, '0'))
         .join('');
-    const checksumHex = toHex(doubleSha256(new TextEncoder().encode(vaultJson))).slice(0, 32);
+    const checksumHex = toHex(
+      doubleSha256(
+        new TextEncoder().encode(
+          `${cleanUsername}:${keySuite.owner.publicKeyPen}:${keySuite.active.publicKeyPen}:${keySuite.posting.publicKeyPen}`
+        )
+      )
+    ).slice(0, 32);
 
     return `================================================================================
-PENORA BLOCKCHAIN — ENCRYPTED ACCOUNT MASTER KEY BACKUP
+PENORA BLOCKCHAIN — SOVEREIGN ACCOUNT MASTER KEY CERTIFICATE
 Account Username: @${cleanUsername}
 Generated At:     ${timestamp}
 Integrity SHA256: ${checksumHex}
@@ -561,14 +549,8 @@ Private Key: ${keySuite.posting.privateKeyWif}
 Public Key:  ${keySuite.memo.publicKeyPen}
 Private Key: ${keySuite.memo.privateKeyWif}
 
---------------------------------------------------------------------------------
-ENCRYPTED RECOVERY VAULT PAYLOAD (XSalsa20-Poly1305)
---------------------------------------------------------------------------------
-Nonce:      ${toHex(nonce)}
-Ciphertext: ${toHex(cipherBytes)}
-
 ================================================================================
-KEEP THIS FILE OFFLINE AND STORE IT IN A SECURE PASSWORD MANAGER.
+KEEP THIS DOCUMENT SECURE AND STORE IT OFFLINE IN A SAFE VAULT OR MANAGER.
 ================================================================================
 `;
   }

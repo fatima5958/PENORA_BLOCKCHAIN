@@ -24,6 +24,7 @@ import {
   Mail,
   RefreshCw,
   Sparkles,
+  FileText,
 } from 'lucide-react';
 import { PenoraEmblem } from '../brand/PenoraLogo';
 import { penoraKeyAuth, type PenoraUser } from '../../lib/auth/penoraKeyAuth';
@@ -32,6 +33,7 @@ import {
   type AccountKeySuite,
   type KeyRole,
 } from '../../lib/crypto/penoraKeys';
+import { downloadKeyCertificatePdf } from '../../lib/crypto/penoraKeyPdf';
 import type { VerificationProof } from '../../lib/auth/emailVerification';
 
 export interface SpatialAuthModalV4Props {
@@ -346,19 +348,31 @@ export const SpatialAuthModalV4: React.FC<SpatialAuthModalV4Props> = ({
   // --------------------------------------------------------------------------
   // Step 3 & 4: Backup Download & Registration Completion
   // --------------------------------------------------------------------------
-  const handleDownloadBackup = () => {
-    if (!keySuite) return;
-    const content = penoraKeyAuth.generateBackupContent(signupUsername, keySuite);
-    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `PENORA-KEY-BACKUP-@${signupUsername.toLowerCase().trim()}.txt`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-    setBackupDownloaded(true);
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+
+  const handleDownloadBackup = async () => {
+    if (!keySuite || isGeneratingPdf) return;
+    setIsGeneratingPdf(true);
+    try {
+      await downloadKeyCertificatePdf(signupUsername, keySuite);
+      setBackupDownloaded(true);
+    } catch (err) {
+      console.error('Failed to generate key certificate PDF:', err);
+      // Fallback: clean text certificate without rough ciphertext
+      const content = penoraKeyAuth.generateBackupContent(signupUsername, keySuite);
+      const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `PENORA-KEY-CERTIFICATE-@${signupUsername.toLowerCase().trim()}.txt`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      setBackupDownloaded(true);
+    } finally {
+      setIsGeneratingPdf(false);
+    }
   };
 
   const handleCopyKey = (wif: string, roleName: string) => {
@@ -1002,7 +1016,7 @@ export const SpatialAuthModalV4: React.FC<SpatialAuthModalV4Props> = ({
                 </div>
               )}
 
-              {/* Step 4: Download Encrypted Backup & Confirmation */}
+              {/* Step 4: Download Key Certificate (PDF) & Confirmation */}
               {wizardStep === 'backup' && keySuite && (
                 <div className="space-y-3.5">
                   <div className="space-y-1">
@@ -1010,10 +1024,10 @@ export const SpatialAuthModalV4: React.FC<SpatialAuthModalV4Props> = ({
                       id="penora-auth-modal-title"
                       className="font-serif text-[21px] sm:text-[23px] leading-tight font-bold text-[#0A2540]"
                     >
-                      Download Encrypted Key Backup
+                      Download Key Certificate (PDF)
                     </h3>
                     <p className="text-xs text-[#384B61] leading-relaxed">
-                      PENORA has zero custody of your private keys. Download your encrypted recovery vault and store it offline.
+                      PENORA operates on zero custody of your private keys. Download your official branded Key Certificate (PDF) and store it offline.
                     </p>
                   </div>
 
@@ -1021,14 +1035,14 @@ export const SpatialAuthModalV4: React.FC<SpatialAuthModalV4Props> = ({
                   <div className="p-3.5 rounded-2xl bg-white/90 border border-white shadow-xs space-y-2.5">
                     <div className="flex items-center gap-2.5">
                       <div className="h-9 w-9 rounded-xl bg-[#007C8B]/12 border border-[#007C8B]/20 flex items-center justify-center text-[#007C8B]">
-                        <Download className="h-4 w-4" />
+                        <FileText className="h-4 w-4" />
                       </div>
                       <div>
                         <p className="text-xs font-bold text-[#0A2540]">
-                          XSalsa20-Poly1305 Encrypted Master Kit
+                          Official PENORA Key Certificate (.pdf)
                         </p>
                         <p className="text-[11px] text-[#52657C]">
-                          Includes Owner, Active, Posting &amp; Memo WIF keys + Encrypted Vault
+                          Branded PDF certificate including Owner, Active, Posting &amp; Memo keys
                         </p>
                       </div>
                     </div>
@@ -1036,17 +1050,23 @@ export const SpatialAuthModalV4: React.FC<SpatialAuthModalV4Props> = ({
                     <button
                       type="button"
                       onClick={handleDownloadBackup}
-                      className="pn-btn pn-btn-secondary w-full justify-center h-10 rounded-xl text-xs font-bold border-[#9EC2E0]"
+                      disabled={isGeneratingPdf}
+                      className="pn-btn pn-btn-secondary w-full justify-center h-10 rounded-xl text-xs font-bold border-[#9EC2E0] bg-white hover:bg-[#F2F8FD] transition-colors"
                     >
-                      {backupDownloaded ? (
+                      {isGeneratingPdf ? (
+                        <>
+                          <Loader2 className="h-4 w-4 text-[#007C8B] animate-spin" />
+                          <span>Generating Official PDF Certificate...</span>
+                        </>
+                      ) : backupDownloaded ? (
                         <>
                           <Check className="h-4 w-4 text-[#007C8B] stroke-[2.5]" />
-                          <span>Encrypted Backup Downloaded! Download Again</span>
+                          <span>Key Certificate Downloaded! Download Again (.pdf)</span>
                         </>
                       ) : (
                         <>
                           <Download className="h-4 w-4 text-[#007C8B]" />
-                          <span>Download Encrypted Master Backup (.txt)</span>
+                          <span>Download Branded Key Certificate (.pdf)</span>
                         </>
                       )}
                     </button>
