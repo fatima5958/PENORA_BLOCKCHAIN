@@ -1,3 +1,5 @@
+import { isAddress, zeroAddress } from 'viem';
+
 // src/lib/wallet/contracts.ts
 // PENORA Blockchain — Smart Contract Addresses & Complete ABIs for Polygon Amoy Testnet (Chain ID 80002)
 
@@ -31,17 +33,17 @@ export const PENORA_CONTRACT_ADDRESSES = {
 
 export function areContractsConfigured(): boolean {
   return (
-    PENORA_CONTRACT_ADDRESSES.PNR_TOKEN !== '0x0000000000000000000000000000000000000000' &&
-    PENORA_CONTRACT_ADDRESSES.POWER_ESCROW !== '0x0000000000000000000000000000000000000000'
+    isConfiguredAddress(PENORA_CONTRACT_ADDRESSES.PNR_TOKEN) &&
+    isConfiguredAddress(PENORA_CONTRACT_ADDRESSES.POWER_ESCROW)
   );
 }
 
+export function isConfiguredAddress(address: string): boolean {
+  return isAddress(address) && address.toLowerCase() !== zeroAddress;
+}
+
 export function isUsdtConfigured(): boolean {
-  return (
-    PENORA_CONTRACT_ADDRESSES.USDT_TOKEN !== '0x0000000000000000000000000000000000000000' &&
-    PENORA_CONTRACT_ADDRESSES.USDT_TOKEN.startsWith('0x') &&
-    PENORA_CONTRACT_ADDRESSES.USDT_TOKEN.length === 42
-  );
+  return isConfiguredAddress(PENORA_CONTRACT_ADDRESSES.USDT_TOKEN);
 }
 
 // Verified USDT allowlist per network
@@ -81,7 +83,7 @@ export const VERIFIED_USDT_ALLOWLIST: Record<number, VerifiedTokenEntry[]> = {
 };
 
 export function isTokenAddressAllowed(chainId: number, address: string): boolean {
-  if (!address || !address.startsWith('0x') || address.length !== 42) return false;
+  if (!isConfiguredAddress(address)) return false;
   const normalized = address.toLowerCase();
 
   // If Amoy testnet

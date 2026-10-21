@@ -1,3 +1,4 @@
+import { usePostVoting } from '../../lib/hooks/usePostVoting';
 // src/components/profile/CreatorProfileV5.tsx
 // PENORA Blockchain — Creator Profile V6: Visual Refinement
 // Refined Editorial Layout + Celestial Aesthetics + Real Supabase Data + Financially Honest Rewards
@@ -9,7 +10,7 @@ import { followUser, unfollowUser, isFollowing as checkIsFollowing, getFollowCou
 import { getUserArticles } from '../../lib/api/articles';
 import { getUserBookmarks } from '../../lib/api/bookmarks';
 import { getUserComments } from '../../lib/api/comments';
-import { castVote, getVotesForPost, type PostVoteStats } from '../../lib/api/votes';
+import { getVotesForPost, type PostVoteStats } from '../../lib/api/votes';
 import { getArticleRewardState } from '../../lib/api/rewards';
 import { EditProfileModalV5 } from './EditProfileModalV5';
 import { SpatialAuthModalV4 } from '../design-v4/SpatialAuthModalV4';
@@ -54,6 +55,7 @@ export const CreatorProfileV5: React.FC<CreatorProfileV5Props> = ({
   topics,
   communities,
 }) => {
+  const { voteError, submitPostVote } = usePostVoting();
   const [user, setUser] = useState<SupabaseUser | null>(null);
   const [keyUser, setKeyUser] = useState<PenoraUser | null>(null);
   const [authModalOpen, setAuthModalOpen] = useState(false);
@@ -272,41 +274,7 @@ export const CreatorProfileV5: React.FC<CreatorProfileV5Props> = ({
     }
 
     const currentStats = postVotes[postId] || { upvotes: 0, downvotes: 0, score: 0, userVote: null };
-    let nextUserVote: 1 | -1 | null = currentStats.userVote === direction ? null : direction;
-    let nextUp = currentStats.upvotes;
-    let nextDown = currentStats.downvotes;
-
-    if (currentStats.userVote === direction) {
-      if (direction === 1) nextUp = Math.max(0, nextUp - 1);
-      if (direction === -1) nextDown = Math.max(0, nextDown - 1);
-    } else {
-      if (currentStats.userVote === 1) nextUp = Math.max(0, nextUp - 1);
-      if (currentStats.userVote === -1) nextDown = Math.max(0, nextDown - 1);
-      if (direction === 1) nextUp += 1;
-      else nextDown += 1;
-    }
-
-    const nextScore = nextUp - nextDown;
-
-    // Optimistic UI update
-    setPostVotes(prev => ({
-      ...prev,
-      [postId]: {
-        upvotes: nextUp,
-        downvotes: nextDown,
-        score: nextScore,
-        userVote: nextUserVote,
-      },
-    }));
-
-    const res = await castVote({
-      post_id: postId,
-      voter_id: activeUserId,
-      value: direction,
-    });
-    if (res.stats) {
-      setPostVotes(prev => ({ ...prev, [postId]: res.stats! }));
-    }
+    await submitPostVote(postId, activeUserId, direction, currentStats, stats => setPostVotes(prev => ({ ...prev, [postId]: stats })));
   };
 
   const author = creatorProfile;
@@ -336,6 +304,7 @@ export const CreatorProfileV5: React.FC<CreatorProfileV5Props> = ({
 
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 font-sans">
+      {voteError && <p role="alert" className="text-sm text-red-700 p-3 rounded-xl bg-red-50">{voteError}</p>}
       
       {/* 1. TOP PROFILE HEADER (REFINED EDITORIAL STYLE) */}
       <div className="overflow-hidden mb-6 bg-white border border-[#0A2540]/8 rounded-2xl shadow-xs">

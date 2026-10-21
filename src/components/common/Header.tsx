@@ -162,6 +162,7 @@ export const Header: React.FC<HeaderProps> = ({ currentPath = '/' }) => {
             id: keyUser?.id || user?.id || '',
             username: ce.detail.username || user?.email?.split('@')[0] || 'creator',
             display_name: ce.detail.display_name || user?.email?.split('@')[0] || 'creator',
+            reputation: 0,
             created_at: new Date().toISOString(),
           }),
           ...(ce.detail.avatar_url !== undefined && { avatar_url: ce.detail.avatar_url }),

@@ -1,0 +1,61 @@
+.penora-wallet {
+  --wallet-bg: #edf6f9;
+  --wallet-surface: #fff;
+  --wallet-inset: #f5f9fc;
+  --wallet-text: #0a2540;
+  --wallet-muted: #52677d;
+  color-scheme: light;
+}
+.penora-wallet[data-wallet-theme="dark"] {
+  --wallet-bg: #061522;
+  --wallet-surface: #10293a;
+  --wallet-inset: #0b2030;
+  --wallet-text: #e8f3fa;
+  --wallet-muted: #a6bdcf;
+  color-scheme: dark;
+}
+.penora-wallet button:focus-visible,
+.penora-wallet input:focus-visible,
+.penora-wallet select:focus-visible,
+.penora-wallet a:focus-visible {
+  outline: 2px solid #00b3c4;
+  outline-offset: 3px;
+}
+.penora-wallet[data-wallet-theme="dark"] input,
+.penora-wallet[data-wallet-theme="dark"] select {
+  color: var(--wallet-text);
+  background-color: var(--wallet-inset);
+  border-color: #31566b;
+}
+.penora-wallet button:disabled {
+  opacity: .5;
+  cursor: not-allowed;
+}
+.penora-wallet [class~="text-[9px]"],
+.penora-wallet [class~="text-[10px]"] {
+  font-size: .75rem;
+  line-height: 1.5;
+}
+.penora-wallet [class~="text-[11px]"] {
+  font-size: .8125rem;
+  line-height: 1.6;
+}
+.penora-wallet [role="dialog"] {
+  overflow-y: auto;
+}
+.penora-wallet [role="dialog"] > div {
+  max-height: calc(100dvh - 2rem);
+  overflow-y: auto;
+}
+@media (max-width: 639px) {
+  .penora-wallet .text-xs { font-size: .875rem; line-height: 1.6; }
+  .penora-wallet input, .penora-wallet select { font-size: 1rem; }
+  .penora-wallet button, .penora-wallet select { min-height: 44px; }
+  .penora-wallet .font-mono { overflow-wrap: anywhere; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .penora-wallet *, .penora-wallet *::before, .penora-wallet *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}

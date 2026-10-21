@@ -1,3 +1,4 @@
+import { usePostVoting } from '../../lib/hooks/usePostVoting';
 // src/components/story/ArticleReader.tsx
 // PENORA Blockchain — Longform Blog Reader & Curation View
 import React, { useState, useEffect } from 'react';
@@ -14,7 +15,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 import { getArticleBySlug } from '../../lib/api/articles';
-import { castVote, getVotesForPost, type PostVoteStats } from '../../lib/api/votes';
+import { getVotesForPost, type PostVoteStats } from '../../lib/api/votes';
 import { getArticleRewardState } from '../../lib/api/rewards';
 import { getCommentsForPost, addComment, deleteComment } from '../../lib/api/comments';
 import { toggleBookmark, isPostBookmarked } from '../../lib/api/bookmarks';
@@ -37,6 +38,7 @@ const EMPTY_ARTICLE: Article = {
 };
 
 export const ArticleReader: React.FC<ArticleReaderProps> = ({ article: initialArticle = EMPTY_ARTICLE }) => {
+  const { voteError, submitPostVote } = usePostVoting();
   const [user, setUser] = useState<SupabaseUser | null>(null);
   const [keyUser, setKeyUser] = useState<PenoraUser | null>(null);
   const [authModalOpen, setAuthModalOpen] = useState(false);
@@ -148,34 +150,7 @@ export const ArticleReader: React.FC<ArticleReaderProps> = ({ article: initialAr
       return;
     }
 
-    let nextUp = voteStats.upvotes;
-    let nextDown = voteStats.downvotes;
-    let nextUserVote: 1 | -1 | null = direction;
-
-    if (voteStats.userVote === direction) {
-      nextUserVote = null;
-      if (direction === 1) nextUp = Math.max(0, nextUp - 1);
-      else nextDown = Math.max(0, nextDown - 1);
-    } else {
-      if (voteStats.userVote === 1) nextUp = Math.max(0, nextUp - 1);
-      if (voteStats.userVote === -1) nextDown = Math.max(0, nextDown - 1);
-      if (direction === 1) nextUp += 1;
-      else nextDown += 1;
-    }
-
-    setVoteStats({
-      upvotes: nextUp,
-      downvotes: nextDown,
-      score: nextUp - nextDown,
-      userVote: nextUserVote,
-    });
-
-    const res = await castVote({
-      voter_id: voterId,
-      post_id: article.id,
-      value: direction,
-    });
-    if (res.stats) setVoteStats(res.stats);
+    await submitPostVote(article.id, voterId, direction, voteStats, setVoteStats);
   };
 
   const handleBookmark = async () => {
@@ -267,6 +242,7 @@ export const ArticleReader: React.FC<ArticleReaderProps> = ({ article: initialAr
 
   return (
     <div className="w-full max-w-4xl mx-auto px-4 sm:px-6 py-8 space-y-6">
+      {voteError && <p role="alert" className="text-sm text-red-700 p-3 rounded-xl bg-red-50">{voteError}</p>}
       {/* Top Bar */}
       <div className="flex items-center justify-between gap-4">
         <a href="/" className="pn-btn pn-btn-secondary pn-btn-sm">

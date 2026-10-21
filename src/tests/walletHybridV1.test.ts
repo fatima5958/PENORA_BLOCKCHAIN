@@ -25,7 +25,7 @@ describe('PENORA Hybrid Wallet V1 Architecture Suite', () => {
     });
 
     it('configures official Polygon Amoy RPC and PolygonScan block explorer', () => {
-      expect(polygonAmoy.rpcUrls.default.http[0]).toBe('https://rpc-amoy.polygon.technology');
+      expect(polygonAmoy.rpcUrls.default.http[0]).toBe('https://polygon-amoy.drpc.org');
       expect(polygonAmoy.blockExplorers.default.url).toBe('https://amoy.polygonscan.com');
       expect(polygonAmoy.testnet).toBe(true);
     });
