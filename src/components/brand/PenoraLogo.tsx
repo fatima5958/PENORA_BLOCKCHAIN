@@ -21,6 +21,8 @@ export interface PenoraLogoProps {
   showTagline?: boolean;
   /** Additional classes on wrapper */
   className?: string;
+  /** Horizontal lockup emblem size; does not change the wordmark typography. */
+  emblemSize?: number;
 }
 
 const ICON_SIZES: Record<NonNullable<PenoraLogoProps['size']>, number> = {
@@ -278,6 +280,7 @@ export const PenoraLogo: React.FC<PenoraLogoProps> = ({
   size = 'md',
   showTagline = true,
   className = '',
+  emblemSize,
 }) => {
   const iconPx = ICON_SIZES[size];
   const wordmarkH = WORDMARK_HEIGHTS[size];
@@ -332,7 +335,7 @@ export const PenoraLogo: React.FC<PenoraLogoProps> = ({
   // Default: Horizontal lockup (Identity Board §02)
   return (
     <div className={`inline-flex items-center gap-2.5 ${className}`}>
-      <PenoraEmblem size={iconPx} theme={theme} />
+      <PenoraEmblem size={emblemSize ?? iconPx} theme={theme} />
       <PenoraWordmark
         height={showTagline ? wordmarkH + 6 : wordmarkH}
         theme={theme}

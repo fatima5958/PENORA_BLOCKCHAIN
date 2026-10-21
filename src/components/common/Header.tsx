@@ -186,10 +186,10 @@ export const Header: React.FC<HeaderProps> = ({ currentPath = '/' }) => {
               aria-label="PENORA Blockchain Home"
             >
               <span className="sm:hidden flex items-center">
-                <PenoraLogo variant="horizontal" size="xs" showTagline={false} className="scale-90 origin-left" />
+                <PenoraLogo variant="horizontal" size="xs" emblemSize={32} showTagline={false} className="scale-90 origin-left" />
               </span>
               <span className="hidden sm:inline-flex">
-                <PenoraLogo variant="horizontal" size="sm" showTagline={true} />
+                <PenoraLogo variant="horizontal" size="sm" emblemSize={40} showTagline={true} />
               </span>
             </a>
           </div>
