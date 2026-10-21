@@ -8,15 +8,26 @@ interface Props {
   title?: string;
   description?: string;
   image?: string;
+  type?: 'website' | 'article';
+  noindex?: boolean;
 }
 
 const {
   title = 'PENORA — Web3 Publishing & Reputation Protocol',
   description = 'A refined Web3 social publishing platform where creators publish longform essays, curate domain communities, and build verifiable reputation.',
   image = '/brand/penora-identity-board.jpg',
+  type = 'website',
+  noindex = false,
 } = Astro.props;
 
 const currentPath = Astro.url.pathname;
+// Configure PUBLIC_SITE_URL for production (e.g. https://your-domain.example).
+// Social crawlers require absolute public URLs, not relative image paths.
+const siteOrigin = import.meta.env.PUBLIC_SITE_URL || Astro.site?.toString() || Astro.url.origin;
+const canonicalUrl = new URL(Astro.url.pathname, siteOrigin).toString();
+const socialImageUrl = new URL(image, siteOrigin).toString();
+const privateRoute = /^\\/(?:login|signup|register|auth|settings|dashboard|wallet)(?:\\/|$)/.test(currentPath);
+const shouldNoindex = noindex || privateRoute;
 ---
 
 <!doctype html>
@@ -40,20 +51,24 @@ const currentPath = Astro.url.pathname;
     <title>{title}</title>
     <meta name="title" content={title} />
     <meta name="description" content={description} />
+    <link rel="canonical" href={canonicalUrl} />
+    {shouldNoindex && <meta name="robots" content="noindex, nofollow" />}
 
     <!-- Open Graph / Social -->
-    <meta property="og:type" content="website" />
-    <meta property="og:url" content={Astro.url} />
+    <meta property="og:type" content={type} />
+    <meta property="og:site_name" content="PENORA" />
+    <meta property="og:url" content={canonicalUrl} />
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
-    <meta property="og:image" content={image} />
+    <meta property="og:image" content={socialImageUrl} />
+    <meta property="og:image:alt" content="PENORA social preview" />
 
     <!-- Twitter -->
     <meta property="twitter:card" content="summary_large_image" />
-    <meta property="twitter:url" content={Astro.url} />
+    <meta property="twitter:url" content={canonicalUrl} />
     <meta property="twitter:title" content={title} />
     <meta property="twitter:description" content={description} />
-    <meta property="twitter:image" content={image} />
+    <meta property="twitter:image" content={socialImageUrl} />
 
     <!-- Preconnect for image performance -->
     <link rel="preconnect" href="https://images.unsplash.com" />
