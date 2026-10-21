@@ -12,6 +12,7 @@ export interface ArticleDraft extends ArticleDraftFields {
   updatedAt: string;
   postId: string | null;
   slug: string | null;
+  authorId?: string | null;
 }
 
 type DraftStorage = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
@@ -49,6 +50,7 @@ export function readArticleDraft(storage = browserStorage()): ArticleDraft | nul
       updatedAt: typeof values.updatedAt === 'string' ? values.updatedAt : '',
       postId: typeof values.postId === 'string' ? values.postId : null,
       slug: typeof values.slug === 'string' ? values.slug : null,
+      ...(typeof values.authorId === 'string' ? { authorId: values.authorId } : {}),
     };
     return hasDraftContent(draft) ? draft : null;
   } catch {

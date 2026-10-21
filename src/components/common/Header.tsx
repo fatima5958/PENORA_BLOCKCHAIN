@@ -204,8 +204,8 @@ export const Header: React.FC<HeaderProps> = ({ currentPath = '/' }) => {
                   type="search"
                   value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}
-                  placeholder="Search essays, creators, guilds, or topics..."
-                  aria-label="Search essays, creators, guilds, or topics"
+                  placeholder="Search blogs, creators, guilds, or topics..."
+                  aria-label="Search blogs, creators, guilds, or topics"
                 />
                 {searchQuery ? (
                   <button
@@ -230,7 +230,7 @@ export const Header: React.FC<HeaderProps> = ({ currentPath = '/' }) => {
             <a
               href="/editor"
               aria-label="Open Article Studio"
-              title="Create an essay"
+              title="Create a blog"
               className="pn-focus inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-[#007C8B]/20 bg-[#F4F7FA] shadow-sm transition-colors hover:bg-[#00E5F4]/10 hover:border-[#007C8B]/50"
             >
               <PenoraWriteIcon className="h-9 w-9" />

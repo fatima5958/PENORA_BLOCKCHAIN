@@ -128,7 +128,7 @@ const SAMPLE_ARTICLES: V5Article[] = [
   {
     id: 'v5-minimal-workflow',
     slug: 'toward-a-sovereign-creator-commons',
-    title: 'My Minimal Writing & Research Setup for Long-Form Essays',
+    title: 'My Minimal Writing & Research Setup for Long-Form Blogs',
     excerpt:
       'A practical look at the plain-text notes, reading queues, and distraction-free habits that sustain a weekly publishing cadence.',
     category: 'Productivity',
@@ -469,8 +469,8 @@ export const DesignV5Preview: React.FC = () => {
                 type="search"
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
-                placeholder="Search essays, creators, or communities..."
-                aria-label="Search essays, creators, or communities"
+                placeholder="Search blogs, creators, or communities..."
+                aria-label="Search blogs, creators, or communities"
                 className="w-full bg-transparent text-xs text-[#1D2729] placeholder:text-[#8C827A] focus:outline-none"
               />
               {searchQuery ? (
@@ -531,7 +531,7 @@ export const DesignV5Preview: React.FC = () => {
                       <span className="text-[#2E6F64] font-medium">Creator Commons</span>.
                     </div>
                     <div className="p-2 rounded-xl hover:bg-black/[0.03] transition-colors">
-                      <strong className="text-[#1D2729]">Sora Nguyen</strong> upvoted your essay.
+                      <strong className="text-[#1D2729]">Sora Nguyen</strong> upvoted your blog.
                     </div>
                   </div>
                 </div>
@@ -635,7 +635,7 @@ export const DesignV5Preview: React.FC = () => {
             type="search"
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
-            placeholder="Search essays, creators, or communities..."
+            placeholder="Search blogs, creators, or communities..."
             className="w-full bg-transparent text-xs text-[#1D2729] placeholder:text-[#8C827A] focus:outline-none"
           />
         </div>
@@ -812,7 +812,7 @@ export const DesignV5Preview: React.FC = () => {
               </h2>
               <p className="text-xs text-[#5F554F] max-w-sm mx-auto leading-relaxed">
                 {activeNav === 'Bookmarks'
-                  ? 'Bookmark essays as you browse to save them here for distraction-free reading.'
+                  ? 'Bookmark blogs as you browse to save them here for distraction-free reading.'
                   : 'Try switching back to For You or clearing your search query.'}
               </p>
               <div className="pt-2">

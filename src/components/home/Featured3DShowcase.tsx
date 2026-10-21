@@ -77,7 +77,7 @@ export const Featured3DShowcase: React.FC = () => {
                 </h3>
                 <p className="text-penora-cocoa-muted text-sm leading-relaxed">
                   Instead of flat, lifeless cards, PENORA incorporates spatial lighting physics.
-                  Primary essays float on an elevated z-plane, casting realistic soft ambient shadows
+                  Primary blogs float on an elevated z-plane, casting realistic soft ambient shadows
                   while maintaining rigorous readable contrast.
                 </p>
                 <ul className="space-y-2.5 text-xs text-penora-cocoa pt-2">

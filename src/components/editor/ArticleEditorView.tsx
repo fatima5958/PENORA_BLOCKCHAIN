@@ -23,10 +23,14 @@ import {
   Trash2,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
-import { createPost, updatePost, getArticleBySlug } from '../../lib/api/articles';
+import { createPost, updatePost, getArticleBySlug, getUserArticles, deletePost } from '../../lib/api/articles';
 import { SpatialAuthModalV4 } from '../design-v4/SpatialAuthModalV4';
 import { penoraKeyAuth, type PenoraUser } from '../../lib/auth/penoraKeyAuth';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
+import type { PostRecord } from '../../lib/api/types';
+import { ArticleMarkdown } from './ArticleMarkdown';
+import { formatMarkdown, articleSlug, normalizeTags, isValidCoverUrl, type MarkdownAction } from '../../lib/articleEditor';
+import { validateImageFile } from '../../lib/api/storage';
 import {
   hasDraftContent,
   readArticleDraft,
@@ -57,6 +61,15 @@ export const ArticleEditorView: React.FC = () => {
   // Editing existing post vs writing fresh
   const [editingPostId, setEditingPostId] = useState<string | null>(null);
   const [editingSlug, setEditingSlug] = useState<string | null>(null);
+  const [editingPublished, setEditingPublished] = useState(false);
+  const [editingAuthorId, setEditingAuthorId] = useState<string | null>(null);
+  const [draftsOpen, setDraftsOpen] = useState(false);
+  const [cloudDrafts, setCloudDrafts] = useState<PostRecord[]>([]);
+  const [draftsLoading, setDraftsLoading] = useState(false);
+  const mutationInFlight = useRef(false);
+  const activeAuthorId = user?.id || keyUser?.id || null;
+  const ownershipError = editingAuthorId && activeAuthorId && editingAuthorId !== activeAuthorId
+    ? 'You can only edit your own blogs.' : null;
   const [unsavedDraftAvailable, setUnsavedDraftAvailable] = useState<ArticleDraft | null>(null);
   const [editorReady, setEditorReady] = useState(false);
   const [hasLocalEdits, setHasLocalEdits] = useState(false);
@@ -76,6 +89,8 @@ export const ArticleEditorView: React.FC = () => {
         if (res.data) {
           setEditingPostId(res.data.id);
           setEditingSlug(res.data.slug);
+          setEditingPublished(res.data.published);
+          setEditingAuthorId(res.data.author_id);
           setTitle(res.data.title);
           setTagsInput((res.data.tags || []).join(', '));
           setCoverImageUrl(res.data.cover_image_url || '');
@@ -87,7 +102,7 @@ export const ArticleEditorView: React.FC = () => {
           }
           setEditorReady(true);
         } else {
-          setPublishError(res.error || 'This essay could not be loaded. Use New Blank to start another essay.');
+          setPublishError(res.error || 'This blog could not be loaded. Use New Blank to start another blog.');
         }
       });
     } else {
@@ -109,12 +124,13 @@ export const ArticleEditorView: React.FC = () => {
       updatedAt: new Date().toISOString(),
       postId: editingPostId,
       slug: editingSlug,
+      authorId: editingAuthorId,
     };
     const error = hasDraftContent(draft) ? saveArticleDraft(draft) : removeArticleDraft();
     setDraftStorageError(error);
     setDraftStatus(error ? '' : hasDraftContent(draft) ? 'Draft saved in this browser' : '');
     return error === null;
-  }, [title, tagsInput, coverImageUrl, excerpt, content, editingPostId, editingSlug]);
+  }, [title, tagsInput, coverImageUrl, excerpt, content, editingPostId, editingSlug, editingAuthorId]);
 
   useEffect(() => {
     if (!editorReady || !hasLocalEdits || unsavedDraftAvailable) return;
@@ -144,7 +160,7 @@ export const ArticleEditorView: React.FC = () => {
     };
   }, [editorReady, hasLocalEdits, unsavedDraftAvailable, persistCurrentDraft]);
 
-  const handleRestoreDraft = () => {
+  const handleRestoreDraft = async () => {
     if (!unsavedDraftAvailable) return;
     setTitle(unsavedDraftAvailable.title);
     setTagsInput(unsavedDraftAvailable.tags);
@@ -153,6 +169,20 @@ export const ArticleEditorView: React.FC = () => {
     setContent(unsavedDraftAvailable.content);
     setEditingPostId(unsavedDraftAvailable.postId);
     setEditingSlug(unsavedDraftAvailable.slug);
+    setEditingAuthorId(unsavedDraftAvailable.authorId || null);
+    // Treat unknown recovered cloud posts as published until the server confirms otherwise.
+    setEditingPublished(Boolean(unsavedDraftAvailable.postId));
+    if (unsavedDraftAvailable.postId && unsavedDraftAvailable.slug) {
+      const sequence = editorLoadSequence.current;
+      setEditorReady(false);
+      const result = await getArticleBySlug(unsavedDraftAvailable.slug);
+      if (sequence !== editorLoadSequence.current) return;
+      if (result.data?.id === unsavedDraftAvailable.postId) {
+        setEditingPublished(result.data.published);
+        setEditingAuthorId(result.data.author_id);
+      }
+      setEditorReady(true);
+    }
     setHasLocalEdits(true);
     setUnsavedDraftAvailable(null);
   };
@@ -174,6 +204,8 @@ export const ArticleEditorView: React.FC = () => {
     setContent('');
     setEditingPostId(null);
     setEditingSlug(null);
+    setEditingPublished(false);
+    setEditingAuthorId(null);
     setUnsavedDraftAvailable(null);
     setHasLocalEdits(false);
     setDraftStatus('');
@@ -187,7 +219,7 @@ export const ArticleEditorView: React.FC = () => {
 
   const handleClearEditor = () => {
     if ((hasDraftContent({ title, tags: tagsInput, coverImageUrl, excerpt, content }) || unsavedDraftAvailable)
-      && !window.confirm('Clear editor and discard the browser draft to start a new blank essay?')) {
+      && !window.confirm('Clear editor and discard the browser draft to start a new blank blog?')) {
       return;
     }
     resetEditor();
@@ -237,8 +269,10 @@ export const ArticleEditorView: React.FC = () => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (!file.type.startsWith('image/')) {
-      setPublishError('Please select a valid image file (PNG, JPEG, WebP, GIF, SVG).');
+    e.target.value = '';
+    const validation = validateImageFile(file);
+    if (!validation.valid) {
+      setPublishError(validation.error || 'Please select a valid image.');
       return;
     }
 
@@ -254,31 +288,45 @@ export const ArticleEditorView: React.FC = () => {
         setPublishError(null);
       }
     };
+    reader.onerror = () => setPublishError('This image could not be read. Please try another file.');
     reader.readAsDataURL(file);
   };
 
-  const insertFormatting = (prefix: string, suffix: string = '') => {
+  const insertFormatting = (action: MarkdownAction) => {
     const textarea = textareaRef.current;
-    if (!textarea) {
-      handleContentChange(content + `\n${prefix} ` + suffix);
-      return;
-    }
-    const start = textarea.selectionStart;
-    const end = textarea.selectionEnd;
-    const currentText = textarea.value;
-    const selected = currentText.substring(start, end);
-    const replacement = selected ? `${prefix}${selected}${suffix}` : `${prefix}${suffix}`;
-    const newContent = currentText.substring(0, start) + replacement + currentText.substring(end);
-    handleContentChange(newContent);
-    setTimeout(() => {
+    if (!textarea) return;
+    const result = formatMarkdown(textarea.value, textarea.selectionStart, textarea.selectionEnd, action);
+    handleContentChange(result.text);
+    requestAnimationFrame(() => {
       textarea.focus();
-      const newCursor = start + prefix.length + (selected ? selected.length : 0);
-      textarea.setSelectionRange(newCursor, newCursor);
-    }, 0);
+      textarea.setSelectionRange(result.start, result.end);
+    });
+  };
+
+  const handleOpenDrafts = async () => {
+    if (!activeAuthorId) { setAuthModalOpen(true); return; }
+    setDraftsOpen(true);
+    setDraftsLoading(true);
+    const result = await getUserArticles(activeAuthorId);
+    setCloudDrafts(result.data.filter(post => !post.published));
+    setPublishError(result.error);
+    setDraftsLoading(false);
+  };
+
+  const handleDeleteDraft = async (draft: PostRecord) => {
+    if (mutationInFlight.current || !window.confirm(`Delete draft "${draft.title}"? This cannot be undone.`)) return;
+    mutationInFlight.current = true;
+    setIsSavingDraft(true);
+    try {
+      const result = await deletePost(draft.id);
+      if (result.error || !result.success) { setPublishError(result.error || 'Draft could not be deleted.'); return; }
+      setCloudDrafts(current => current.filter(post => post.id !== draft.id));
+      if (editingPostId === draft.id) resetEditor();
+    } finally { mutationInFlight.current = false; setIsSavingDraft(false); }
   };
 
   const handleSaveDraft = async () => {
-    if (isSavingDraft || isPublishing) return;
+    if (mutationInFlight.current || !editorReady || unsavedDraftAvailable || ownershipError) return;
     setPublishError(null);
     setPublishSuccess(null);
     setPublishSuccessSlug(null);
@@ -288,7 +336,12 @@ export const ArticleEditorView: React.FC = () => {
       return;
     }
 
+    if (!isValidCoverUrl(coverImageUrl)) { setPublishError('Use a valid http or https cover image URL.'); return; }
     const locallySaved = persistCurrentDraft();
+    if (editingPostId && editingPublished) {
+      if (locallySaved) setPublishSuccess('Changes saved in this browser. Your published blog stays unchanged until you select Update Blog.');
+      return;
+    }
 
     const authorId = user?.id || keyUser?.id;
     if (!authorId) {
@@ -296,19 +349,10 @@ export const ArticleEditorView: React.FC = () => {
       return;
     }
 
+    mutationInFlight.current = true;
     setIsSavingDraft(true);
-    const slug =
-      editingSlug ||
-      title
-        .toLowerCase()
-        .trim()
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/(^-|-$)/g, '') || `draft-${Date.now()}`;
-
-    const tags = tagsInput
-      .split(',')
-      .map(t => t.trim().toLowerCase())
-      .filter(Boolean);
+    const slug = editingSlug || articleSlug(title || 'Untitled Draft');
+    const tags = normalizeTags(tagsInput);
 
     try {
       let res;
@@ -317,7 +361,7 @@ export const ArticleEditorView: React.FC = () => {
           title: title.trim() || 'Untitled Draft',
           excerpt: excerpt.trim() || (content.trim() ? content.trim().slice(0, 160) + '...' : ''),
           content: content.trim(),
-          cover_image_url: coverImageUrl.trim() || undefined,
+          cover_image_url: coverImageUrl.trim() || null,
           tags,
           published: false,
         });
@@ -329,13 +373,15 @@ export const ArticleEditorView: React.FC = () => {
           slug,
           excerpt: excerpt.trim() || (content.trim() ? content.trim().slice(0, 160) + '...' : ''),
           content: content.trim(),
-          cover_image_url: coverImageUrl.trim() || undefined,
+          cover_image_url: coverImageUrl.trim() || null,
           tags,
           published: false,
         });
         if (res.data?.id) {
           setEditingPostId(res.data.id);
           setEditingSlug(res.data.slug);
+          setEditingAuthorId(res.data.author_id);
+          setHasLocalEdits(true);
         }
       }
 
@@ -353,13 +399,15 @@ export const ArticleEditorView: React.FC = () => {
     } catch (err: any) {
       setPublishError(err.message || 'Failed to save draft.');
     } finally {
+      mutationInFlight.current = false;
       setIsSavingDraft(false);
     }
   };
 
   const handlePublish = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (isPublishing || isSavingDraft) return;
+    if (mutationInFlight.current || !editorReady || unsavedDraftAvailable) return;
+    if (ownershipError) { setPublishError(ownershipError); return; }
     setPublishError(null);
     setPublishSuccess(null);
     setPublishSuccessSlug(null);
@@ -371,35 +419,27 @@ export const ArticleEditorView: React.FC = () => {
     }
 
     if (keyUser && !penoraKeyAuth.hasPermission('publish')) {
-      setPublishError('Your active session does not have Posting permissions to publish essays.');
+      setPublishError('Your active session does not have Posting permissions to publish blogs.');
       return;
     }
 
     if (!title.trim()) {
-      setPublishError('Please enter an essay title before publishing.');
+      setPublishError('Please enter a blog title before publishing.');
       return;
     }
 
     if (!content.trim() || content.trim().length < 10) {
-      setPublishError('Please provide meaningful essay content (at least 10 characters) before publishing.');
+      setPublishError('Please provide meaningful blog content (at least 10 characters) before publishing.');
       return;
     }
 
+    if (!isValidCoverUrl(coverImageUrl)) { setPublishError('Use a valid http or https cover image URL.'); return; }
     const locallySaved = persistCurrentDraft();
+    mutationInFlight.current = true;
     setIsPublishing(true);
 
-    const slug =
-      editingSlug ||
-      title
-        .toLowerCase()
-        .trim()
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/(^-|-$)/g, '') || `post-${Date.now()}`;
-
-    const tags = tagsInput
-      .split(',')
-      .map(t => t.trim().toLowerCase())
-      .filter(Boolean);
+    const slug = editingSlug || articleSlug(title);
+    const tags = normalizeTags(tagsInput);
 
     try {
       let res;
@@ -408,7 +448,7 @@ export const ArticleEditorView: React.FC = () => {
           title: title.trim(),
           excerpt: excerpt.trim() || content.trim().slice(0, 160) + '...',
           content: content.trim(),
-          cover_image_url: coverImageUrl.trim() || undefined,
+          cover_image_url: coverImageUrl.trim() || null,
           tags,
           published: true,
         });
@@ -420,7 +460,7 @@ export const ArticleEditorView: React.FC = () => {
           slug,
           excerpt: excerpt.trim() || content.trim().slice(0, 160) + '...',
           content: content.trim(),
-          cover_image_url: coverImageUrl.trim() || undefined,
+          cover_image_url: coverImageUrl.trim() || null,
           tags,
           published: true,
         });
@@ -429,7 +469,7 @@ export const ArticleEditorView: React.FC = () => {
       if (res.isPendingMigration) {
         setPublishError(
           locallySaved
-            ? 'Publishing is currently unavailable. Your essay is saved as a draft in this browser.'
+            ? 'Publishing is currently unavailable. Your blog is saved as a draft in this browser.'
             : 'Publishing is currently unavailable and your browser draft could not be saved. Keep this page open and copy your writing.'
         );
       } else if (res.error) {
@@ -441,19 +481,20 @@ export const ArticleEditorView: React.FC = () => {
       } else if (res.data) {
         const finalSlug = res.data.slug || editingSlug || slug;
         resetEditor();
-        setPublishSuccess('Essay published successfully!');
+        setPublishSuccess('Blog published successfully!');
         setPublishSuccessSlug(finalSlug);
       }
     } catch (err: any) {
-      setPublishError(err.message || 'Failed to publish essay.');
+      setPublishError(err.message || 'Failed to publish blog.');
     } finally {
+      mutationInFlight.current = false;
       setIsPublishing(false);
     }
   };
 
   return (
     <div className="w-full max-w-4xl mx-auto px-4 sm:px-6 py-8">
-      {/* Studio Top Toolbar: Back to Feed | Compose/Preview, Save Draft, Publish Essay */}
+      {/* Studio Top Toolbar: Back to Feed | Compose/Preview, Save Draft, Publish Blog */}
       <div className="flex items-center justify-between gap-3 mb-6 flex-wrap">
         <div>
           <a href="/" className="pn-btn pn-btn-secondary pn-btn-sm sm:h-9">
@@ -501,7 +542,7 @@ export const ArticleEditorView: React.FC = () => {
           <button
             type="button"
             onClick={handleSaveDraft}
-            disabled={isSavingDraft || isPublishing || !editorReady || !!unsavedDraftAvailable}
+            disabled={isSavingDraft || isPublishing || !editorReady || !!unsavedDraftAvailable || !!ownershipError}
             className="pn-btn pn-btn-secondary pn-btn-sm sm:h-9"
             title="Save draft"
           >
@@ -519,7 +560,7 @@ export const ArticleEditorView: React.FC = () => {
           <button
             type="button"
             onClick={handlePublish}
-            disabled={isSavingDraft || isPublishing || !editorReady || !!unsavedDraftAvailable}
+            disabled={isSavingDraft || isPublishing || !editorReady || !!unsavedDraftAvailable || !!ownershipError}
             className="pn-btn pn-btn-brand pn-btn-sm sm:h-9 sm:px-5"
           >
             {isPublishing ? (
@@ -530,13 +571,29 @@ export const ArticleEditorView: React.FC = () => {
             ) : (
               <>
                 <Send className="h-3.5 w-3.5" />
-                <span>Publish Essay</span>
+                <span>{editingPublished ? 'Update Blog' : 'Publish Blog'}</span>
               </>
             )}
           </button>
         </div>
       </div>
 
+      <div className="mb-5 flex items-center justify-between gap-3 flex-wrap">
+        <button type="button" onClick={handleOpenDrafts} className="pn-btn pn-btn-secondary pn-btn-sm">My Drafts</button>
+        <span className="text-xs text-[#4A5B70]">{content.trim() ? content.trim().split(/\s+/).length : 0} words · {Math.max(1, Math.ceil(content.trim().split(/\s+/).filter(Boolean).length / 200))} min read</span>
+      </div>
+      {draftsOpen && (
+        <div className="pn-panel p-4 mb-6 space-y-3" aria-label="My saved drafts">
+          <div className="flex justify-between items-center"><strong>My Drafts</strong><button type="button" className="pn-btn pn-btn-ghost pn-btn-sm" onClick={() => setDraftsOpen(false)}>Close</button></div>
+          {draftsLoading ? <p role="status">Loading drafts…</p> : cloudDrafts.length ? cloudDrafts.map(draft => (
+            <div key={draft.id} className="flex items-center justify-between gap-3 border-t border-[#0A2540]/10 pt-3">
+              <a className="text-sm text-[#007C8B] underline" href={`/editor?edit=${encodeURIComponent(draft.slug)}`}>{draft.title || 'Untitled Draft'}</a>
+              <button type="button" className="pn-btn pn-btn-ghost pn-btn-sm" disabled={isSavingDraft} onClick={() => handleDeleteDraft(draft)} aria-label={`Delete draft ${draft.title}`}>Delete</button>
+            </div>
+          )) : <p className="text-sm text-[#4A5B70]">No cloud drafts saved to this account yet.</p>}
+        </div>
+      )}
+      {ownershipError && <p role="alert" className="pn-alert pn-alert-error mb-6">{ownershipError}</p>}
       {/* Status Alerts */}
       {publishSuccess && (
         <div className="pn-alert pn-alert-success mb-6">
@@ -549,7 +606,7 @@ export const ArticleEditorView: React.FC = () => {
                 href={`/story/${publishSuccessSlug}`}
                 className="inline-flex items-center gap-1.5 text-xs font-bold text-[#0E9F6E] underline hover:opacity-80 pt-1"
               >
-                <span>Read your published essay live</span>
+                <span>Read your published blog live</span>
                 <ArrowRight className="h-3 w-3" />
               </a>
             )}
@@ -599,7 +656,7 @@ export const ArticleEditorView: React.FC = () => {
         </div>
       ) : (
         <p role="status" aria-live="polite" className="text-xs text-[#4A5B70] mb-4 min-h-4">
-          {!editorReady ? 'Loading essay…' : draftStatus}
+          {!editorReady ? 'Loading blog…' : draftStatus}
         </p>
       )}
 
@@ -623,7 +680,7 @@ export const ArticleEditorView: React.FC = () => {
 
       {/* Main Studio Card */}
       <fieldset
-        disabled={!editorReady || !!unsavedDraftAvailable || isPublishing || isSavingDraft}
+        disabled={!editorReady || !!unsavedDraftAvailable || isPublishing || isSavingDraft || !!ownershipError || (!!editingPostId && !activeAuthorId)}
         className="pn-card p-6 sm:p-10 relative overflow-hidden min-w-0"
       >
         {/* Top signature teal gradient accent */}
@@ -641,7 +698,7 @@ export const ArticleEditorView: React.FC = () => {
                 type="text"
                 value={title}
                 onChange={e => { setHasLocalEdits(true); setTitle(e.target.value); }}
-                placeholder="Essay title..."
+                placeholder="Blog title..."
                 className="pn-display w-full text-2xl sm:text-3xl font-bold text-[#0A2540] placeholder:text-[#6E7D90]/50 bg-transparent border-none focus:outline-none leading-tight"
               />
             </div>
@@ -686,7 +743,7 @@ export const ArticleEditorView: React.FC = () => {
                   <input
                     type="file"
                     ref={fileInputRef}
-                    accept="image/*"
+                    accept="image/png,image/jpeg,image/webp,image/gif"
                     onChange={handleFileUpload}
                     className="hidden"
                   />
@@ -701,7 +758,7 @@ export const ArticleEditorView: React.FC = () => {
                   </button>
                 </div>
                 <p className="text-[11px] text-[#6E7D90] mt-1">
-                  Images are rendered in full original resolution without cropping or distortion.
+                  PNG, JPEG, WebP or GIF · up to 5 MB. Original proportions are preserved.
                 </p>
               </div>
 
@@ -722,7 +779,7 @@ export const ArticleEditorView: React.FC = () => {
               <div className="flex items-center gap-1">
                 <button
                   type="button"
-                  onClick={() => insertFormatting('**', '**')}
+                  onClick={() => insertFormatting('bold')}
                   className="pn-icon-btn h-8 w-8"
                   title="Bold"
                 >
@@ -730,7 +787,7 @@ export const ArticleEditorView: React.FC = () => {
                 </button>
                 <button
                   type="button"
-                  onClick={() => insertFormatting('*', '*')}
+                  onClick={() => insertFormatting('italic')}
                   className="pn-icon-btn h-8 w-8"
                   title="Italic"
                 >
@@ -738,7 +795,7 @@ export const ArticleEditorView: React.FC = () => {
                 </button>
                 <button
                   type="button"
-                  onClick={() => insertFormatting('## ')}
+                  onClick={() => insertFormatting('heading')}
                   className="pn-icon-btn h-8 w-8"
                   title="Section Heading"
                 >
@@ -746,7 +803,7 @@ export const ArticleEditorView: React.FC = () => {
                 </button>
                 <button
                   type="button"
-                  onClick={() => insertFormatting('> ')}
+                  onClick={() => insertFormatting('quote')}
                   className="pn-icon-btn h-8 w-8"
                   title="Blockquote"
                 >
@@ -754,7 +811,7 @@ export const ArticleEditorView: React.FC = () => {
                 </button>
                 <button
                   type="button"
-                  onClick={() => insertFormatting('```\n', '\n```')}
+                  onClick={() => insertFormatting('code')}
                   className="pn-icon-btn h-8 w-8"
                   title="Code Block"
                 >
@@ -762,7 +819,7 @@ export const ArticleEditorView: React.FC = () => {
                 </button>
                 <button
                   type="button"
-                  onClick={() => insertFormatting('- ')}
+                  onClick={() => insertFormatting('list')}
                   className="pn-icon-btn h-8 w-8"
                   title="Bullet List"
                 >
@@ -780,7 +837,13 @@ export const ArticleEditorView: React.FC = () => {
                 ref={textareaRef}
                 value={content}
                 onChange={e => handleContentChange(e.target.value)}
-                placeholder="Begin writing your essay..."
+                onKeyDown={e => {
+                  if (!(e.ctrlKey || e.metaKey)) return;
+                  const key = e.key.toLowerCase();
+                  if (key === 'b' || key === 'i') { e.preventDefault(); insertFormatting(key === 'b' ? 'bold' : 'italic'); }
+                  if (key === 's') { e.preventDefault(); void handleSaveDraft(); }
+                }}
+                placeholder="Begin writing your blog..."
                 rows={15}
                 className="w-full text-[15.5px] text-[#0A2540] placeholder:text-[#6E7D90]/50 bg-transparent border-none focus:outline-none resize-none leading-relaxed"
                 style={{ minHeight: '360px' }}
@@ -804,7 +867,8 @@ export const ArticleEditorView: React.FC = () => {
               <div className="flex items-center gap-2 mb-3 flex-wrap">
                 {tagsInput
                   .split(',')
-                  .filter(Boolean)
+                  .map(tag => tag.trim())
+                  .filter((tag, index, values) => tag && values.indexOf(tag) === index)
                   .map(tag => (
                     <span key={tag} className="pn-tag">
                       #{tag.trim()}
@@ -813,7 +877,7 @@ export const ArticleEditorView: React.FC = () => {
               </div>
 
               <h1 className="pn-h1 text-2xl sm:text-4xl mb-3">
-                {title || 'Untitled Essay'}
+                {title || 'Untitled Blog'}
               </h1>
 
               {excerpt && (
@@ -823,9 +887,7 @@ export const ArticleEditorView: React.FC = () => {
               )}
             </div>
 
-            <div className="text-[16px] text-[#0A2540] leading-relaxed space-y-4 whitespace-pre-wrap">
-              {content || 'Switch to Compose mode to begin writing your essay.'}
-            </div>
+            <ArticleMarkdown content={content || 'Switch to Compose mode to begin writing your blog.'} />
           </div>
         )}
       </fieldset>
