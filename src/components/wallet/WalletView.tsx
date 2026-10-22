@@ -549,6 +549,10 @@ export const WalletView: React.FC = () => {
 
         <RewardWalletLink address={walletState.isCorrectNetwork ? walletState.address : null} />
 
+        <a href="/exchange/" className="flex items-center justify-between rounded-2xl border border-[#a8edbd]/30 bg-[#122129] px-5 py-4 text-white hover:bg-[#193039] transition-colors">
+          <div><span className="text-[10px] tracking-[.18em] text-[#a8edbd] font-semibold">PENORA EXCHANGE</span><p className="mt-1 text-sm">Buy PNR with USDT</p></div><span className="text-xl text-[#a8edbd]" aria-hidden="true">↗</span>
+        </a>
+
         {/* ─── NAVIGATION TABS ──────────────────────────────────────────────── */}
         <div className="flex flex-wrap items-center gap-2 bg-[var(--wallet-surface)] backdrop-blur-md p-1.5 rounded-2xl border border-[#007C8B]/15">
           <button

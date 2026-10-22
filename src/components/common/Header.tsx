@@ -20,6 +20,7 @@ import {
   Edit3,
   Wallet,
   Settings,
+  ArrowLeftRight,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 import { getProfileById } from '../../lib/api/profiles';
@@ -450,6 +451,7 @@ export const Header: React.FC<HeaderProps> = ({ currentPath = '/' }) => {
                           </span>
                         </a>
 
+                        <a href="/exchange/" role="menuitem" onClick={() => setProfileDropdownOpen(false)} className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-[#0A2540] hover:bg-[#F4F7FA] hover:text-[#007C8B] font-medium"><ArrowLeftRight className="h-4 w-4 text-[#007C8B]"/><span>Exchange · Buy PNR</span></a>
                         {/* 4. Settings */}
                         <a
                           href="/profile/me?tab=about"
@@ -529,6 +531,7 @@ export const Header: React.FC<HeaderProps> = ({ currentPath = '/' }) => {
           <a href="/notifications" className="pn-nav-item" aria-current={currentPath.startsWith('/notifications') ? 'page' : undefined}>
             <Bell className="h-4 w-4" /> Notifications
           </a>
+          <a href="/exchange/" className="pn-nav-item" aria-current={currentPath.startsWith('/exchange') ? 'page' : undefined} onClick={() => setMobileMenuOpen(false)}><ArrowLeftRight className="h-4 w-4"/> Exchange · Buy PNR</a>
           <a href="/editor" className="pn-nav-item" aria-current={currentPath.startsWith('/editor') ? 'page' : undefined}>
             <PenLine className="h-4 w-4" /> Write Article
           </a>
