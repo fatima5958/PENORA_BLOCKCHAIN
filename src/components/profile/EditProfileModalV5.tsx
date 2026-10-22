@@ -204,7 +204,7 @@ export const EditProfileModalV5: React.FC<EditProfileModalV5Props> = ({
     // Upload files if selected
     if (avatarFile) {
       const uploadRes = await uploadCreatorMedia(avatarFile, 'avatar');
-      if (uploadRes.error && !uploadRes.isPendingBucket) {
+      if (uploadRes.error || !uploadRes.publicUrl) {
         setIsSaving(false);
         setErrorMessage(`Avatar upload failed: ${uploadRes.error}`);
         return;
@@ -216,7 +216,7 @@ export const EditProfileModalV5: React.FC<EditProfileModalV5Props> = ({
 
     if (coverFile) {
       const uploadRes = await uploadCreatorMedia(coverFile, 'cover');
-      if (uploadRes.error && !uploadRes.isPendingBucket) {
+      if (uploadRes.error || !uploadRes.publicUrl) {
         setIsSaving(false);
         setErrorMessage(`Cover upload failed: ${uploadRes.error}`);
         return;
@@ -239,8 +239,8 @@ export const EditProfileModalV5: React.FC<EditProfileModalV5Props> = ({
 
     setIsSaving(false);
 
-    if (res.error) {
-      setErrorMessage(res.error);
+    if (res.error || !res.data) {
+      setErrorMessage(res.error || 'Profile could not be saved. Please try again.');
     } else {
       setSuccessMessage('Creator profile saved successfully!');
       onProfileSaved({

@@ -131,6 +131,8 @@ export const Header: React.FC<HeaderProps> = ({ currentPath = '/' }) => {
     let mounted = true;
 
     async function fetchUserProfile() {
+      setProfile(null);
+      setAvatarImageError(false);
       const activeId = keyUser?.id || user?.id;
       if (!activeId) {
         setProfile(null);
@@ -205,10 +207,8 @@ export const Header: React.FC<HeaderProps> = ({ currentPath = '/' }) => {
     (user?.user_metadata?.full_name as string | undefined) ||
     displayUsername;
 
-  const avatarUrl =
-    profile?.avatar_url ||
-    (user?.user_metadata?.avatar_url as string | undefined) ||
-    null;
+  const avatarUrl = profile?.avatar_url && !profile.avatar_url.includes('/brand/penora-avatar-')
+    ? profile.avatar_url : null;
 
   const handleLogout = async (e?: React.MouseEvent) => {
     if (e) {
@@ -273,7 +273,7 @@ export const Header: React.FC<HeaderProps> = ({ currentPath = '/' }) => {
 
   return (
     <>
-      <header className="pn-header sticky top-0 z-40">
+      <header className={`pn-header sticky top-0 z-40 ${(currentPath === '/' || currentPath === '/feed') ? 'pn-feed-header' : ''}`}>
         <div className="max-w-[1400px] mx-auto px-3 sm:px-6 lg:px-8 h-full flex items-center justify-between gap-2 sm:gap-4">
           {/* Left: Mobile Drawer Button + Official PENORA Horizontal Logo Lockup */}
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">

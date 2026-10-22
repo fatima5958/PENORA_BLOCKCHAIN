@@ -189,60 +189,29 @@ export async function updateProfile(
         .select()
         .maybeSingle();
 
+      if (upsertRes.error) error = upsertRes.error;
       if (!upsertRes.error && upsertRes.data) {
         data = upsertRes.data;
       }
     }
 
-    // If new V5 columns do not yet exist on the remote database, fall back gracefully to saving base columns
-    if (error && (error.message.includes('column') || error.code === '42703')) {
-      const basePayload: Record<string, any> = {};
-      if (payload.display_name !== undefined) basePayload.display_name = payload.display_name;
-      if (payload.bio !== undefined) basePayload.bio = payload.bio;
-      if (payload.avatar_url !== undefined) basePayload.avatar_url = payload.avatar_url;
-      if (payload.cover_url !== undefined) basePayload.cover_url = payload.cover_url;
-
-      const fallback = await supabase
-        .from('profiles')
-        .update(basePayload)
-        .eq('id', targetId)
-        .select()
-        .maybeSingle();
-
-      if (!fallback.error) {
-        const combined = {
-          ...(fallback.data || {
-            id: targetId,
-            display_name: payload.display_name,
-            bio: payload.bio,
-            avatar_url: payload.avatar_url,
-            cover_url: payload.cover_url,
-          }),
-          location: payload.location ?? null,
-          website: payload.website ?? null,
-          interests: payload.interests ?? [],
-        };
-        if (typeof window !== 'undefined') {
-          try {
-            localStorage.setItem(`penora_cached_profile_${targetId}`, JSON.stringify(combined));
-            if (combined.username) {
-              localStorage.setItem(`penora_cached_profile_user_${combined.username.toLowerCase()}`, JSON.stringify(combined));
-            }
-          } catch {}
-        }
-        return {
-          data: combined,
-          error: null,
-          isPendingMigration: true,
-        };
-      }
-      error = fallback.error;
-    }
+    // Never report a partial or cache-only update as a durable save.
 
     if (error) {
       const isPending = error.code === '42P01' || error.message.includes('relation');
       return { data: null, error: error.message, isPendingMigration: isPending };
     }
+
+    if (!data) {
+      return { data: null, error: 'Profile was not saved. Please sign in again and retry.' };
+    }
+
+    // Read back from the database before confirming persistence to the editor.
+    const confirmed = await supabase.from('profiles').select('*').eq('id', targetId).maybeSingle();
+    if (confirmed.error || !confirmed.data || Object.keys(payload).some(field => JSON.stringify(confirmed.data[field]) !== JSON.stringify(payload[field]))) {
+      return { data: null, error: confirmed.error?.message || 'Could not verify saved profile changes. Please retry.' };
+    }
+    data = confirmed.data;
 
     // Persist to local cache so page reloads are instantaneous without flicker
     if (data && typeof window !== 'undefined') {

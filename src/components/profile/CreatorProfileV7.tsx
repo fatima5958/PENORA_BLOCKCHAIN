@@ -47,6 +47,15 @@ import {
   Wallet,
 } from 'lucide-react';
 
+const uploadedAvatar = (url?: string) => url && !url.includes('/brand/penora-avatar-') ? url : '';
+const CreatorAvatar = ({ src, name, className }: { src?: string; name: string; className: string }) => {
+  const [failed, setFailed] = useState(false);
+  useEffect(() => setFailed(false), [src]);
+  return uploadedAvatar(src) && !failed
+    ? <img src={src} alt={name} className={className} onError={() => setFailed(true)} />
+    : <span role="img" aria-label={`${name}: no profile photo uploaded`} className={`${className} inline-flex items-center justify-center bg-[#E5F7F8] text-[#007C8B]`}><UserIcon aria-hidden="true" className="h-1/2 w-1/2" /></span>;
+};
+
 interface CreatorProfileV7Props {
   author?: Author;
   articles?: Article[];
@@ -78,19 +87,19 @@ export const CreatorProfileV7: React.FC<CreatorProfileV7Props> = ({
 
   // Default fallback creator when viewing /profile/me unauthenticated
   const defaultAuthor: Author = initialAuthor || {
-    id: 'mateenfatima',
-    name: 'Mateen Fatima',
-    handle: 'mateenwrites',
-    avatar: '/brand/penora-avatar-mateen.jpg',
+    id: '',
+    name: 'Creator',
+    handle: 'creator',
+    avatar: '',
     coverImage: '/brand/penora-celestial-cover-default.jpg',
-    reputationScore: 25,
+    reputationScore: 0,
     role: 'Creator',
-    bio: 'Building PENORA for a fairer internet where creators truly own their content. Sharing my learning journey, real experiences and small wins ♡',
+    bio: '',
     location: 'Lahore, Pakistan',
     joinedDate: 'Oct 2026',
-    followersCount: 1200,
-    followingCount: 320,
-    postsCount: 28,
+    followersCount: 0,
+    followingCount: 0,
+    postsCount: 0,
   };
 
   // Profile data & Real publications
@@ -106,7 +115,7 @@ export const CreatorProfileV7: React.FC<CreatorProfileV7Props> = ({
         ...initialAuthor,
         name: initialAuthor.name || prev.name,
         bio: initialAuthor.bio !== undefined && initialAuthor.bio !== null ? initialAuthor.bio : prev.bio,
-        avatar: initialAuthor.avatar || prev.avatar,
+        avatar: uploadedAvatar(initialAuthor.avatar),
         coverImage: initialAuthor.coverImage || prev.coverImage,
         location: initialAuthor.location !== undefined && initialAuthor.location !== null ? initialAuthor.location : prev.location,
         website: initialAuthor.website !== undefined && initialAuthor.website !== null ? initialAuthor.website : prev.website,
@@ -176,20 +185,20 @@ export const CreatorProfileV7: React.FC<CreatorProfileV7Props> = ({
             name: p.display_name || prev.name,
             handle: p.username || prev.handle,
             bio: p.bio !== undefined && p.bio !== null ? p.bio : prev.bio,
-            avatar: p.avatar_url || prev.avatar,
+            avatar: uploadedAvatar(p.avatar_url || ''),
             coverImage: p.cover_url || prev.coverImage,
             location: p.location !== undefined && p.location !== null ? p.location : prev.location,
             website: p.website !== undefined && p.website !== null ? p.website : prev.website,
             interests: p.interests && p.interests.length > 0 ? p.interests : prev.interests,
-            reputationScore: p.reputation ?? prev.reputationScore ?? 25,
+            reputationScore: p.reputation ?? prev.reputationScore ?? 0,
             joinedDate: p.created_at ? new Date(p.created_at).toLocaleDateString(undefined, { month: 'short', year: 'numeric' }) : prev.joinedDate,
           }));
 
           // Real follow counts
           const fc = await getFollowCounts(p.id);
           if (mounted) {
-            setFollowersCount(fc.followers || defaultAuthor.followersCount || 0);
-            setFollowingCount(fc.following || defaultAuthor.followingCount || 0);
+            setFollowersCount(fc.followers ?? 0);
+            setFollowingCount(fc.following ?? 0);
           }
 
           // Real published posts
@@ -214,8 +223,8 @@ export const CreatorProfileV7: React.FC<CreatorProfileV7Props> = ({
                     id: p.id,
                     name: p.display_name || p.username,
                     handle: p.username,
-                    avatar: p.avatar_url || defaultAuthor.avatar,
-                    reputationScore: p.reputation ?? 25,
+                    avatar: uploadedAvatar(p.avatar_url || ''),
+                    reputationScore: p.reputation ?? 0,
                     role: 'Creator',
                     followersCount: fc.followers,
                   },
@@ -225,7 +234,7 @@ export const CreatorProfileV7: React.FC<CreatorProfileV7Props> = ({
                     userHasVoted: false,
                     commentsCount: 0,
                     bookmarksCount: 0,
-                    reputationPoints: p.reputation ?? 25,
+                    reputationPoints: p.reputation ?? 0,
                   },
                 }));
               setCreatorPosts(mapped);
@@ -247,57 +256,10 @@ export const CreatorProfileV7: React.FC<CreatorProfileV7Props> = ({
           if (matched.length > 0) {
             setCreatorPosts(matched);
           } else {
-            // Curate reference articles matching screenshot
-            setCreatorPosts([
-              {
-                id: 'art-why-i-built-penora',
-                slug: 'why-i-built-penora',
-                title: 'Why I Built PENORA ✦',
-                subtitle: '',
-                excerpt: 'A honest story about why I started PENORA, what I believe in, and the kind of internet I want to see for creators.',
-                content: ['Full story on building PENORA...'],
-                coverImage: '/brand/article-thumb-build.jpg',
-                coverImageAlt: 'Why I Built PENORA',
-                topic: 'Behind the Build',
-                publishedAt: '2d ago',
-                readTimeMinutes: 5,
-                author: defaultAuthor,
-                tags: ['Behind the Build', 'Onchain'],
-                isFeatured: true,
-                stats: {
-                  votesCount: 128,
-                  userHasVoted: false,
-                  commentsCount: 34,
-                  bookmarksCount: 12,
-                  reputationPoints: 25,
-                },
-              },
-              {
-                id: 'art-my-25-day-reset-plan',
-                slug: 'my-25-day-reset-plan',
-                title: 'My 25-Day Reset Plan',
-                subtitle: '',
-                excerpt: "Balancing faith, coding, building and a healthier me. Here's my simple plan that actually works.",
-                content: ['Full story on my 25-day reset plan...'],
-                coverImage: '/brand/article-thumb-reset.jpg',
-                coverImageAlt: 'My 25-Day Reset Plan',
-                topic: 'Life',
-                publishedAt: '5d ago',
-                readTimeMinutes: 4,
-                author: defaultAuthor,
-                tags: ['Life', 'Productivity', 'Personal'],
-                stats: {
-                  votesCount: 96,
-                  userHasVoted: false,
-                  commentsCount: 21,
-                  bookmarksCount: 8,
-                  reputationPoints: 25,
-                },
-              },
-            ]);
+            setCreatorPosts([]);
           }
-          setFollowersCount(defaultAuthor.followersCount || 1200);
-          setFollowingCount(defaultAuthor.followingCount || 320);
+          setFollowersCount(0);
+          setFollowingCount(0);
         }
       } catch {
         if (mounted) {
@@ -402,7 +364,7 @@ export const CreatorProfileV7: React.FC<CreatorProfileV7Props> = ({
 
   const interestTags = author.interests && author.interests.length > 0
     ? author.interests
-    : ['Writing', 'Tech', 'Faith', 'Productivity', 'Onchain'];
+    : [];
 
   const cleanJoinedDate = (author.joinedDate || 'Oct 2026').replace(/^joined\s+/i, '');
 
@@ -416,7 +378,7 @@ export const CreatorProfileV7: React.FC<CreatorProfileV7Props> = ({
     }));
 
   return (
-    <div className="min-h-screen bg-[#EDF6F9] text-[#0A2540] relative overflow-hidden font-sans selection:bg-[#00E5F4]/30">
+    <div className="pn-creator-profile min-h-screen bg-[#EDF6F9] text-[#0A2540] relative overflow-hidden font-sans selection:bg-[#00E5F4]/30">
       {voteError && <p role="alert" className="text-sm text-red-700 p-3 rounded-xl bg-red-50">{voteError}</p>}
       
       {/* Background Soft Celestial Atmosphere Elements */}
@@ -430,7 +392,7 @@ export const CreatorProfileV7: React.FC<CreatorProfileV7Props> = ({
       />
 
       {/* THREE-COLUMN DESKTOP COMPOSITION */}
-      <div className="max-w-[1440px] mx-auto px-4 sm:px-6 py-6 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start relative z-10">
+      <div className="pn-profile-grid max-w-[1440px] mx-auto px-4 sm:px-6 py-6 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start relative z-10">
         
         {/* ========================================================================= */}
         {/* LEFT COLUMN: NAVIGATION SIDEBAR & BRANDED ASSETS (~2.5 cols)              */}
@@ -558,10 +520,10 @@ export const CreatorProfileV7: React.FC<CreatorProfileV7Props> = ({
         {/* ========================================================================= */}
         {/* CENTER COLUMN: IDENTITY, CELESTIAL BANNER & ARTICLES (~7 cols)            */}
         {/* ========================================================================= */}
-        <main className="lg:col-span-7 xl:col-span-7 space-y-5 min-w-0">
+        <main className="pn-profile-main lg:col-span-7 xl:col-span-7 space-y-5 min-w-0">
           
           {/* 1. PANORAMIC CELESTIAL COVER BANNER */}
-          <div className="relative h-60 sm:h-72 w-full rounded-3xl overflow-hidden border border-[#007C8B]/15 shadow-sm bg-[#0A2540]">
+          <div className="pn-profile-cover relative h-60 sm:h-72 w-full rounded-3xl overflow-hidden border border-[#007C8B]/15 shadow-sm bg-[#0A2540]">
             <img
               src={author.coverImage || '/brand/penora-celestial-cover-default.jpg'}
               alt={`${author.name} Celestial Cover`}
@@ -588,22 +550,15 @@ export const CreatorProfileV7: React.FC<CreatorProfileV7Props> = ({
           </div>
 
           {/* 2. CREATOR IDENTITY CARD */}
-          <div className="bg-white/95 backdrop-blur-md rounded-3xl p-6 sm:p-7 border border-[#007C8B]/10 shadow-xs relative -mt-8 z-10">
+          <div className="pn-profile-identity bg-white/95 backdrop-blur-md rounded-3xl p-6 sm:p-7 border border-[#007C8B]/10 shadow-xs relative -mt-8 z-10">
             
             {/* Avatar & Header Action Row */}
-            <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 -mt-20 sm:-mt-24 mb-3">
+            <div className="pn-profile-topline flex flex-col sm:flex-row sm:items-end justify-between gap-4 -mt-20 sm:-mt-24 mb-3">
               
               {/* Overlapping Avatar with Glowing Cyan Ring & Orbitals */}
-              <div className="relative group flex-shrink-0">
+              <div className="pn-profile-avatar-wrap relative group flex-shrink-0">
                 <div className="relative p-1 rounded-full bg-gradient-to-tr from-[#007C8B] via-[#00E5F4] to-[#0A2540] shadow-xl ring-4 ring-white">
-                  <img
-                    src={author.avatar || '/brand/penora-avatar-mateen.jpg'}
-                    alt={author.name}
-                    className="h-28 w-28 sm:h-32 sm:w-32 rounded-full object-cover bg-white"
-                    onError={(e) => {
-                      e.currentTarget.src = '/brand/penora-avatar-mateen.jpg';
-                    }}
-                  />
+                  <CreatorAvatar src={author.avatar} name={author.name} className="pn-profile-avatar h-28 w-28 sm:h-32 sm:w-32 rounded-full object-cover" />
                   {/* Subtle Orbital Geometry Satellite Arc */}
                   <div
                     aria-hidden="true"
@@ -628,7 +583,7 @@ export const CreatorProfileV7: React.FC<CreatorProfileV7Props> = ({
               </div>
 
               {/* Action Buttons: Edit Profile (Owner) vs Follow Button (Visitor) */}
-              <div className="flex items-center gap-2 mb-1">
+              <div className="pn-profile-actions flex items-center gap-2 mb-1">
                 {isOwner ? (
                   <>
                     <button
@@ -675,10 +630,10 @@ export const CreatorProfileV7: React.FC<CreatorProfileV7Props> = ({
             </div>
 
             {/* Display Name, Handle & Creator Crown */}
-            <div className="space-y-1">
+            <div className="pn-profile-name space-y-1">
               <div className="flex items-center gap-2.5 flex-wrap">
                 <h1 className="font-serif text-2xl sm:text-3xl font-bold text-[#0A2540] tracking-tight">
-                  {author.name || 'Mateen Fatima'}
+                  {author.name || 'Creator'}
                 </h1>
                 <div className="inline-flex items-center text-[#007C8B]">
                   <PenoraEmblem size={22} theme="light" />
@@ -691,14 +646,14 @@ export const CreatorProfileV7: React.FC<CreatorProfileV7Props> = ({
               <p className="text-xs text-[#6E7D90] font-mono">@{author.handle}</p>
             </div>
 
-            {/* Headline Subtitle from Reference: Writing • Tech • Faith • Soft Living ✧ */}
+            {/* Headline Subtitle from Reference: {author.interests?.slice(0, 3).join(' · ')} */}
             <p className="text-xs font-medium text-[#007C8B] mt-2 tracking-wide">
-              Writing • Tech • Faith • Soft Living ✧
+              {author.interests?.slice(0, 3).join(' · ')}
             </p>
 
             {/* Bio */}
             <p className="text-xs sm:text-sm text-[#3E526A] leading-relaxed mt-1.5 max-w-2xl">
-              {author.bio || 'Building PENORA for a fairer internet where creators truly own their content. Sharing my learning journey, real experiences and small wins ♡'}
+              {author.bio || ''}
             </p>
 
             {/* Location & Join Date Row */}
@@ -738,8 +693,13 @@ export const CreatorProfileV7: React.FC<CreatorProfileV7Props> = ({
 
           </div>
 
+          <div className="pn-profile-mobile-stats" aria-label="Creator statistics">
+            <div><strong>{followersCount}</strong><span>Followers</span></div>
+            <div><strong>{followingCount}</strong><span>Following</span></div>
+            <div><strong>{displayArticles.length}</strong><span>Blogs</span></div>
+          </div>
           {/* 3. PROFILE NAVIGATION TABS STRIP */}
-          <div className="bg-white/90 backdrop-blur-md rounded-2xl p-1.5 border border-[#007C8B]/10 shadow-xs flex items-center justify-between overflow-x-auto gap-1">
+          <div className="pn-profile-tabs bg-white/90 backdrop-blur-md rounded-2xl p-1.5 border border-[#007C8B]/10 shadow-xs flex items-center justify-between overflow-x-auto gap-1">
             <button
               type="button"
               onClick={() => setActiveTab('blogs')}
@@ -836,9 +796,9 @@ export const CreatorProfileV7: React.FC<CreatorProfileV7Props> = ({
               ) : (
                 displayArticles.map((article, idx) => {
                   const stats = postVotes[article.id] || {
-                    upvotes: article.stats?.votesCount || (idx === 0 ? 128 : 96),
+                    upvotes: article.stats?.votesCount ?? 0,
                     downvotes: 0,
-                    score: article.stats?.votesCount || (idx === 0 ? 128 : 96),
+                    score: article.stats?.votesCount ?? 0,
                     userVote: null,
                   };
                   const reward = getArticleRewardState(stats.score);
@@ -846,12 +806,12 @@ export const CreatorProfileV7: React.FC<CreatorProfileV7Props> = ({
                   return (
                     <article
                       key={article.id}
-                      className="bg-white/95 backdrop-blur-md rounded-3xl p-5 border border-[#007C8B]/10 shadow-xs hover:border-[#007C8B]/30 transition-all flex flex-col md:flex-row gap-5 items-stretch"
+                      className="pn-profile-post bg-white/95 backdrop-blur-md rounded-3xl p-5 border border-[#007C8B]/10 shadow-xs hover:border-[#007C8B]/30 transition-all flex flex-col md:flex-row gap-5 items-stretch"
                     >
                       {/* Left: Article Cover Thumbnail */}
                       <a
-                        href={`/story/${article.slug}`}
-                        className="w-full md:w-56 h-40 md:h-auto rounded-2xl overflow-hidden flex-shrink-0 border border-[#0A2540]/8 block relative group"
+                        href={`/read?slug=${encodeURIComponent(article.slug)}`}
+                        className="pn-profile-thumbnail w-full md:w-56 h-40 md:h-auto rounded-2xl overflow-hidden flex-shrink-0 border border-[#0A2540]/8 block relative group"
                       >
                         <img
                           src={article.coverImage || (idx === 0 ? '/brand/article-thumb-build.jpg' : '/brand/article-thumb-reset.jpg')}
@@ -864,16 +824,12 @@ export const CreatorProfileV7: React.FC<CreatorProfileV7Props> = ({
                       </a>
 
                       {/* Right: Article Details & Actions */}
-                      <div className="flex-1 flex flex-col justify-between space-y-2.5">
+                      <div className="pn-profile-post-details flex-1 flex flex-col justify-between space-y-2.5">
                         
                         {/* Author & Timestamp Row */}
                         <div>
-                          <div className="flex items-center gap-2 text-xs text-[#6E7D90] mb-1.5 flex-wrap">
-                            <img
-                              src={author.avatar || '/brand/penora-avatar-mateen.jpg'}
-                              alt={author.name}
-                              className="h-5 w-5 rounded-full object-cover"
-                            />
+                          <div className="pn-profile-post-author flex items-center gap-2 text-xs text-[#6E7D90] mb-1.5 flex-wrap">
+                            <CreatorAvatar src={author.avatar} name={author.name} className="h-5 w-5 rounded-full object-cover" />
                             <span className="font-semibold text-[#0A2540]">{author.name}</span>
                             <span className="text-[#6E7D90]">@{author.handle}</span>
                             <span>· {article.publishedAt}</span>
@@ -886,7 +842,7 @@ export const CreatorProfileV7: React.FC<CreatorProfileV7Props> = ({
 
                           {/* Article Title */}
                           <h3 className="font-serif text-lg sm:text-xl font-bold text-[#0A2540] hover:text-[#007C8B] transition-colors leading-snug">
-                            <a href={`/story/${article.slug}`}>{article.title}</a>
+                            <a href={`/read?slug=${encodeURIComponent(article.slug)}`}>{article.title}</a>
                           </h3>
 
                           {/* Excerpt */}
@@ -896,7 +852,7 @@ export const CreatorProfileV7: React.FC<CreatorProfileV7Props> = ({
                         </div>
 
                         {/* Tag Pills */}
-                        <div className="flex flex-wrap gap-1.5">
+                        <div className="pn-profile-post-tags flex flex-wrap gap-1.5">
                           {article.tags.map(tag => (
                             <span
                               key={tag}
@@ -908,7 +864,7 @@ export const CreatorProfileV7: React.FC<CreatorProfileV7Props> = ({
                         </div>
 
                         {/* Preserved Approved Voting UI Row with USD Worth */}
-                        <div className="pt-2 border-t border-[#0A2540]/6 flex items-center justify-between text-xs">
+                        <div className="pn-profile-post-footer pt-2 border-t border-[#0A2540]/6 flex items-center justify-between text-xs">
                           <div className="flex items-center gap-2">
                             {/* Teal Upvote / Grey Downvote Pill */}
                             <div className="pn-vote-group" role="group" aria-label="Article voting">
@@ -950,12 +906,12 @@ export const CreatorProfileV7: React.FC<CreatorProfileV7Props> = ({
 
                             {/* Comment Count */}
                             <a
-                              href={`/story/${article.slug}#comments`}
+                              href={`/read?slug=${encodeURIComponent(article.slug)}#comments`}
                               className="pn-icon-btn"
                               title="Read responses"
                             >
                               <MessageSquare className="h-3.5 w-3.5" />
-                              <span>{article.stats?.commentsCount || (idx === 0 ? 34 : 21)}</span>
+                              <span>{article.stats?.commentsCount ?? 0}</span>
                             </a>
                           </div>
 
@@ -1011,7 +967,7 @@ export const CreatorProfileV7: React.FC<CreatorProfileV7Props> = ({
           {activeTab === 'media' && (
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
               {mediaItems.map((item, idx) => (
-                <a key={idx} href={`/story/${item.slug}`} className="rounded-2xl overflow-hidden aspect-video border border-[#0A2540]/10 block group">
+                <a key={idx} href={`/read?slug=${encodeURIComponent(item.slug)}`} className="rounded-2xl overflow-hidden aspect-video border border-[#0A2540]/10 block group">
                   <img src={item.url} alt={item.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
                 </a>
               ))}
@@ -1033,7 +989,7 @@ export const CreatorProfileV7: React.FC<CreatorProfileV7Props> = ({
               ) : (
                 bookmarkedArticles.map(bPost => (
                   <div key={bPost.id} className="p-4 bg-white/90 rounded-2xl border border-[#007C8B]/10 mb-3">
-                    <a href={`/story/${bPost.slug}`} className="font-serif font-bold text-sm text-[#0A2540] hover:text-[#007C8B]">{bPost.title}</a>
+                    <a href={`/read?slug=${encodeURIComponent(bPost.slug)}`} className="font-serif font-bold text-sm text-[#0A2540] hover:text-[#007C8B]">{bPost.title}</a>
                   </div>
                 ))
               )}
@@ -1069,7 +1025,7 @@ export const CreatorProfileV7: React.FC<CreatorProfileV7Props> = ({
         {/* ========================================================================= */}
         {/* RIGHT COLUMN: CONTEXTUAL WIDGETS & STATS (~3.5 cols)                      */}
         {/* ========================================================================= */}
-        <aside className="lg:col-span-3 xl:col-span-3 space-y-4 sticky top-20">
+        <aside className="pn-profile-widgets lg:col-span-3 xl:col-span-3 space-y-4 sticky top-20">
           
           {/* Card 1: 4-Stat Overview Card from Reference */}
           <div className="bg-white/95 backdrop-blur-md rounded-2xl p-4 border border-[#007C8B]/10 shadow-xs">
@@ -1088,7 +1044,7 @@ export const CreatorProfileV7: React.FC<CreatorProfileV7Props> = ({
               </div>
               <div className="px-1">
                 <span className="block font-serif text-base sm:text-lg font-bold text-[#0A2540]">
-                  {displayArticles.length || 28}
+                  {displayArticles.length}
                 </span>
                 <span className="text-[10px] text-[#6E7D90] uppercase tracking-wider block">Blogs</span>
               </div>
@@ -1201,6 +1157,63 @@ export const CreatorProfileV7: React.FC<CreatorProfileV7Props> = ({
 
       </div>
 
+      <style>{`
+        .pn-profile-mobile-stats { display: none; }
+        @media (max-width: 767px) {
+          .pn-creator-profile { background: #f5fafb; padding-bottom: 30px; }
+          .pn-profile-grid { padding: 12px 12px 24px; gap: 16px; }
+          .pn-profile-main { display: flex; flex-direction: column; gap: 14px; }
+          .pn-profile-main > * { margin-top: 0 !important; }
+          .pn-profile-cover { height: 152px; border-radius: 22px 22px 0 0; border-bottom: 0; }
+          .pn-profile-identity { padding: 0 18px 18px; border-radius: 0 0 22px 22px; margin-top: -14px !important; box-shadow: 0 6px 24px #0a254006; }
+          .pn-profile-topline { flex-direction: row; align-items: flex-end; gap: 10px; margin-top: -36px; margin-bottom: 16px; }
+          .pn-profile-avatar { width: 78px; height: 78px; }
+          .pn-profile-avatar-wrap > div { padding: 3px; box-shadow: 0 4px 14px #007c8b18; }
+          .pn-profile-avatar-wrap .animate-spin { display: none; }
+          .pn-profile-actions { gap: 6px; padding-top: 44px; margin: 0; }
+          .pn-profile-actions button { min-height: 40px; }
+          .pn-profile-actions button:first-child { padding: 9px 14px; }
+          .pn-profile-identity h1 { font-size: 25px; line-height: 1.15; overflow-wrap: anywhere; }
+          .pn-profile-identity p { overflow-wrap: anywhere; }
+          .pn-profile-identity p.leading-relaxed { font-size: 13px; line-height: 1.65; margin-top: 10px; }
+          .pn-profile-identity .flex-wrap { gap: 7px; }
+          .pn-profile-mobile-stats { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); background: white; border: 1px solid #e0edf0; border-radius: 18px; padding: 14px 0; }
+          .pn-profile-mobile-stats > div { display: flex; flex-direction: column; gap: 3px; text-align: center; }
+          .pn-profile-mobile-stats > div + div { border-left: 1px solid #e0edf0; }
+          .pn-profile-mobile-stats strong { font-size: 18px; font-weight: 700; color: #0a2540; }
+          .pn-profile-mobile-stats span { font-size: 11px; color: #61778a; }
+          .pn-profile-tabs { border-radius: 16px; padding: 4px; justify-content: flex-start; scrollbar-width: none; }
+          .pn-profile-tabs button { min-height: 44px; flex-shrink: 0; padding: 10px 12px; }
+          .pn-profile-tabs button:focus-visible, .pn-profile-actions button:focus-visible { outline: 2px solid #007c8b; outline-offset: 2px; }
+          .pn-profile-post { padding: 14px; border-radius: 20px; gap: 14px; box-shadow: 0 5px 20px #0a254005; }
+          .pn-profile-post { display: grid; grid-template-columns: minmax(0,1fr) 33%; column-gap: 12px; row-gap: 8px; }
+          .pn-profile-post-details, .pn-profile-post-details > div:first-child { display: contents; }
+          .pn-profile-post-author { grid-column: 1 / -1; grid-row: 1; font-size: 11px; margin-bottom: 5px; }
+          .pn-profile-post h3 { grid-column: 1; grid-row: 2; }
+          .pn-profile-post-details p { grid-column: 1; grid-row: 3; margin: 0; }
+          .pn-profile-thumbnail { grid-column: 2; grid-row: 2 / 4; width: 100%; height: auto; aspect-ratio: 1.15; border-radius: 13px; align-self: start; }
+          .pn-profile-post-tags { grid-column: 1 / -1; grid-row: 4; }
+          .pn-profile-post-footer { grid-column: 1 / -1; grid-row: 5; margin-top: 4px; }
+          .pn-profile-identity { position: relative; }
+          .pn-profile-name { margin: 12px 0; min-height: 40px; }
+          .pn-profile-name > div > span { display: none; }
+          .pn-profile-name > div > div { display: none; }
+          .pn-profile-identity h1 { font-size: 24px; }
+          .pn-profile-topline { margin-bottom: 0; }
+          .pn-profile-actions { padding: 0; align-self: flex-start; margin-top: 48px; }
+          .pn-profile-actions button:first-child { font-size: 11px; padding: 8px 10px; }
+          .pn-profile-actions button + button { display: none; }
+          .pn-profile-avatar { width: 78px; height: 78px; }
+          @media (max-width: 380px) { .pn-profile-name { margin: 12px 0; } .pn-profile-actions { margin-top: 48px; } }
+
+          .pn-profile-post h3 { font-size: 22px; line-height: 1.25; letter-spacing: -.025em; overflow-wrap: anywhere; }
+          .pn-profile-post > div { min-width: 0; }
+          .pn-profile-post .justify-between { flex-wrap: wrap; row-gap: 8px; }
+          .pn-profile-post .pn-icon-btn { min-height: 36px; }
+          .pn-profile-widgets { display: none; }
+        }
+        @media (prefers-reduced-motion: reduce) { .pn-creator-profile * { animation: none !important; transition: none !important; } }
+      `}</style>
       {/* Edit Profile Modal V5 */}
       <EditProfileModalV5
         isOpen={editModalOpen}
@@ -1208,20 +1221,20 @@ export const CreatorProfileV7: React.FC<CreatorProfileV7Props> = ({
         profileId={author.id || activeUserId || ''}
         initialDisplayName={author.name}
         initialBio={author.bio || ''}
-        initialLocation={author.location || 'Lahore, Pakistan'}
+        initialLocation={author.location || ''}
         initialWebsite={author.website || ''}
         initialInterests={interestTags}
-        initialAvatarUrl={author.avatar}
+        initialAvatarUrl={uploadedAvatar(author.avatar)}
         initialCoverUrl={author.coverImage}
         onProfileSaved={(updated) => {
           setCreatorProfile(prev => ({
             ...prev,
             name: updated.display_name || prev.name,
             bio: updated.bio,
-            location: updated.location || prev.location,
-            website: updated.website || prev.website,
+            location: updated.location ?? prev.location,
+            website: updated.website ?? prev.website,
             interests: updated.interests || prev.interests,
-            avatar: updated.avatar_url || prev.avatar,
+            avatar: updated.avatar_url !== undefined ? uploadedAvatar(updated.avatar_url) : prev.avatar,
             coverImage: updated.cover_url || prev.coverImage,
           }));
 
