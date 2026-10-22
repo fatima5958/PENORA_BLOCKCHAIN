@@ -3,7 +3,7 @@
 // Orchestrates non-custodial transactions via connected Web3 wallet and Polygon Amoy RPC.
 
 import { formatEther, encodeFunctionData } from 'viem';
-import { publicClient, getEthereumProvider, penoraWalletService } from './walletService';
+import { publicClient, getEthereumProvider } from './walletService';
 import {
   PENORA_CONTRACT_ADDRESSES,
   areContractsConfigured,
@@ -11,17 +11,24 @@ import {
   PNR_TOKEN_ABI,
   POWER_ESCROW_ABI,
   VOTING_INFLUENCE_ABI,
-  REWARD_DISTRIBUTOR_ABI,
 } from './contracts';
 import { parseTokenAmount } from './amount';
 import { waitForWalletTransaction } from './transactionReceipt';
 import { PENORA_TARGET_CHAIN_ID } from './chain';
+import { pendingPowerTransaction, confirmedPowerTransaction, savePowerTransaction, reconcilePowerTransactions, type PowerAction } from './powerTransactions';
 import type { PowerDownInfo } from './types';
+
+export class PowerTransactionPendingError extends Error {
+  constructor(public readonly hash: `0x${string}`) {
+    super(`Transaction submitted; confirmation is pending. Check history before retrying: ${hash}`);
+    this.name = 'PowerTransactionPendingError';
+  }
+}
 
 export class PenoraPowerService {
   private isSubmitting = false;
 
-  private async requireAccount(): Promise<`0x${string}`> {
+  private async requireAccount(expectedAddress?: string): Promise<`0x${string}`> {
     const eth = getEthereumProvider();
     if (!eth) throw new Error('MetaMask or Web3 wallet extension not detected.');
     const accounts = await eth.request({ method: 'eth_accounts' });
@@ -30,10 +37,13 @@ export class PenoraPowerService {
     if (Number(chainId) !== PENORA_TARGET_CHAIN_ID) {
       throw new Error('Please switch to Polygon Amoy Testnet before continuing.');
     }
+    if (expectedAddress && accounts[0].toLowerCase() !== expectedAddress.toLowerCase()) {
+      throw new Error('Wallet account changed. Please review the transaction again.');
+    }
     return accounts[0] as `0x${string}`;
   }
 
-  private async submitConfirmed(from: string, to: string, data: `0x${string}`): Promise<`0x${string}`> {
+  private async submitConfirmed(from: string, to: string, data: `0x${string}`, type: PowerAction, amount?: string): Promise<`0x${string}`> {
     // Approval may take time: recheck the account and network before each signature.
     const activeAccount = await this.requireAccount();
     if (activeAccount.toLowerCase() !== from.toLowerCase()) {
@@ -42,11 +52,17 @@ export class PenoraPowerService {
     const hash = await getEthereumProvider().request({
       method: 'eth_sendTransaction', params: [{ from, to, data }],
     }) as `0x${string}`;
+    const pending = pendingPowerTransaction(from, hash, type, amount);
     const result = await waitForWalletTransaction(hash);
     if (result.status === 'pending') {
-      throw new Error(`Transaction submitted, confirmation pending: ${result.hash}. Check the explorer before retrying.`);
+      savePowerTransaction(from, { ...pending, hash: result.hash, explorerUrl: undefined });
+      throw new PowerTransactionPendingError(result.hash);
     }
-    if (result.status === 'failed') throw new Error(`Transaction reverted or cancelled: ${result.hash}`);
+    const updated = result.status === 'confirmed' && result.receipt
+      ? confirmedPowerTransaction(pending, result.receipt, result.hash)
+      : { ...pending, hash: result.hash, status: 'failed' as const };
+    savePowerTransaction(from, updated);
+    if (updated.status !== 'confirmed') throw new Error(`Transaction reverted, cancelled or expected action was not confirmed: ${result.hash}`);
     return result.hash;
   }
 
@@ -54,6 +70,22 @@ export class PenoraPowerService {
     if (this.isSubmitting) throw new Error('A power transaction is already in progress.');
     this.isSubmitting = true;
     try { return await action(); } finally { this.isSubmitting = false; }
+  }
+
+  private async validatePowerContracts(user: `0x${string}`) {
+    const pending = await reconcilePowerTransactions(user);
+    if (pending.some(tx => tx.status === 'pending')) {
+      throw new Error('A previous power transaction is still pending. Refresh history and confirm its outcome before retrying.');
+    }
+    const [decimals, token, paused] = await Promise.all([
+      publicClient.readContract({ address: PENORA_CONTRACT_ADDRESSES.PNR_TOKEN as `0x${string}`, abi: PNR_TOKEN_ABI, functionName: 'decimals' }),
+      publicClient.readContract({ address: PENORA_CONTRACT_ADDRESSES.POWER_ESCROW as `0x${string}`, abi: POWER_ESCROW_ABI, functionName: 'pnrToken' }),
+      publicClient.readContract({ address: PENORA_CONTRACT_ADDRESSES.POWER_ESCROW as `0x${string}`, abi: POWER_ESCROW_ABI, functionName: 'paused' }),
+    ]);
+    if (Number(decimals) !== 18 || String(token).toLowerCase() !== PENORA_CONTRACT_ADDRESSES.PNR_TOKEN.toLowerCase()) {
+      throw new Error('PNR and staking contract configuration do not match. Staking was not submitted.');
+    }
+    if (paused) throw new Error('Staking is paused onchain. Please try again after it resumes.');
   }
 
   /**
@@ -81,29 +113,14 @@ export class PenoraPowerService {
       const escrowAddress = PENORA_CONTRACT_ADDRESSES.POWER_ESCROW as `0x${string}`;
       const influenceAddress = PENORA_CONTRACT_ADDRESSES.VOTING_INFLUENCE as `0x${string}`;
 
-      // 1. Read liquid PNR balance
-      const rawPnr = (await publicClient.readContract({
-        address: pnrAddress,
-        abi: PNR_TOKEN_ABI,
-        functionName: 'balanceOf',
-        args: [address],
-      })) as bigint;
-
-      // 2. Read locked PP balance
-      const rawPp = (await publicClient.readContract({
-        address: escrowAddress,
-        abi: POWER_ESCROW_ABI,
-        functionName: 'getAvailablePower',
-        args: [address],
-      })) as bigint;
-
-      // 3. Read active Power Down schedule
-      const rawSchedule = (await publicClient.readContract({
-        address: escrowAddress,
-        abi: POWER_ESCROW_ABI,
-        functionName: 'powerDownSchedules',
-        args: [address],
-      })) as [bigint, bigint, bigint, bigint, bigint, boolean];
+      const [rawPnr, rawPp, rawSchedule, decimals, escrowToken] = await Promise.all([
+        publicClient.readContract({ address: pnrAddress, abi: PNR_TOKEN_ABI, functionName: 'balanceOf', args: [address] }),
+        publicClient.readContract({ address: escrowAddress, abi: POWER_ESCROW_ABI, functionName: 'getAvailablePower', args: [address] }),
+        publicClient.readContract({ address: escrowAddress, abi: POWER_ESCROW_ABI, functionName: 'powerDownSchedules', args: [address] }),
+        publicClient.readContract({ address: pnrAddress, abi: PNR_TOKEN_ABI, functionName: 'decimals' }),
+        publicClient.readContract({ address: escrowAddress, abi: POWER_ESCROW_ABI, functionName: 'pnrToken' }),
+      ]);
+      if (Number(decimals) !== 18 || escrowToken.toLowerCase() !== pnrAddress.toLowerCase()) throw new Error('Staking configuration mismatch');
 
       let powerDownSchedule: PowerDownInfo | null = null;
       if (rawSchedule && rawSchedule[5]) {
@@ -144,13 +161,14 @@ export class PenoraPowerService {
       // 4. Read voting mana
       let manaPercent: number | null = null;
       if (isConfiguredAddress(influenceAddress)) {
-        const rawMana = (await publicClient.readContract({
-          address: influenceAddress,
-          abi: VOTING_INFLUENCE_ABI,
-          functionName: 'getCurrentMana',
-          args: [address],
-        })) as bigint;
-        manaPercent = Number(rawMana) / 100.0; // 10,000 bps -> 100.00%
+        // Mana is optional: its outage must not hide verified stake or a withdrawal schedule.
+        try {
+          const rawMana = await publicClient.readContract({
+            address: influenceAddress, abi: VOTING_INFLUENCE_ABI,
+            functionName: 'getCurrentMana', args: [address],
+          }) as bigint;
+          manaPercent = Number(rawMana) / 100;
+        } catch { manaPercent = null; }
       }
 
       return {
@@ -174,9 +192,9 @@ export class PenoraPowerService {
   /**
    * Prompts user wallet to execute Power Up (approve + deposit).
    */
-  public async executePowerUp(amountPnr: string): Promise<`0x${string}`> {
+  public async executePowerUp(amountPnr: string, expectedAddress?: string): Promise<`0x${string}`> {
     return this.withSubmission(async () => {
-      const userAddress = await this.requireAccount();
+      const userAddress = await this.requireAccount(expectedAddress);
 
       if (!areContractsConfigured()) {
         throw new Error(
@@ -184,7 +202,10 @@ export class PenoraPowerService {
         );
       }
 
+      await this.validatePowerContracts(userAddress);
       const parsedAmount = parseTokenAmount(amountPnr, 18);
+      const liquid = await publicClient.readContract({ address: PENORA_CONTRACT_ADDRESSES.PNR_TOKEN as `0x${string}`, abi: PNR_TOKEN_ABI, functionName: 'balanceOf', args: [userAddress] }) as bigint;
+      if (liquid < parsedAmount) throw new Error('Insufficient liquid PNR for Power Up.');
       if (parsedAmount <= 0n) throw new Error('Deposit amount must be greater than zero.');
 
       const pnrAddress = PENORA_CONTRACT_ADDRESSES.PNR_TOKEN as `0x${string}`;
@@ -206,7 +227,7 @@ export class PenoraPowerService {
           args: [escrowAddress, parsedAmount],
         });
 
-        await this.submitConfirmed(userAddress, pnrAddress, approveData);
+        await this.submitConfirmed(userAddress, pnrAddress, approveData, 'approve_pnr', formatEther(parsedAmount));
 
         const approved = await publicClient.readContract({
           address: pnrAddress, abi: PNR_TOKEN_ABI, functionName: 'allowance',
@@ -220,24 +241,29 @@ export class PenoraPowerService {
         abi: POWER_ESCROW_ABI,
         functionName: 'powerUp',
         args: [parsedAmount],
-    });
+      });
 
-    return this.submitConfirmed(userAddress, escrowAddress, powerUpData);
+      return this.submitConfirmed(userAddress, escrowAddress, powerUpData, 'power_up', formatEther(parsedAmount));
     });
   }
 
   /**
    * Prompts user wallet to start a 13-week Power Down schedule.
    */
-  public async executeStartPowerDown(amountPp: string): Promise<`0x${string}`> {
+  public async executeStartPowerDown(amountPp: string, expectedAddress?: string): Promise<`0x${string}`> {
     return this.withSubmission(async () => {
-      const userAddress = await this.requireAccount();
+      const userAddress = await this.requireAccount(expectedAddress);
 
       if (!areContractsConfigured()) {
         throw new Error('PENORA Escrow contract is pending testnet deployment.');
       }
 
+      await this.validatePowerContracts(userAddress);
       const parsedAmount = parseTokenAmount(amountPp, 18);
+      const available = await publicClient.readContract({ address: PENORA_CONTRACT_ADDRESSES.POWER_ESCROW as `0x${string}`, abi: POWER_ESCROW_ABI, functionName: 'getAvailablePower', args: [userAddress] }) as bigint;
+      if (available < parsedAmount) throw new Error('Insufficient available PP for Power Down.');
+      const schedule = await publicClient.readContract({ address: PENORA_CONTRACT_ADDRESSES.POWER_ESCROW as `0x${string}`, abi: POWER_ESCROW_ABI, functionName: 'powerDownSchedules', args: [userAddress] });
+      if (schedule[5]) throw new Error('A Power Down schedule is already active. Cancel it before starting another.');
       if (parsedAmount <= 0n) throw new Error('Withdrawal amount must be greater than zero.');
 
       const escrowAddress = PENORA_CONTRACT_ADDRESSES.POWER_ESCROW as `0x${string}`;
@@ -245,53 +271,59 @@ export class PenoraPowerService {
         abi: POWER_ESCROW_ABI,
         functionName: 'startPowerDown',
         args: [parsedAmount],
-    });
+      });
 
-    return this.submitConfirmed(userAddress, escrowAddress, data);
+      return this.submitConfirmed(userAddress, escrowAddress, data, 'power_down', formatEther(parsedAmount));
     });
   }
 
   /**
    * Prompts user wallet to claim matured Power Down installments.
    */
-  public async executeClaimInstallments(): Promise<`0x${string}`> {
+  public async executeClaimInstallments(expectedAddress?: string): Promise<`0x${string}`> {
     return this.withSubmission(async () => {
-      const userAddress = await this.requireAccount();
+      const userAddress = await this.requireAccount(expectedAddress);
 
       if (!areContractsConfigured()) {
         throw new Error('PENORA Escrow contract is pending testnet deployment.');
       }
 
+      await this.validatePowerContracts(userAddress);
       const escrowAddress = PENORA_CONTRACT_ADDRESSES.POWER_ESCROW as `0x${string}`;
+      const claimable = await publicClient.readContract({ address: escrowAddress, abi: POWER_ESCROW_ABI, functionName: 'getClaimableDetails', args: [userAddress] }) as [bigint, bigint, bigint];
+      if (!claimable[1]) throw new Error('No matured installments are available to claim.');
       const data = encodeFunctionData({
         abi: POWER_ESCROW_ABI,
         functionName: 'claimInstallments',
         args: [],
-    });
+      });
 
-    return this.submitConfirmed(userAddress, escrowAddress, data);
+      return this.submitConfirmed(userAddress, escrowAddress, data, 'claim_installment');
     });
   }
 
   /**
    * Prompts user wallet to cancel unvested Power Down installments.
    */
-  public async executeCancelPowerDown(): Promise<`0x${string}`> {
+  public async executeCancelPowerDown(expectedAddress?: string): Promise<`0x${string}`> {
     return this.withSubmission(async () => {
-      const userAddress = await this.requireAccount();
+      const userAddress = await this.requireAccount(expectedAddress);
 
       if (!areContractsConfigured()) {
         throw new Error('PENORA Escrow contract is pending testnet deployment.');
       }
 
+      await this.validatePowerContracts(userAddress);
       const escrowAddress = PENORA_CONTRACT_ADDRESSES.POWER_ESCROW as `0x${string}`;
+      const schedule = await publicClient.readContract({ address: escrowAddress, abi: POWER_ESCROW_ABI, functionName: 'powerDownSchedules', args: [userAddress] });
+      if (!schedule[5]) throw new Error('There is no active Power Down schedule to cancel.');
       const data = encodeFunctionData({
         abi: POWER_ESCROW_ABI,
         functionName: 'cancelPowerDown',
         args: [],
-    });
+      });
 
-    return this.submitConfirmed(userAddress, escrowAddress, data);
+      return this.submitConfirmed(userAddress, escrowAddress, data, 'cancel_power_down');
     });
   }
 

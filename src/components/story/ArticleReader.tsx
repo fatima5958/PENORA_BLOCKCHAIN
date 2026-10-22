@@ -43,6 +43,7 @@ import { PenoraLogo } from '../brand/PenoraLogo';
 import { penoraKeyAuth, type PenoraUser } from '../../lib/auth/penoraKeyAuth';
 import type { CommentRecord, PostRecord } from '../../lib/api/types';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
+import { ArticleRewardPanel } from './ArticleRewardPanel';
 import { ArticleMarkdown } from '../editor/ArticleMarkdown';
 import { usePostVoting } from '../../lib/hooks/usePostVoting';
 import { MOCK_ARTICLES } from '../../data/mockArticles';
@@ -74,6 +75,7 @@ export const ArticleReader: React.FC<ArticleReaderProps> = ({ article: initialAr
   const [keyUser, setKeyUser] = useState<PenoraUser | null>(null);
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [article, setArticle] = useState<Article>(EMPTY_ARTICLE);
+  const [rewardPublishedAt, setRewardPublishedAt] = useState<string | null>(null);
   const [articleLoading, setArticleLoading] = useState(true);
   const [articleError, setArticleError] = useState<string | null>(null);
 
@@ -142,7 +144,9 @@ export const ArticleReader: React.FC<ArticleReaderProps> = ({ article: initialAr
         return;
       }
       const p = res.data;
+      setRewardPublishedAt(p.published_at ?? null);
       setArticle({
+<<<<<<< HEAD
         id: p.id,
         slug: p.slug,
         title: p.title,
@@ -152,6 +156,10 @@ export const ArticleReader: React.FC<ArticleReaderProps> = ({ article: initialAr
         coverImage: p.cover_image_url || '/brand/penora-celestial-cover-default.jpg',
         coverImageAlt: p.title,
         publishedAt: p.created_at,
+=======
+        id: p.id, slug: p.slug, title: p.title, subtitle: '', excerpt: p.excerpt || '', content: [p.content],
+        coverImage: p.cover_image_url || '', coverImageAlt: p.title, publishedAt: p.published_at || p.created_at,
+>>>>>>> origin/main
         readTimeMinutes: Math.max(1, Math.ceil(p.content.trim().split(/\s+/).length / 200)),
         topic: p.tags?.[0] || 'Productivity',
         tags: p.tags || [],
@@ -428,6 +436,8 @@ export const ArticleReader: React.FC<ArticleReaderProps> = ({ article: initialAr
           </button>
         </div>
       </div>
+
+      <ArticleRewardPanel publishedAt={rewardPublishedAt} articleId={article.id} />
 
       {/* Main Article Card */}
       <article className="pn-card p-6 sm:p-12">

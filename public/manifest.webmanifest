@@ -1,7 +1,8 @@
 {
+  "id": "/",
   "name": "PENORA — Web3 Publishing & Reputation Protocol",
   "short_name": "PENORA",
-  "description": "A refined Web3 social publishing platform where creators publish longform essays, curate domain communities, and build verifiable reputation.",
+  "description": "PENORA publishing, communities and self-custodial testnet wallet.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
@@ -33,6 +34,16 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Wallet",
+      "url": "/wallet"
+    },
+    {
+      "name": "Explore",
+      "url": "/explore"
     }
   ]
 }

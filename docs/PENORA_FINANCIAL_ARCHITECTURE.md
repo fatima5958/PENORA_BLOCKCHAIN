@@ -141,32 +141,21 @@ Genesis (T0)               Month 12 Cliff (T0 + 365d)                  Month 48 
 
 ---
 
-## 6. Weekly Reward Settlement & 48-Hour Review Proposal
+## 6. Article rewards: seven days from first publication
 
-To reconcile high-throughput social interaction with on-chain cryptographic finality, the reward system implements a **Weekly Epoch with a 48-Hour Settlement Review Window**:
+Founder instruction (22 October 2026): each blog becomes payout-eligible exactly **168 hours after its own first publication**. This replaces the earlier weekly-epoch-plus-48-hour review proposal for new article rewards. Draft creation, editing, unpublishing and republishing do not restart that clock.
 
-```
-Epoch N Cycle (Total: 9 Days)
-├─────────────────────── 7 Days ───────────────────────┤├── 48 Hours ──┤
-│           Active Reading & Curation Period           ││ Review Window│
-│  - Creators publish essays                           ││ - Merkle root│
-│  - Readers cast stake-weighted upvotes               ││   published   │
-│  - Mana dynamically consumes and recovers            ││ - Anti-abuse │
-│  - Off-chain indexer records interaction hashes      ││   verification│
-└──────────────────────────────────────────────────────┘└───────────────┘
-                                                                │
-                                                                ▼ (Finalized)
-                                                        Permissionless Claim
-```
+- `posts.published_at` is stamped by a database trigger on the first draft-to-published transition (or an initially published insert). `payout_at = published_at + 168 hours` is also server-controlled.
+- Existing posts without a verified original publication timestamp remain unscheduled; the migration does not infer publication from draft creation or fabricate historical dates.
+- Only canonical confirmed events from the configured voting-influence contract, timestamped within `[published_at, payout_at)`, enter the reward calculation. Social/local votes, late votes and self-votes do not earn rewards.
+- Net article influence is `max(0, eligible positive influence - eligible negative influence)`. The funded batch author pool (70%) and curator pool (20%) are shared among articles in proportion to that net influence. Each article's curator share is divided among eligible non-self upvoters by their recorded positive influence. Downvoters do not receive a curator payout.
+- At least 10% remains in reserve. Undistributed shares and all integer rounding dust remain reserved. Zero-positive-influence articles receive zero; no tokens are invented to fill an empty pool. Calculations use PNR base-unit integers throughout.
+- A settlement operator must reserve a real budget once, select a deterministic complete settlement cohort, and exclude previously settled articles. Splitting a cohort or repeatedly recalculating against the same budget is not a valid settlement policy. Cohort/budget scheduling and the verified event indexer remain backend integration work.
+- `PenoraArticleRewards.sol` registers an article's original timestamp through a trusted publisher, accepts an immutable funded allocation root only after maturity, and pays proofs in 100% liquid PNR. Proofs bind chain, distributor, article, recipient and exact amount. Anyone may relay a claim, but the transfer always goes to its committed recipient.
+- Seven days is the earliest eligibility boundary, not an automatic blockchain transaction. An operator/relayer must settle the real pool and submit claims; pending, unfunded or unavailable data must never be presented as already paid.
+- `PenoraRewardDistributor.sol` remains the legacy weekly-epoch contract. Its 48-hour review semantics are unchanged; it must not be used for the new seven-day article policy. A separate article-rewards deployment and runtime integration are required.
 
-### 6.1 The 48-Hour Review Mechanism
-1. **Day 0–7 (Active Interaction Window):** Creators publish content and curators vote using their regenerating mana.
-2. **Day 7 (Snapshot & Tree Generation):** The off-chain aggregation node indexes all on-chain interaction hashes, computes the influence quotient $I$, and generates the candidate Merkle root for the epoch.
-3. **Day 7–9 (48-Hour Review Window):**
-   - The candidate Merkle root is published to the `PenoraRewardDistributor.sol` contract in a `PendingReview` state.
-   - Community moderators, guild curators, and automated heuristics evaluate flagged submissions (e.g., automated plagiarism, vote-farming rings, sybil attacks).
-   - If severe malicious activity is verified, the governance council can veto or re-index the offending leaf node prior to finalization.
-4. **Day 9 (Final Settlement):** The review window lapses; the Merkle root transitions to `Active`. Creators and curators claim their liquid PNR directly to their self-custodial EVM wallets via `claimReward(uint256 epoch, uint256 amount, bytes32[] proof)`.
+See `docs/PENORA_ARTICLE_REWARDS.md` for integration boundaries and validation.
 
 ---
 
@@ -194,7 +183,7 @@ Before deploying smart contracts or transferring assets on Polygon Amoy or Mainn
 
 ### 8.2 Economic & Game-Theoretic Risks
 1. **Curator Ring Collusion:** Cartels of large token holders upvoting low-quality content to extract the 70% author and 20% curator pools.
-   - *Mitigation:* The 10% unallocated reserve buffer, sub-linear curation reward formulas, community downvoting signals, and the 48-hour review window.
+   - *Mitigation:* The 10% unallocated reserve buffer, sub-linear curation reward formulas, community downvoting signals, and verified funded article settlement.
 2. **Initial Liquidity Slippage:** If initial DEX liquidity is insufficient, high reward sell pressure in Year 1 could cause severe price depression.
    - *Mitigation:* The 15M PNR Public Liquidity Reserve must be systematically deployed alongside paired stablecoin reserves with locked LP tokens.
 

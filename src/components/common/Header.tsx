@@ -20,6 +20,7 @@ import {
   Edit3,
   Wallet,
   Settings,
+  ArrowLeftRight,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 import { getProfileById } from '../../lib/api/profiles';
@@ -470,6 +471,7 @@ export const Header: React.FC<HeaderProps> = ({ currentPath = '/' }) => {
                           </span>
                         </a>
 
+                        <a href="/exchange/" role="menuitem" onClick={() => setProfileDropdownOpen(false)} className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-[#0A2540] hover:bg-[#F4F7FA] hover:text-[#007C8B] font-medium"><ArrowLeftRight className="h-4 w-4 text-[#007C8B]"/><span>Exchange · Buy PNR</span></a>
                         {/* 4. Settings */}
                         <a
                           href="/profile/me?tab=about"
@@ -531,6 +533,7 @@ export const Header: React.FC<HeaderProps> = ({ currentPath = '/' }) => {
         </div>
       </header>
 
+<<<<<<< HEAD
       {/* Mobile Navigation Drawer */}
       <MobileNavigationDrawer
         isOpen={mobileMenuOpen}
@@ -543,6 +546,90 @@ export const Header: React.FC<HeaderProps> = ({ currentPath = '/' }) => {
         onOpenRegister={openRegister}
         onLogout={handleLogout}
       />
+=======
+      {/* Mobile Drawer */}
+      {mobileMenuOpen && (
+        <div className="pn-dropdown lg:hidden fixed inset-x-0 top-[68px] rounded-none border-x-0 p-4 space-y-2 z-40">
+          <form onSubmit={handleSearchSubmit} className="mb-3">
+            <div className="pn-search">
+              <Search className="h-4 w-4 text-[#4A5B70]" />
+              <input
+                type="search"
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                placeholder="Search PENORA..."
+              />
+            </div>
+          </form>
+          <a href="/" className="pn-nav-item" aria-current={currentPath === '/' ? 'page' : undefined}>
+            <Home className="h-4 w-4" /> Home Feed
+          </a>
+          <a href="/explore" className="pn-nav-item" aria-current={currentPath.startsWith('/explore') ? 'page' : undefined}>
+            <Compass className="h-4 w-4" /> Explore Topics
+          </a>
+          <a href="/communities" className="pn-nav-item" aria-current={currentPath.startsWith('/communities') ? 'page' : undefined}>
+            <Users className="h-4 w-4" /> Communities
+          </a>
+          <a href="/notifications" className="pn-nav-item" aria-current={currentPath.startsWith('/notifications') ? 'page' : undefined}>
+            <Bell className="h-4 w-4" /> Notifications
+          </a>
+          <a href="/exchange/" className="pn-nav-item" aria-current={currentPath.startsWith('/exchange') ? 'page' : undefined} onClick={() => setMobileMenuOpen(false)}><ArrowLeftRight className="h-4 w-4"/> Exchange · Buy PNR</a>
+          <a href="/editor" className="pn-nav-item" aria-current={currentPath.startsWith('/editor') ? 'page' : undefined}>
+            <PenLine className="h-4 w-4" /> Write Article
+          </a>
+          {activeUser ? (
+            <div className="space-y-1 pt-2 border-t border-[#0A2540]/8">
+              <a
+                href="/profile/me"
+                className="pn-nav-item"
+                aria-current={currentPath.startsWith('/profile/me') ? 'page' : undefined}
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                <User className="h-4 w-4" /> My Profile (@{displayUsername})
+              </a>
+              <a
+                href="/wallet"
+                className="pn-nav-item"
+                aria-current={currentPath.startsWith('/wallet') ? 'page' : undefined}
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                <Wallet className="h-4 w-4" /> Wallet & Rewards
+              </a>
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="pn-nav-item w-full justify-start text-[#D0384B] hover:bg-[#FDECEE]"
+              >
+                <LogOut className="h-4 w-4" /> Sign Out
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-2 pt-2 border-t border-[#0A2540]/8">
+              <button
+                type="button"
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  openLogin();
+                }}
+                className="pn-btn pn-btn-secondary pn-btn-sm justify-center"
+              >
+                Sign In
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  openRegister();
+                }}
+                className="pn-btn pn-btn-brand pn-btn-sm justify-center"
+              >
+                Create Account
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+>>>>>>> origin/main
 
       {/* Branded Authentication Modal */}
       <SpatialAuthModalV4

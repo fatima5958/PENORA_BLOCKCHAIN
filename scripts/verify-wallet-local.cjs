@@ -30,13 +30,18 @@ async function main() {
   await (await pnr.transfer(creator.address, hre.ethers.parseEther('100'))).wait();
   await (await usdt.transfer(creator.address, 100_000_000n)).wait();
 
+  let holdReceipts = false;
+  const broadcasts = [];
   const server = http.createServer(async (req, res) => {
     if (req.method === 'POST' && req.url === '/rpc') {
       let raw = '';
       for await (const chunk of req) raw += chunk;
       const processRpc = async payload => {
         try {
-          return { jsonrpc: '2.0', id: payload.id, result: await hre.network.provider.request({ method: payload.method, params: payload.params || [] }) };
+          if (holdReceipts && payload.method === 'eth_getTransactionReceipt') return { jsonrpc: '2.0', id: payload.id, result: null };
+          const result = await hre.network.provider.request({ method: payload.method, params: payload.params || [] });
+          if (payload.method === 'eth_sendTransaction') broadcasts.push(result);
+          return { jsonrpc: '2.0', id: payload.id, result };
         } catch (error) {
           return { jsonrpc: '2.0', id: payload.id, error: { code: error.code || -32603, message: error.message } };
         }
@@ -85,10 +90,12 @@ async function main() {
     await page.route('**/*', route => new URL(route.request().url()).origin === origin ? route.continue() : route.abort());
     await page.addInitScript(({ address }) => {
       const listeners = {};
+      let currentAddress = address;
+      window.penoraFixtureWallet = { select: next => { currentAddress = next; listeners.accountsChanged?.(next ? [next] : []); } };
       window.ethereum = { isMetaMask: true,
         on: (name, callback) => { listeners[name] = callback; },
         request: async ({ method, params }) => {
-          if (method === 'eth_accounts' || method === 'eth_requestAccounts') return [address];
+          if (method === 'eth_accounts' || method === 'eth_requestAccounts') return currentAddress ? [currentAddress] : [];
           const body = await (await fetch('/rpc', { method: 'POST', headers: { 'content-type': 'application/json' },
             body: JSON.stringify({ jsonrpc: '2.0', id: Date.now(), method, params: params || [] }),
           })).json();
@@ -160,6 +167,35 @@ async function main() {
     await page.getByRole('button', { name: 'Transaction History', exact: true }).click();
     await page.getByText(deposit.hash.slice(0, 10) + '...' + deposit.hash.slice(-8), { exact: true }).waitFor();
     record('Incoming PNR deposit indexed in wallet history');
+    await text('Power Up').waitFor();
+    await text('Power Down started').waitFor();
+    await text('Installment claimed').waitFor();
+    await text('Power Down cancelled').waitFor();
+    record('Real escrow events indexed: Power Up, Power Down, installment claim and cancellation');
+    // Hold only receipt reads: the approval still executes in the real local EVM.
+    const beforeSwitch = broadcasts.length;
+    const lockedBeforeSwitch = await escrow.lockedPower(creator.address);
+    holdReceipts = true;
+    await page.getByRole('button', { name: 'Overview', exact: true }).click();
+    await page.getByRole('button', { name: 'Power Up', exact: true }).click();
+    await page.getByRole('dialog').getByPlaceholder('0.0', { exact: true }).fill('1');
+    await page.getByRole('button', { name: 'Confirm Power Up', exact: true }).click();
+    for (let attempt = 0; attempt < 100 && broadcasts.length === beforeSwitch; attempt++) await page.waitForTimeout(100);
+    assert.equal(broadcasts.length, beforeSwitch + 1, 'Expected exactly the allowance approval before switching accounts');
+    const heldApproval = broadcasts.at(-1);
+    await page.evaluate(address => window.penoraFixtureWallet.select(address), recipient.address);
+    await page.getByRole('dialog').waitFor({ state: 'hidden' });
+    holdReceipts = false;
+    // A local chain has no automatic empty blocks; let the receipt watcher observe a new head.
+    await hre.network.provider.send('evm_mine');
+    await page.waitForFunction(hash => Object.keys(localStorage).some(key => key.startsWith('penora_power_80002_') &&
+      JSON.parse(localStorage.getItem(key) || '[]').some(tx => tx.hash === hash && tx.status === 'confirmed')), heldApproval);
+    assert.equal(broadcasts.length, beforeSwitch + 1, 'An account change must prevent the staking signature');
+    assert.equal(await escrow.lockedPower(creator.address), lockedBeforeSwitch);
+    assert.equal(await page.getByText(/Power Up confirmed:/).count(), 0);
+    await page.evaluate(() => window.penoraFixtureWallet.select(null));
+    await page.getByRole('button', { name: 'Connect Web3 Wallet', exact: true }).waitFor();
+    record('Account switched during actual approval: no staking signature, stale success or retained connection after disconnect');
     assert.deepEqual(errors, []);
     fs.writeFileSync(path.join(output, 'results.json'), JSON.stringify({ status: 'PASS', results, errors }, null, 2));
     console.log(JSON.stringify({ status: 'PASS', output, results, errors }, null, 2));

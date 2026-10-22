@@ -4,12 +4,25 @@
 // Tests:
 // 1. Audit 0002_fix_anon_auth_challenges.sql: No raw INSERT granted to anon,
 //    strict SECURITY DEFINER RPC with rate limiting & gen_random_bytes.
-// 2. Server-side challenge generation with single-use nonces, expiry & rate limiting.
-// 3. Posting / Active Key login enforcement against Supabase RLS compatibility.
+// 2. Local broker challenge generation with single-use nonces, expiry & rate limiting.
+// 3. Posting / Active Key permissions in the local broker; deployed RLS is a separate integration check.
 // 4. Two-user security isolation: User B cannot use User A challenge or sign for User A.
 // ============================================================================
 
-import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
+import { describe, it, expect, beforeAll, beforeEach, vi } from 'vitest';
+// This suite tests local broker cryptography and migration text, not deployed RLS.
+// Keep its setup independent of remote Supabase latency and do not create remote test accounts.
+vi.mock('../lib/supabaseClient', () => {
+  const query = {
+    select: vi.fn().mockReturnThis(), eq: vi.fn().mockReturnThis(),
+    maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+  };
+  return { supabase: {
+    auth: { getSession: vi.fn().mockResolvedValue({ data: { session: null }, error: null }), signOut: vi.fn().mockResolvedValue({ error: null }) },
+    from: vi.fn(() => query),
+    rpc: vi.fn().mockResolvedValue({ data: null, error: { code: 'PGRST202', message: 'Remote RPC disabled in local broker unit tests' } }),
+  } };
+});
 import fs from 'node:fs';
 import path from 'node:path';
 import { authBroker } from '../lib/auth/authBroker';
@@ -17,7 +30,7 @@ import { penoraKeyAuth } from '../lib/auth/penoraKeyAuth';
 import { emailVerificationService } from '../lib/auth/emailVerification';
 import { signChallenge } from '../lib/crypto/penoraKeys';
 
-describe('PENORA Authentication Challenge Security & RLS Compatibility', () => {
+describe('PENORA local challenge security and migration assertions', () => {
   const userA = 'alice_curator';
   const userB = 'bob_adversary';
   let keysA: ReturnType<typeof penoraKeyAuth.generateKeys>;

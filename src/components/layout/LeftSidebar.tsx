@@ -1,5 +1,5 @@
 import React from 'react';
-import { Compass, Newspaper, Users, UserCheck, User, Bell, ChevronRight, PlusCircle, Shield } from 'lucide-react';
+import { Compass, Newspaper, Users, UserCheck, User, Bell, ChevronRight, PlusCircle, Shield, ArrowLeftRight } from 'lucide-react';
 import type { Community } from '../../types';
 
 interface LeftSidebarProps {
@@ -22,6 +22,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
   const mainNav = [
     { id: 'explore', label: 'Explore', icon: Compass, href: '/' },
     { id: 'all', label: 'All Posts', icon: Newspaper, href: '/?tab=all' },
+    { id: 'exchange', label: 'Exchange', icon: ArrowLeftRight, href: '/exchange/' },
     { id: 'communities', label: 'Communities', icon: Users, href: '/communities' },
     { id: 'following', label: 'My Friends', icon: UserCheck, href: '/?tab=following', authRequired: true },
     { id: 'profile', label: 'My Profile', icon: User, href: `/profile/${currentUserHandle}`, authRequired: true },

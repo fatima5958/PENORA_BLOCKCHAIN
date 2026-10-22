@@ -25,6 +25,8 @@ export interface PostRecord {
   cover_image_url?: string | null;
   tags?: string[] | null;
   published: boolean;
+  published_at?: string | null;
+  payout_at?: string | null;
   created_at: string;
   updated_at: string;
   author?: ProfileRecord;
@@ -63,6 +65,8 @@ export interface FollowRecord {
 
 export interface CommunityRecord {
   id: string;
+  created_by?: string | null;
+  community_memberships?: Array<{count:number}>;
   name: string;
   slug: string;
   description?: string | null;

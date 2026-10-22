@@ -1,6 +1,7 @@
 // src/components/wallet/WalletView.tsx
 // PENORA Blockchain — Option 4 Hybrid Wallet (Phase 3: Real USDT Deposits, Withdrawals & Transfers)
 import '../../styles/wallet.css';
+import { RewardWalletLink } from './RewardWalletLink';
 import React, { useState, useEffect, useRef } from 'react';
 import QRCode from 'qrcode';
 import {
@@ -34,9 +35,11 @@ import {
 } from 'lucide-react';
 import { isAddress } from 'viem';
 import { penoraWalletService, INITIAL_WALLET_STATE } from '../../lib/wallet/walletService';
-import { penoraPowerService } from '../../lib/wallet/powerService';
+import { penoraPowerService, PowerTransactionPendingError } from '../../lib/wallet/powerService';
 import { penoraUsdtService, penoraPnrService } from '../../lib/wallet/usdtService';
-import { parseTokenAmount } from '../../lib/wallet/amount';
+import { parseTokenAmount, isSpendableAmount, previewPowerDown } from '../../lib/wallet/amount';
+import { localPowerTransactions } from '../../lib/wallet/powerTransactions';
+import { fetchPowerHistory, historyLabel, historySign } from '../../lib/wallet/history';
 import { POLYGON_AMOY_CONFIG } from '../../lib/wallet/chain';
 import type { WalletState, WalletTransaction, UsdtGasEstimate } from '../../lib/wallet/types';
 import { penoraKeyAuth, type PenoraUser } from '../../lib/auth/penoraKeyAuth';
@@ -54,6 +57,9 @@ export const WalletView: React.FC = () => {
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const gasRequest = useRef(0);
   const powerRequest = useRef(0);
+  const actionContext = useRef(0);
+  const refreshRequest = useRef(0);
+  const walletIdentity = useRef('');
   const tokenService = asset === 'USDT' ? penoraUsdtService : penoraPnrService;
   const tokenBalance = asset === 'USDT' ? walletState.balanceUsdt : walletState.balancePnr;
   const tokenDecimals = asset === 'USDT' ? walletState.usdtDecimals : 18;
@@ -95,14 +101,39 @@ export const WalletView: React.FC = () => {
   const [actionLoading, setActionLoading] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
+  const [pendingPowerHash, setPendingPowerHash] = useState<string | null>(null);
 
   // Real Transaction History State
   const [historyTransactions, setHistoryTransactions] = useState<WalletTransaction[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState<string | null>(null);
+
+  const loadHistory = async (address: `0x${string}`) => {
+    const errors: string[] = [];
+    const groups = await Promise.all([
+      penoraUsdtService.fetchTransferLogs(address, undefined, message => errors.push(message)),
+      penoraPnrService.fetchTransferLogs(address, undefined, message => errors.push(message)),
+      fetchPowerHistory(address).catch(() => { errors.push('Staking history is unavailable; only locally saved power actions are shown.'); return localPowerTransactions(address); }),
+    ]);
+    return { transactions: groups.flat().sort((a, b) => Date.parse(b.timestamp) - Date.parse(a.timestamp)), error: errors.join(' ') || null };
+  };
+
+  const applyHistory = (result: { transactions: WalletTransaction[]; error: string | null }) => {
+    setHistoryTransactions(result.transactions);
+    setHistoryError(result.error);
+    setPendingPowerHash(result.transactions.find(tx => tx.status === 'pending' &&
+      ['power_up', 'power_down', 'claim_installment', 'cancel_power_down', 'approve_pnr'].includes(tx.type))?.hash ?? null);
+  };
 
   useEffect(() => {
     // 1. Subscribe to live Web3 wallet state
     const unsubWallet = penoraWalletService.subscribe(ws => {
+      const identity = `${ws.address ?? ''}:${ws.chainId ?? ''}`;
+      if (walletIdentity.current !== identity) {
+        walletIdentity.current = identity;
+        actionContext.current++;
+        refreshRequest.current++;
+      }
       const version = ++powerRequest.current;
       setWalletState(ws);
       if (ws.address && ws.isCorrectNetwork) {
@@ -130,6 +161,9 @@ export const WalletView: React.FC = () => {
 
     return () => {
       unsubWallet();
+      actionContext.current++;
+      refreshRequest.current++;
+      gasRequest.current++;
       powerRequest.current++;
       unsubKey();
       subscription.unsubscribe();
@@ -163,8 +197,9 @@ export const WalletView: React.FC = () => {
     setHistoryTransactions([]);
     if (walletState.address && walletState.isCorrectNetwork) {
       setHistoryLoading(true);
-      Promise.all([penoraUsdtService.fetchTransferLogs(walletState.address), penoraPnrService.fetchTransferLogs(walletState.address)])
-        .then(groups => { if (active) setHistoryTransactions(groups.flat().sort((a, b) => Date.parse(b.timestamp) - Date.parse(a.timestamp))); })
+      setHistoryError(null);
+      loadHistory(walletState.address)
+        .then(result => { if (active) { applyHistory(result); } })
         .finally(() => { if (active) setHistoryLoading(false); });
 
       const onDeposit = (newTx: WalletTransaction) => {
@@ -181,13 +216,15 @@ export const WalletView: React.FC = () => {
         unwatch();
       };
     } else if (walletState.address) {
-      setHistoryTransactions([...penoraUsdtService.getLocalTransactions(walletState.address), ...penoraPnrService.getLocalTransactions(walletState.address)]);
+      setHistoryTransactions([...penoraUsdtService.getLocalTransactions(walletState.address), ...penoraPnrService.getLocalTransactions(walletState.address), ...localPowerTransactions(walletState.address)]);
     }
     setHistoryLoading(false);
     return () => { active = false; };
   }, [walletState.address, walletState.isCorrectNetwork]);
 
   useEffect(() => {
+    actionContext.current++;
+    refreshRequest.current++;
     gasRequest.current++;
     setGasEstimate(null);
     setGasError(null);
@@ -198,6 +235,7 @@ export const WalletView: React.FC = () => {
     setSendSuccessReceipt(null);
     setActionError(null);
     setActionSuccess(null);
+    setPendingPowerHash(null);
     setSendError(null);
     setSendRecipient('');
     setSendAmount('');
@@ -214,14 +252,20 @@ export const WalletView: React.FC = () => {
   };
 
   const refreshAllBalances = async () => {
+    const request = ++refreshRequest.current;
+    const current = () => request === refreshRequest.current && penoraWalletService.getState().address === walletState.address && penoraWalletService.getState().isCorrectNetwork;
     if (walletState.address && walletState.isCorrectNetwork) {
       await penoraWalletService.refreshBalance(walletState.address);
+      if (!current()) return;
+      const powerVersion = ++powerRequest.current;
       const ps = await penoraPowerService.fetchPowerState(walletState.address);
+      if (!current() || powerVersion !== powerRequest.current) return;
       setWalletState(prev => prev.address === walletState.address && prev.isCorrectNetwork ? ({ ...prev, ...ps, balancePnr: ps.balancePnr ?? prev.balancePnr }) : prev);
-      const groups = await Promise.all([penoraUsdtService.fetchTransferLogs(walletState.address), penoraPnrService.fetchTransferLogs(walletState.address)]);
-      if (penoraWalletService.getState().address === walletState.address) {
-        setHistoryTransactions(groups.flat().sort((a, b) => Date.parse(b.timestamp) - Date.parse(a.timestamp)));
-      }
+      setHistoryLoading(true);
+      try {
+        const result = await loadHistory(walletState.address);
+        if (current()) { applyHistory(result); }
+      } finally { if (current()) setHistoryLoading(false); }
     }
   };
 
@@ -283,6 +327,7 @@ export const WalletView: React.FC = () => {
   };
 
   const handleExecuteSend = async () => {
+    const context = actionContext.current;
     setSendError(null);
     setSendSuccessReceipt(null);
     setSendLoading(true);
@@ -290,7 +335,7 @@ export const WalletView: React.FC = () => {
     try {
       const reviewedAddress = walletState.address;
       const result = await tokenService.executeSendUsdt(sendRecipient, sendAmount, undefined, reviewedAddress ?? undefined);
-      if (penoraWalletService.getState().address?.toLowerCase() !== reviewedAddress?.toLowerCase()) return;
+      if (context !== actionContext.current || !penoraWalletService.getState().isCorrectNetwork || penoraWalletService.getState().address?.toLowerCase() !== reviewedAddress?.toLowerCase()) return;
       if (result.status === 'failed') {
         setSendError(`Transfer reverted. Transaction: ${result.hash}`);
         setShowSendConfirmModal(false);
@@ -311,7 +356,7 @@ export const WalletView: React.FC = () => {
       setShowSendConfirmModal(false);
       refreshAllBalances();
     } catch (err: any) {
-      setSendError(err?.message || 'Transfer failed');
+      if (context === actionContext.current) setSendError(err?.message || 'Transfer failed');
     } finally {
       setSendLoading(false);
     }
@@ -320,15 +365,23 @@ export const WalletView: React.FC = () => {
   const handleExecutePowerUp = async () => {
     setActionError(null);
     setActionSuccess(null);
+    setPendingPowerHash(null);
     setActionLoading(true);
+    const context = actionContext.current;
     try {
-      const tx = await penoraPowerService.executePowerUp(powerUpAmount);
+      const tx = await penoraPowerService.executePowerUp(powerUpAmount, walletState.address ?? undefined);
+      if (context !== actionContext.current) return;
       setActionSuccess(`Power Up confirmed: ${tx.slice(0, 10)}...`);
       setPowerUpAmount('');
-      setTimeout(() => setShowPowerUpModal(false), 2500);
+      setTimeout(() => { if (context === actionContext.current) setShowPowerUpModal(false); }, 2500);
       refreshAllBalances();
     } catch (err: any) {
-      setActionError(err?.message || 'Failed to execute Power Up');
+      if (context === actionContext.current && err instanceof PowerTransactionPendingError) {
+        setPendingPowerHash(err.hash);
+        setShowPowerUpModal(false);
+        setShowPowerDownModal(false);
+        refreshAllBalances();
+      } else if (context === actionContext.current) setActionError(err?.message || 'Failed to execute Power Up');
     } finally {
       setActionLoading(false);
     }
@@ -337,15 +390,23 @@ export const WalletView: React.FC = () => {
   const handleExecutePowerDown = async () => {
     setActionError(null);
     setActionSuccess(null);
+    setPendingPowerHash(null);
     setActionLoading(true);
+    const context = actionContext.current;
     try {
-      const tx = await penoraPowerService.executeStartPowerDown(powerDownAmount);
+      const tx = await penoraPowerService.executeStartPowerDown(powerDownAmount, walletState.address ?? undefined);
+      if (context !== actionContext.current) return;
       setActionSuccess(`13-week Power Down schedule started: ${tx.slice(0, 10)}...`);
       setPowerDownAmount('');
-      setTimeout(() => setShowPowerDownModal(false), 2500);
+      setTimeout(() => { if (context === actionContext.current) setShowPowerDownModal(false); }, 2500);
       refreshAllBalances();
     } catch (err: any) {
-      setActionError(err?.message || 'Failed to start Power Down');
+      if (context === actionContext.current && err instanceof PowerTransactionPendingError) {
+        setPendingPowerHash(err.hash);
+        setShowPowerUpModal(false);
+        setShowPowerDownModal(false);
+        refreshAllBalances();
+      } else if (context === actionContext.current) setActionError(err?.message || 'Failed to start Power Down');
     } finally {
       setActionLoading(false);
     }
@@ -354,13 +415,21 @@ export const WalletView: React.FC = () => {
   const handleClaimInstallments = async () => {
     setActionError(null);
     setActionSuccess(null);
+    setPendingPowerHash(null);
     setActionLoading(true);
+    const context = actionContext.current;
     try {
-      const tx = await penoraPowerService.executeClaimInstallments();
+      const tx = await penoraPowerService.executeClaimInstallments(walletState.address ?? undefined);
+      if (context !== actionContext.current) return;
       setActionSuccess(`Matured installment claimed: ${tx.slice(0, 10)}...`);
       refreshAllBalances();
     } catch (err: any) {
-      setActionError(err?.message || 'Failed to claim installments');
+      if (context === actionContext.current && err instanceof PowerTransactionPendingError) {
+        setPendingPowerHash(err.hash);
+        setShowPowerUpModal(false);
+        setShowPowerDownModal(false);
+        refreshAllBalances();
+      } else if (context === actionContext.current) setActionError(err?.message || 'Failed to claim installments');
     } finally {
       setActionLoading(false);
     }
@@ -369,13 +438,21 @@ export const WalletView: React.FC = () => {
   const handleCancelPowerDown = async () => {
     setActionError(null);
     setActionSuccess(null);
+    setPendingPowerHash(null);
     setActionLoading(true);
+    const context = actionContext.current;
     try {
-      const tx = await penoraPowerService.executeCancelPowerDown();
+      const tx = await penoraPowerService.executeCancelPowerDown(walletState.address ?? undefined);
+      if (context !== actionContext.current) return;
       setActionSuccess(`Power Down cancelled; unvested power restored: ${tx.slice(0, 10)}...`);
       refreshAllBalances();
     } catch (err: any) {
-      setActionError(err?.message || 'Failed to cancel Power Down');
+      if (context === actionContext.current && err instanceof PowerTransactionPendingError) {
+        setPendingPowerHash(err.hash);
+        setShowPowerUpModal(false);
+        setShowPowerDownModal(false);
+        refreshAllBalances();
+      } else if (context === actionContext.current) setActionError(err?.message || 'Failed to cancel Power Down');
     } finally {
       setActionLoading(false);
     }
@@ -478,6 +555,12 @@ export const WalletView: React.FC = () => {
           </div>
         )}
 
+        <RewardWalletLink address={walletState.isCorrectNetwork ? walletState.address : null} />
+
+        <a href="/exchange/" className="flex items-center justify-between rounded-2xl border border-[#a8edbd]/30 bg-[#122129] px-5 py-4 text-white hover:bg-[#193039] transition-colors">
+          <div><span className="text-[10px] tracking-[.18em] text-[#a8edbd] font-semibold">PENORA EXCHANGE</span><p className="mt-1 text-sm">Buy PNR with USDT</p></div><span className="text-xl text-[#a8edbd]" aria-hidden="true">↗</span>
+        </a>
+
         {/* ─── NAVIGATION TABS ──────────────────────────────────────────────── */}
         <div className="flex items-center gap-1.5 sm:gap-2 bg-[var(--wallet-surface)] backdrop-blur-md p-1.5 rounded-2xl border border-[#007C8B]/15 overflow-x-auto no-scrollbar scroll-smooth">
           <button
@@ -558,6 +641,14 @@ export const WalletView: React.FC = () => {
             <span>Power System</span>
           </button>
         </div>
+
+        {pendingPowerHash && <div role="status" className="p-3 rounded-xl bg-amber-50 text-amber-900 text-sm">
+          Power transaction submitted; confirmation is pending. Check history before retrying.{' '}
+          <a className="underline" href={`${POLYGON_AMOY_CONFIG.blockExplorers[0]}/tx/${pendingPowerHash}`} target="_blank" rel="noopener noreferrer">View transaction</a>
+        </div>}
+        {walletState.address && walletState.error && (
+          <div role="alert" className="p-3 rounded-xl bg-amber-50 text-amber-900 text-sm">{walletState.error}</div>
+        )}
 
         {/* ─── TAB 1: OVERVIEW ──────────────────────────────────────────────── */}
         {activeTab === 'overview' && (
@@ -1013,6 +1104,7 @@ export const WalletView: React.FC = () => {
                     </div>
                   </div>
 
+                  <p className="text-xs text-[var(--wallet-muted)]">Next installment unlocks: {new Date(walletState.powerDownSchedule.nextUnlockTimestamp * 1000).toLocaleString()}</p>
                   <div className="space-y-1">
                     <div className="w-full h-2 rounded-full bg-slate-200 overflow-hidden">
                       <div
@@ -1325,9 +1417,7 @@ export const WalletView: React.FC = () => {
                     value={sendRecipient}
                     onChange={e => {
                       setSendRecipient(e.target.value);
-                      if (e.target.value && isAddress(e.target.value) && sendAmount) {
-                        handleEstimateGas(e.target.value, sendAmount);
-                      }
+                      handleEstimateGas(e.target.value, sendAmount);
                     }}
                     className={`w-full py-2.5 px-3.5 rounded-xl border text-xs font-mono focus:outline-hidden ${
                       sendRecipient && !isAddress(sendRecipient)
@@ -1351,7 +1441,7 @@ export const WalletView: React.FC = () => {
                       <strong className="text-[var(--wallet-text)]">
                         {tokenBalance !== null
                           ? `${tokenBalance} ${asset}`
-                          : '0.00 USDT'}
+                          : `— ${asset}`}
                       </strong>
                     </span>
                   </div>
@@ -1365,9 +1455,7 @@ export const WalletView: React.FC = () => {
                       value={sendAmount}
                       onChange={e => {
                         setSendAmount(e.target.value);
-                        if (sendRecipient && isAddress(sendRecipient) && e.target.value) {
-                          handleEstimateGas(sendRecipient, e.target.value);
-                        }
+                        handleEstimateGas(sendRecipient, e.target.value);
                       }}
                       className="w-full py-2.5 px-3.5 pr-20 rounded-xl border border-slate-200 focus:outline-hidden focus:border-[#007C8B] text-sm font-mono bg-[var(--wallet-surface)]"
                     />
@@ -1413,7 +1501,7 @@ export const WalletView: React.FC = () => {
 
                   <div className="text-[11px] text-[var(--wallet-muted)] leading-relaxed">
                     Blockchain network fees on Polygon Amoy are paid in native <strong>POL</strong>, not automatically in {asset}. Your balance:{' '}
-                    <strong>{walletState.balancePol ? `${walletState.balancePol} POL` : '0 POL'}</strong>.
+                    <strong>{walletState.balancePol !== null ? `${walletState.balancePol} POL` : '— POL'}</strong>.
                   </div>
 
                   {(!walletState.balancePol || parseFloat(walletState.balancePol) <= 0) && (
@@ -1432,19 +1520,13 @@ export const WalletView: React.FC = () => {
                     walletState.status !== 'connected' || !tokenConfigured || tokenBalance === null || sendLoading || estimatingGas ||
                     !sendRecipient ||
                     !isAddress(sendRecipient) ||
-                    !sendAmount ||
-                    parseFloat(sendAmount) <= 0 ||
-                    (tokenBalance !== null &&
-                      parseFloat(sendAmount) > parseFloat(tokenBalance))
+                    !isSpendableAmount(sendAmount, tokenBalance, tokenDecimals)
                   }
                   className={`w-full py-3 px-4 rounded-xl font-semibold text-xs flex items-center justify-center gap-2 shadow-sm transition-all ${
                     walletState.status !== 'connected' || !tokenConfigured || tokenBalance === null || sendLoading || estimatingGas ||
                     !sendRecipient ||
                     !isAddress(sendRecipient) ||
-                    !sendAmount ||
-                    parseFloat(sendAmount) <= 0 ||
-                    (tokenBalance !== null &&
-                      parseFloat(sendAmount) > parseFloat(tokenBalance))
+                    !isSpendableAmount(sendAmount, tokenBalance, tokenDecimals)
                       ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
                       : 'bg-gradient-to-r from-[#007C8B] via-[#00B3C4] to-[#00E5F4] text-white hover:opacity-95'
                   }`}
@@ -1546,7 +1628,7 @@ export const WalletView: React.FC = () => {
                   <span>Real Onchain Transaction History</span>
                 </h3>
                 <p className="text-xs text-[var(--wallet-muted)]">
-                  Recent PNR and test USDT transfers, with locally tracked pending transactions
+                  Recent PNR, test USDT and staking events, with locally tracked pending transfers
                 </p>
               </div>
 
@@ -1563,6 +1645,7 @@ export const WalletView: React.FC = () => {
               )}
             </div>
 
+            {historyError && <div role="alert" className="p-3 rounded-xl bg-amber-50 text-amber-900 text-xs">{historyError}</div>}
             {historyTransactions.length > 0 ? (
               <div className="space-y-3">
                 {historyTransactions.map(tx => (
@@ -1587,7 +1670,7 @@ export const WalletView: React.FC = () => {
                       <div>
                         <div className="flex items-center gap-2">
                           <span className="font-semibold text-xs text-[var(--wallet-text)]">
-                            {(tx.type === 'deposit_usdt' || tx.type === 'transfer_in') ? `Deposit ${tx.symbol}` : `Send ${tx.symbol}`}
+                            {historyLabel(tx)}
                           </span>
                           <span
                             className={`text-[9px] uppercase font-bold px-1.5 py-0.5 rounded ${
@@ -1614,7 +1697,7 @@ export const WalletView: React.FC = () => {
                             (tx.type === 'deposit_usdt' || tx.type === 'transfer_in') ? 'text-emerald-600' : 'text-[var(--wallet-text)]'
                           }`}
                         >
-                          {(tx.type === 'deposit_usdt' || tx.type === 'transfer_in') ? '+' : '-'}
+                          {historySign(tx)}
                           {tx.amount} {tx.symbol}
                         </div>
                         <div className="text-[10px] text-[var(--wallet-muted)]">
@@ -1646,7 +1729,7 @@ export const WalletView: React.FC = () => {
                   <Info className="h-5 w-5" />
                 </div>
                 <h4 className="text-sm font-semibold text-[var(--wallet-text)]">
-                  No Onchain Transactions Recorded
+                  {historyLoading ? 'Loading recent activity…' : historyError ? 'Onchain history could not be loaded' : 'No transactions in the recent query window'}
                 </h4>
                 <p className="text-xs text-[var(--wallet-muted)] max-w-md mx-auto leading-relaxed">
                   Real transfers and deposits on Polygon Amoy will appear here. No fabricated transactions are shown.
@@ -1861,9 +1944,9 @@ export const WalletView: React.FC = () => {
             <button
               type="button"
               onClick={handleExecutePowerUp}
-              disabled={actionLoading || !powerUpAmount || parseFloat(powerUpAmount) <= 0}
+              disabled={actionLoading || !isSpendableAmount(powerUpAmount, walletState.balancePnr, 18)}
               className={`w-full py-3 px-4 rounded-xl font-semibold text-xs flex items-center justify-center gap-2 shadow-sm transition-all ${
-                actionLoading || !powerUpAmount || parseFloat(powerUpAmount) <= 0
+                actionLoading || !isSpendableAmount(powerUpAmount, walletState.balancePnr, 18)
                   ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
                   : 'bg-gradient-to-r from-[#007C8B] via-[#00B3C4] to-[#00E5F4] text-white hover:opacity-95'
               }`}
@@ -1921,9 +2004,10 @@ export const WalletView: React.FC = () => {
                 />
                 <span className="absolute right-3.5 top-2.5 text-xs font-semibold text-[var(--wallet-muted)]">PP</span>
               </div>
-              {powerDownAmount && parseFloat(powerDownAmount) > 0 && (
+              {previewPowerDown(powerDownAmount) && (
                 <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-[11px] text-amber-800 space-y-1">
-                  <div>Estimated Weekly Installment: <strong>{(parseFloat(powerDownAmount) / 13).toFixed(4)} PNR</strong></div>
+                  <div>Estimated Weekly Installment: <strong>{previewPowerDown(powerDownAmount)?.weekly} PNR</strong></div>
+                  <div>Final Installment: <strong>{previewPowerDown(powerDownAmount)?.final} PNR</strong> (includes remainder)</div>
                   <div>First Installment Unlocks: <strong>7 days from confirmation</strong></div>
                 </div>
               )}
@@ -1946,9 +2030,9 @@ export const WalletView: React.FC = () => {
             <button
               type="button"
               onClick={handleExecutePowerDown}
-              disabled={actionLoading || !powerDownAmount || parseFloat(powerDownAmount) <= 0}
+              disabled={actionLoading || !isSpendableAmount(powerDownAmount, walletState.balancePp, 18)}
               className={`w-full py-3 px-4 rounded-xl font-semibold text-xs flex items-center justify-center gap-2 shadow-sm transition-all ${
-                actionLoading || !powerDownAmount || parseFloat(powerDownAmount) <= 0
+                actionLoading || !isSpendableAmount(powerDownAmount, walletState.balancePp, 18)
                   ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
                   : 'bg-amber-600 hover:bg-amber-700 text-white'
               }`}
