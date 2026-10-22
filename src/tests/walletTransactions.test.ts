@@ -335,7 +335,7 @@ describe('Verified staking outcomes and durable pending actions', () => {
   });
   it('does not discard stake and schedules when only optional voting-mana reads fail', async () => {
     const previous = PENORA_CONTRACT_ADDRESSES.VOTING_INFLUENCE;
-    PENORA_CONTRACT_ADDRESSES.VOTING_INFLUENCE = recipient;
+    (PENORA_CONTRACT_ADDRESSES as any).VOTING_INFLUENCE = recipient;
     const original = mocks.readContract.getMockImplementation()!;
     mocks.readContract.mockImplementation(args => {
       if (args.functionName === 'getCurrentMana') throw new Error('Mana unavailable');
@@ -345,7 +345,7 @@ describe('Verified staking outcomes and durable pending actions', () => {
     });
     try {
       expect(await new PenoraPowerService().fetchPowerState(owner)).toMatchObject({ balancePp: '80', votingManaPercent: null, contractsDeployed: true });
-    } finally { PENORA_CONTRACT_ADDRESSES.VOTING_INFLUENCE = previous; }
+    } finally { (PENORA_CONTRACT_ADDRESSES as any).VOTING_INFLUENCE = previous; }
   });
 });
 
