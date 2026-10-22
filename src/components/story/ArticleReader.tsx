@@ -146,7 +146,6 @@ export const ArticleReader: React.FC<ArticleReaderProps> = ({ article: initialAr
       const p = res.data;
       setRewardPublishedAt(p.published_at ?? null);
       setArticle({
-<<<<<<< HEAD
         id: p.id,
         slug: p.slug,
         title: p.title,
@@ -155,11 +154,7 @@ export const ArticleReader: React.FC<ArticleReaderProps> = ({ article: initialAr
         content: [p.content],
         coverImage: p.cover_image_url || '/brand/penora-celestial-cover-default.jpg',
         coverImageAlt: p.title,
-        publishedAt: p.created_at,
-=======
-        id: p.id, slug: p.slug, title: p.title, subtitle: '', excerpt: p.excerpt || '', content: [p.content],
-        coverImage: p.cover_image_url || '', coverImageAlt: p.title, publishedAt: p.published_at || p.created_at,
->>>>>>> origin/main
+        publishedAt: p.published_at || p.created_at,
         readTimeMinutes: Math.max(1, Math.ceil(p.content.trim().split(/\s+/).length / 200)),
         topic: p.tags?.[0] || 'Productivity',
         tags: p.tags || [],
