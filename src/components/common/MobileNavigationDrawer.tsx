@@ -17,6 +17,7 @@ import {
   Bell,
   User as UserIcon,
   Wallet,
+  ArrowLeftRight,
   Bookmark,
   FileText,
   Search,
@@ -555,6 +556,13 @@ export const MobileNavigationDrawer: React.FC<MobileNavigationDrawerProps> = ({
                   <span>Wallet & Rewards</span>
                 </div>
                 <ChevronRight className="h-3.5 w-3.5 opacity-50" />
+              </a>
+
+              <a href="/exchange/" onClick={onClose}
+                aria-current={currentPath.startsWith('/exchange') ? 'page' : undefined}
+                className={`flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-medium transition-colors ${currentPath.startsWith('/exchange') ? (isLight ? 'bg-[#00E5F4]/15 text-[#007C8B] font-bold' : 'bg-[#00E5F4]/20 text-[#00E5F4] font-bold') : (isLight ? 'text-[#0A2540] hover:bg-white hover:text-[#007C8B]' : 'text-white/80 hover:bg-white/5 hover:text-white')}`}>
+                <span className="flex items-center gap-2.5"><ArrowLeftRight className="h-4 w-4 shrink-0" aria-hidden="true" /><span>Exchange</span></span>
+                <ChevronRight className="h-3.5 w-3.5 opacity-50" aria-hidden="true" />
               </a>
 
               {/* Bookmarks */}

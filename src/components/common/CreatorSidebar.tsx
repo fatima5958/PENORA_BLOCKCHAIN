@@ -1,13 +1,14 @@
 import React from 'react';
-import { Home, Compass, Users, Bookmark, Wallet, User, PenLine, ChevronRight } from 'lucide-react';
+import { Home, Compass, Users, Bookmark, Wallet, User, PenLine, ChevronRight, ArrowLeftRight } from 'lucide-react';
 
-type SidebarPage = 'Home' | 'Explore' | 'Communities' | 'Bookmarks' | 'Wallet' | 'Profile';
+type SidebarPage = 'Home' | 'Explore' | 'Communities' | 'Bookmarks' | 'Wallet' | 'Profile' | 'Exchange';
 const links = [
   { key: 'Home', label: 'Home Feed', icon: Home, href: '/' },
   { key: 'Explore', label: 'Explore Topics', icon: Compass, href: '/explore' },
   { key: 'Communities', label: 'Communities', icon: Users, href: '/communities' },
   { key: 'Bookmarks', label: 'Saved Bookmarks', icon: Bookmark, href: '/?view=bookmarks' },
   { key: 'Wallet', label: 'Wallet & Rewards', icon: Wallet, href: '/wallet' },
+  { key: 'Exchange', label: 'Exchange', icon: ArrowLeftRight, href: '/exchange/' },
   { key: 'Profile', label: 'My Profile', icon: User, href: '/profile/me' },
 ] as const;
 
