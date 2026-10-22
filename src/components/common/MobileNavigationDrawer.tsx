@@ -62,6 +62,7 @@ export const MobileNavigationDrawer: React.FC<MobileNavigationDrawerProps> = ({
 }) => {
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const [searchQuery, setSearchQuery] = useState('');
+  const [avatarImageError, setAvatarImageError] = useState(false);
   const [stats, setStats] = useState({
     followers: 128,
     following: 86,
@@ -85,10 +86,10 @@ export const MobileNavigationDrawer: React.FC<MobileNavigationDrawerProps> = ({
     (user?.user_metadata?.full_name as string | undefined) ||
     displayUsername;
 
-  const avatarUrl =
-    profile?.avatar_url ||
-    (user?.user_metadata?.avatar_url as string | undefined) ||
-    '/brand/penora-avatar-mateen.jpg';
+  // Only the creator's saved upload is a profile photo.
+  const avatarUrl = profile?.avatar_url && !profile.avatar_url.includes('/brand/penora-avatar-')
+    ? profile.avatar_url : null;
+  useEffect(() => setAvatarImageError(false), [avatarUrl, activeUserId]);
 
   const bioTagline =
     profile?.bio ||
@@ -239,14 +240,13 @@ export const MobileNavigationDrawer: React.FC<MobileNavigationDrawerProps> = ({
               <div className="flex items-center gap-3">
                 {/* Avatar with cyan ring & online dot */}
                 <div className="relative shrink-0">
-                  <img
-                    src={avatarUrl}
-                    alt={displayName}
-                    className="h-12 w-12 rounded-full object-cover ring-2 ring-[#00E5F4] shadow-sm"
-                    onError={(e) => {
-                      (e.target as HTMLElement).style.display = 'none';
-                    }}
-                  />
+                  {avatarUrl && !avatarImageError ? (
+                    <img src={avatarUrl} alt={displayName} className="h-12 w-12 rounded-full object-cover ring-2 ring-[#00E5F4] shadow-sm" onError={() => setAvatarImageError(true)} />
+                  ) : (
+                    <span role="img" aria-label="No profile photo uploaded" className="h-12 w-12 rounded-full bg-[#E5F7F8] text-[#007C8B] ring-2 ring-[#00E5F4] flex items-center justify-center">
+                      <UserIcon className="h-6 w-6" aria-hidden="true" />
+                    </span>
+                  )}
                   <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full bg-[#10B981] ring-2 ring-white" />
                 </div>
 
