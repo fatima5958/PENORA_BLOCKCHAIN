@@ -1,3 +1,4 @@
+import { CreatorSidebar } from '../common/CreatorSidebar';
 import '../../styles/mobile-feed.css';
 import { usePostVoting } from '../../lib/hooks/usePostVoting';
 // src/components/feed/SpatialFeedV4.tsx
@@ -107,6 +108,10 @@ export const SpatialFeedV4: React.FC = () => {
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [authMode, setAuthMode] = useState<'register' | 'login'>('register');
   const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('view') === 'bookmarks') setActiveNav('Bookmarks');
+  }, []);
 
   // Subscribe to both Steemit Key Auth and Supabase Auth
   useEffect(() => {
@@ -340,79 +345,7 @@ export const SpatialFeedV4: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* ─── LEFT COLUMN: Navigation & Trending Topics (3 cols) ────────── */}
         <aside className="hidden lg:block lg:col-span-3 space-y-4 sticky top-24">
-          <div className="pn-panel p-3">
-            <nav className="space-y-1" aria-label="Primary Feed Navigation">
-              {[
-                { key: 'Home' as const, label: 'Home Feed', icon: Home, href: '/' },
-                { key: 'Explore' as const, label: 'Explore Topics', icon: Compass, href: '/explore' },
-                { key: 'Communities' as const, label: 'Communities', icon: Users, href: '/communities' },
-                { key: 'Bookmarks' as const, label: 'Saved Bookmarks', icon: Bookmark, href: '#bookmarks' },
-                { key: 'Wallet' as const, label: 'Wallet & Rewards', icon: Wallet, href: '/wallet' },
-                { key: 'Profile' as const, label: 'My Profile', icon: UserIcon, href: (keyUser || user) ? '/profile/me' : '#auth' },
-              ].map(item => {
-                const Icon = item.icon;
-                const isActive = activeNav === item.key;
-                return (
-                  <button
-                    key={item.key}
-                    type="button"
-                    aria-current={isActive ? 'page' : undefined}
-                    onClick={() => {
-                      if (item.key === 'Explore') {
-                        window.location.href = '/explore';
-                        return;
-                      }
-                      if (item.key === 'Communities') {
-                        window.location.href = '/communities';
-                        return;
-                      }
-                      if (item.key === 'Wallet') {
-                        window.location.href = '/wallet';
-                        return;
-                      }
-                      if (item.key === 'Profile') {
-                        if (keyUser || user) {
-                          window.location.href = '/profile/me';
-                        } else {
-                          setAuthMode('login');
-                          setAuthModalOpen(true);
-                        }
-                        return;
-                      }
-                      setActiveNav(item.key);
-                    }}
-                    className={`pn-nav-item w-full justify-between text-left ${isActive ? 'active' : ''}`}
-                  >
-                    <span className="flex items-center gap-3">
-                      <Icon className="h-4 w-4" />
-                      <span>{item.label}</span>
-                    </span>
-                    {isActive && <ChevronRight className="h-3.5 w-3.5 text-white" />}
-                  </button>
-                );
-              })}
-            </nav>
-          </div>
-
-          {/* Trending Topics */}
-          <div className="pn-panel p-4">
-            <div className="flex items-center gap-2 mb-3">
-              <TrendingUp className="h-3.5 w-3.5 text-[#007C8B]" />
-              <h4 className="pn-label">Trending Topics</h4>
-            </div>
-            <div className="flex flex-wrap gap-1.5">
-              {trendingTags.map(tag => (
-                <a
-                  key={tag}
-                  href={`/explore?tag=${encodeURIComponent(tag.toLowerCase())}`}
-                  className="pn-pill"
-                >
-                  <span className="text-[#007C8B]">#</span>
-                  <span>{tag}</span>
-                </a>
-              ))}
-            </div>
-          </div>
+          <CreatorSidebar activePage={activeNav} />
         </aside>
 
         {/* ─── CENTER COLUMN: Editorial Feed (6 cols) ─────────────────────── */}

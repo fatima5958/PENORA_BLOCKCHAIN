@@ -1,3 +1,4 @@
+import { CreatorSidebar } from '../common/CreatorSidebar';
 import { usePostVoting } from '../../lib/hooks/usePostVoting';
 // src/components/profile/CreatorProfileV7.tsx
 // PENORA Blockchain — Creator Profile V7: Exact Reference Design Implementation ⚡
@@ -402,124 +403,8 @@ export const CreatorProfileV7: React.FC<CreatorProfileV7Props> = ({
         {/* ========================================================================= */}
         {/* LEFT COLUMN: NAVIGATION SIDEBAR & BRANDED ASSETS (~2.5 cols)              */}
         {/* ========================================================================= */}
-        <aside className="hidden lg:block lg:col-span-2 xl:col-span-2 space-y-5 sticky top-20">
-          
-          {/* Spatial Nav Card */}
-          <nav className="bg-white/80 backdrop-blur-md rounded-2xl p-2.5 border border-[#007C8B]/10 shadow-xs space-y-1">
-            <a
-              href="/"
-              className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-medium text-[#4A5E75] hover:text-[#0A2540] hover:bg-white/90 transition-all"
-            >
-              <Home className="h-4 w-4 text-[#4A5E75]" />
-              <span>Home</span>
-            </a>
-
-            <a
-              href="/explore"
-              className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-medium text-[#4A5E75] hover:text-[#0A2540] hover:bg-white/90 transition-all"
-            >
-              <Compass className="h-4 w-4 text-[#4A5E75]" />
-              <span>Explore</span>
-            </a>
-
-            <a
-              href="/communities"
-              className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-medium text-[#4A5E75] hover:text-[#0A2540] hover:bg-white/90 transition-all"
-            >
-              <Users className="h-4 w-4 text-[#4A5E75]" />
-              <span>Communities</span>
-            </a>
-
-            <a
-              href="/editor"
-              className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-medium text-[#4A5E75] hover:text-[#0A2540] hover:bg-white/90 transition-all"
-            >
-              <PenLine className="h-4 w-4 text-[#4A5E75]" />
-              <span>Create</span>
-            </a>
-
-            <a
-              href="/profile/me?tab=bookmarks"
-              className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-medium text-[#4A5E75] hover:text-[#0A2540] hover:bg-white/90 transition-all"
-            >
-              <Bookmark className="h-4 w-4 text-[#4A5E75]" />
-              <span>Bookmarks</span>
-            </a>
-
-            <a
-              href="/wallet"
-              className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-medium text-[#4A5E75] hover:text-[#0A2540] hover:bg-white/90 transition-all"
-            >
-              <Wallet className="h-4 w-4 text-[#4A5E75]" />
-              <span>Wallet</span>
-            </a>
-
-            {/* Profile (Active in Reference) */}
-            <a
-              href="/profile/me"
-              className="pn-nav-item active flex items-center justify-between px-3 py-2.5 rounded-xl text-xs transition-all"
-            >
-              <span className="flex items-center gap-3">
-                <UserIcon className="h-4 w-4" />
-                <span>Profile</span>
-              </span>
-              <ChevronRight className="h-4 w-4 opacity-80" />
-            </a>
-          </nav>
-
-          {/* Floating Ideas & Stories Onchain Card */}
-          <div className="bg-gradient-to-br from-white/90 to-[#EBF7F9]/80 backdrop-blur-md rounded-2xl p-4 border border-[#007C8B]/15 shadow-xs relative overflow-hidden group">
-            <div className="flex items-center justify-between">
-              <div className="h-10 w-8 rounded-lg overflow-hidden flex items-center justify-center">
-                <img
-                  src="/brand/penora-crystal-gem.jpg"
-                  alt="Crystal Gem"
-                  className="h-full w-full object-contain filter drop-shadow-[0_2px_8px_rgba(0,229,244,0.4)]"
-                  onError={(e) => {
-                    (e.currentTarget as HTMLElement).style.display = 'none';
-                  }}
-                />
-              </div>
-              <a
-                href="/explore"
-                className="h-7 w-7 rounded-full bg-[#0A2540] hover:bg-[#007C8B] text-white flex items-center justify-center transition-colors shadow-2xs"
-                aria-label="Explore stories"
-              >
-                <ArrowRight className="h-3.5 w-3.5" />
-              </a>
-            </div>
-            <div className="mt-2 text-xs font-serif italic text-[#0A2540] leading-snug">
-              <p className="font-semibold not-italic text-[11px] uppercase tracking-wider text-[#007C8B]">Ideas Stories</p>
-              <p className="text-[#3E526A]">People Onchain</p>
-            </div>
-          </div>
-
-          {/* Floating Ringed Celestial Planet Artwork */}
-          <div className="relative py-2 px-1 flex flex-col items-center text-center opacity-85">
-            <svg className="w-24 h-20 text-[#007C8B]" viewBox="0 0 100 80" fill="none">
-              <defs>
-                <linearGradient id="planetGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stopColor="#C4EEF5" />
-                  <stop offset="60%" stopColor="#75CAD7" />
-                  <stop offset="100%" stopColor="#0A2540" />
-                </linearGradient>
-              </defs>
-              <circle cx="50" cy="40" r="24" fill="url(#planetGrad)" />
-              <ellipse cx="50" cy="40" rx="46" ry="12" stroke="#00E5F4" strokeWidth="1.5" strokeOpacity="0.8" transform="rotate(-18 50 40)" />
-              <ellipse cx="50" cy="40" rx="38" ry="8" stroke="#FFFFFF" strokeWidth="0.8" strokeOpacity="0.6" transform="rotate(-18 50 40)" />
-              <circle cx="75" cy="20" r="1.5" fill="#00E5F4" />
-              <circle cx="25" cy="62" r="1" fill="#FFFFFF" />
-            </svg>
-            <div className="mt-2">
-              <span className="font-serif text-[11px] font-bold tracking-wider text-[#0A2540] block">
-                PENORA
-              </span>
-              <p className="text-[10px] text-[#6E7D90] leading-tight">
-                A fairer internet for creators.
-              </p>
-            </div>
-          </div>
-
+        <aside className="hidden lg:block lg:col-span-2 xl:col-span-2 space-y-4 sticky top-24">
+          <CreatorSidebar activePage={"Profile"} />
         </aside>
 
         {/* ========================================================================= */}
