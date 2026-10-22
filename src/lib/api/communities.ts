@@ -16,7 +16,7 @@ export interface SingleCommunityResult {
 
 export async function getCommunities(limit?: number): Promise<CommunitiesListResult> {
   try {
-    let query = supabase.from('communities').select('*').order('created_at', { ascending: false });
+    let query = supabase.from('communities').select('*,community_memberships(count)').order('created_at', { ascending: false });
     if (limit) query = query.limit(limit);
 
     const { data, error } = await query;

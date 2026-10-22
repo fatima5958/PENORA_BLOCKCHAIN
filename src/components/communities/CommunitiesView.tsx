@@ -15,6 +15,7 @@ import { getCommunities, joinCommunity, leaveCommunity, isCommunityMember } from
 import { SpatialAuthModalV4 } from '../design-v4/SpatialAuthModalV4';
 import { penoraKeyAuth, type PenoraUser } from '../../lib/auth/penoraKeyAuth';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
+import { CommunityCreation } from './CommunityCreation';
 import type { CommunityRecord } from '../../lib/api/types';
 
 interface CommunitiesViewProps {
@@ -23,16 +24,16 @@ interface CommunitiesViewProps {
   topics: Topic[];
 }
 
-export const CommunitiesView: React.FC<CommunitiesViewProps> = ({
-  communities: fallbackCommunities,
-}) => {
+export const CommunitiesView: React.FC<CommunitiesViewProps> = () => {
   const [user, setUser] = useState<SupabaseUser | null>(null);
   const [keyUser, setKeyUser] = useState<PenoraUser | null>(null);
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [communities, setCommunities] = useState<Community[]>(fallbackCommunities);
+  const [communities, setCommunities] = useState<Community[]>([]);
   const [joinedMap, setJoinedMap] = useState<Record<string, boolean>>({});
   const [membershipError, setMembershipError] = useState<string | null>(null);
+  const [loading,setLoading]=useState(true);
+  const [listError,setListError]=useState<string|null>(null);
   const pendingJoins = useRef(new Set<string>());
   const identity = useRef<string | undefined>(undefined);
   identity.current = keyUser?.id || user?.id;
@@ -47,24 +48,15 @@ export const CommunitiesView: React.FC<CommunitiesViewProps> = ({
       setUser(session?.user ?? null);
     });
 
-    // Hydrate real communities from Supabase
+    let active=true;
     getCommunities().then(res => {
-      if (res.data && res.data.length > 0) {
-        const mapped: Community[] = res.data.map((c: CommunityRecord) => ({
-          id: c.id,
-          name: c.name,
-          slug: c.slug,
-          description: c.description || '',
-          avatar: c.avatar_url || '',
-          subscriberCount: 0,
-          activePostsCount: 0,
-          isSubscribed: false,
-        }));
-        setCommunities(mapped);
-      }
+      if(!active)return;
+      setLoading(false);setListError(res.error?'Communities could not be loaded. Please refresh to retry.':null);
+      if(!res.error)setCommunities(res.data.map(mapCommunity));
     });
 
     return () => {
+      active=false;
       unsubKey();
       subscription.unsubscribe();
     };
@@ -152,6 +144,10 @@ export const CommunitiesView: React.FC<CommunitiesViewProps> = ({
         </div>
       </div>
 
+      <CommunityCreation userId={user?.id??null} onSignIn={()=>setAuthModalOpen(true)} onCreated={community=>{setCommunities(previous=>[mapCommunity({...community,community_memberships:[{count:1}]}),...previous.filter(item=>item.id!==community.id)]);setJoinedMap(previous=>({...previous,[community.id]:true}));}}/>
+      {loading&&<p role="status" className="text-center text-sm text-[#4A5E75]">Loading communities…</p>}
+      {listError&&<p role="alert" className="text-center text-sm text-red-700">{listError}</p>}
+      {!loading&&!listError&&!filtered.length&&<p className="text-center text-sm text-[#4A5E75]">{searchQuery?'No communities match your search.':'No communities yet. Start a circle when you reach reputation 65.'}</p>}
       {/* Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filtered.map(community => {
@@ -159,16 +155,17 @@ export const CommunitiesView: React.FC<CommunitiesViewProps> = ({
 
           return (
             <div
+              id={`community-${community.slug}`}
               key={community.id}
               className="pn-card pn-card-interactive p-6 flex flex-col justify-between"
             >
               <div>
                 <div className="flex items-start justify-between gap-4 mb-4">
-                  <img
+                  {community.avatar?<img
                     src={community.avatar}
                     alt={community.name}
                     className="h-12 w-12 rounded-2xl object-cover ring-2 ring-white shadow-sm"
-                  />
+                  />:<div aria-hidden="true" className="h-12 w-12 rounded-2xl bg-[#007C8B]/10 text-[#007C8B] flex items-center justify-center font-bold text-xl">{community.name.charAt(0).toUpperCase()}</div>}
                   <button
                     type="button"
                     onClick={() => handleToggleJoin(community.id)}
@@ -215,3 +212,5 @@ export const CommunitiesView: React.FC<CommunitiesViewProps> = ({
     </div>
   );
 };
+
+function mapCommunity(c:CommunityRecord):Community {return {id:c.id,name:c.name,slug:c.slug,description:c.description||'',avatar:c.avatar_url||'',subscriberCount:c.community_memberships?.[0]?.count??0,activePostsCount:0,isSubscribed:false};}

@@ -65,6 +65,8 @@ export interface FollowRecord {
 
 export interface CommunityRecord {
   id: string;
+  created_by?: string | null;
+  community_memberships?: Array<{count:number}>;
   name: string;
   slug: string;
   description?: string | null;
