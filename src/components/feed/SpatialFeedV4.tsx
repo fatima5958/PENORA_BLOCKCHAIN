@@ -1,3 +1,4 @@
+import '../../styles/mobile-feed.css';
 import { usePostVoting } from '../../lib/hooks/usePostVoting';
 // src/components/feed/SpatialFeedV4.tsx
 // PENORA Blockchain — Main 3-Column Social Publishing Feed
@@ -20,18 +21,27 @@ import {
   Check,
   ShieldCheck,
   Wallet,
+  Search,
+  Flame,
+  Sparkles,
+  Repeat2,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 import { getPublishedArticles } from '../../lib/api/articles';
 import { getVotesForPost, type PostVoteStats } from '../../lib/api/votes';
+import { readArticleDraft, saveArticleDraft } from '../../lib/articleDrafts';
 import { getArticleRewardState } from '../../lib/api/rewards';
 import { getCommentsForPost } from '../../lib/api/comments';
 import { toggleBookmark } from '../../lib/api/bookmarks';
 import { followUser, unfollowUser } from '../../lib/api/follows';
-import { joinCommunity, leaveCommunity } from '../../lib/api/communities';
+import { getCommunities, isCommunityMember, joinCommunity, leaveCommunity } from '../../lib/api/communities';
 import { SpatialAuthModalV4 } from '../design-v4/SpatialAuthModalV4';
 import { PenoraEmblem, PenoraLogo } from '../brand/PenoraLogo';
 import { penoraKeyAuth, type PenoraUser } from '../../lib/auth/penoraKeyAuth';
+import { getProfileById } from '../../lib/api/profiles';
+import { getUserBookmarks } from '../../lib/api/bookmarks';
+import { isFollowing } from '../../lib/api/follows';
+import type { ProfileRecord, CommunityRecord } from '../../lib/api/types';
 import type { PostRecord } from '../../lib/api/types';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 
@@ -48,77 +58,21 @@ interface FeedArticleItem {
     name: string;
     handle: string;
     avatar: string;
-    reputation: number;
+    reputation: number | null;
     verified: boolean;
   };
   publishedAgo: string;
   thumbnail: string;
   isDbRecord?: boolean;
+  tags?: string[];
+  publishedAt?: number;
 }
-
-const CURATED_FALLBACK_ARTICLES: FeedArticleItem[] = [
-  {
-    id: 'calmer-internet',
-    slug: 'the-architecture-of-spatial-interfaces',
-    category: 'Lifestyle',
-    categoryGroup: 'Lifestyle',
-    readTime: '5 min read',
-    title: 'A Calmer Internet Is a More Creative You',
-    excerpt:
-      'How intentional consumption, slower tools, and mindful Web3 communities can help independent writers do their best work.',
-    author: {
-      name: 'Elena Park',
-      handle: 'erostova',
-      avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=160&q=80',
-      reputation: 94,
-      verified: true,
-    },
-    publishedAgo: '2h ago',
-    thumbnail: 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&w=640&q=80',
-  },
-  {
-    id: 'small-ideas',
-    slug: 'sustainable-curation-without-surveillance-algorithms',
-    category: 'Creativity',
-    categoryGroup: 'Creativity',
-    readTime: '8 min read',
-    title: 'Turning Small Ideas Into Big Opportunities',
-    excerpt:
-      'Why documenting your process openly on verifiable publishing networks compounds into lasting reputation and discovery.',
-    author: {
-      name: 'Daniel Kim',
-      handle: 'marcus_chen',
-      avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=160&q=80',
-      reputation: 88,
-      verified: true,
-    },
-    publishedAgo: '4h ago',
-    thumbnail: 'https://images.unsplash.com/photo-1499750310107-5fef28a66643?auto=format&fit=crop&w=640&q=80',
-  },
-  {
-    id: 'deep-work',
-    slug: 'toward-a-sovereign-creator-commons',
-    category: 'Writing',
-    categoryGroup: 'Business',
-    readTime: '6 min read',
-    title: 'Designing For Clarity in an Age of Infinite Distraction',
-    excerpt:
-      'The craft of stripping away visual noise until only ideas, precision typography, and community consensus remain on the canvas.',
-    author: {
-      name: 'Sarah Jenkins',
-      handle: 's_ross',
-      avatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=160&q=80',
-      reputation: 91,
-      verified: true,
-    },
-    publishedAgo: '1d ago',
-    thumbnail: 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=640&q=80',
-  },
-];
 
 const CATEGORIES = [
   'For You',
   'Following',
+  'Hot',
+  'New',
   'Tech',
   'Design',
   'Lifestyle',
@@ -133,6 +87,7 @@ export const SpatialFeedV4: React.FC = () => {
   const [articles, setArticles] = useState<FeedArticleItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [isPendingMigration, setIsPendingMigration] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState<string>('For You');
   const [activeNav, setActiveNav] = useState<'Home' | 'Explore' | 'Communities' | 'Profile' | 'Bookmarks'>('Home');
 
@@ -141,9 +96,10 @@ export const SpatialFeedV4: React.FC = () => {
   const [commentsCountMap, setCommentsCountMap] = useState<Record<string, number>>({});
   const [bookmarkedMap, setBookmarkedMap] = useState<Record<string, boolean>>({});
   const [followedMap, setFollowedMap] = useState<Record<string, boolean>>({});
-  const [joinedCommunities, setJoinedCommunities] = useState<Record<string, boolean>>({
-    'spatial-design': true,
-  });
+  const [joinedCommunities, setJoinedCommunities] = useState<Record<string, boolean>>({});
+  const [communities, setCommunities] = useState<CommunityRecord[]>([]);
+  const [profile, setProfile] = useState<ProfileRecord | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   // Auth modal
   const [authModalOpen, setAuthModalOpen] = useState(false);
@@ -176,6 +132,7 @@ export const SpatialFeedV4: React.FC = () => {
     setLoading(true);
     getPublishedArticles({ limit: 20 }).then(res => {
       if (!mounted) return;
+      if (res.error) setActionError('The feed could not be loaded. Please refresh to try again.');
       if (res.isPendingMigration) {
         setIsPendingMigration(true);
       } else if (res.data) {
@@ -194,15 +151,17 @@ export const SpatialFeedV4: React.FC = () => {
               handle: p.author?.username || 'creator',
               avatar:
                 p.author?.avatar_url ||
-                'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=160&q=80',
-              reputation: p.author?.reputation ?? 25,
-              verified: true,
+                '/favicon.svg',
+              reputation: p.author?.reputation ?? null,
+              verified: p.author?.reputation != null,
             },
             publishedAgo: new Date(p.created_at).toLocaleDateString(),
             thumbnail:
               p.cover_image_url ||
-              'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&w=640&q=80',
+              '/brand/penora-celestial-cover-default.jpg',
             isDbRecord: true,
+            tags: p.tags || [],
+            publishedAt: new Date(p.created_at).getTime(),
           }));
           setArticles(mapped);
         } else {
@@ -241,20 +200,59 @@ export const SpatialFeedV4: React.FC = () => {
     refreshArticleMetrics(articles, activeVoterId);
   }, [articles, keyUser, user, refreshArticleMetrics]);
 
+  useEffect(() => { let active = true; getCommunities(1).then(res => { if (active) setCommunities(res.data); }); return () => { active = false; }; }, []);
+  useEffect(() => {
+    let active = true;
+    const id = keyUser?.id || user?.id;
+    setBookmarkedMap({}); setFollowedMap({}); setProfile(null);
+    if (!id) return;
+    Promise.all([getUserBookmarks(id), getProfileById(id), Promise.all(articles.map(async a => [a.author.handle, await isFollowing(id, a.author.id || a.author.handle)] as const))]).then(([saved, own, follows]) => {
+      if (!active) return;
+      setBookmarkedMap(Object.fromEntries(saved.data.map(b => [b.post_id, true])));
+      setProfile(own.data); setFollowedMap(Object.fromEntries(follows));
+    });
+    return () => { active = false; };
+  }, [keyUser?.id, user?.id, articles]);
+  const suggestedCreators = useMemo(() => Array.from(new Map(articles.filter(a => a.author.id && a.author.id !== (keyUser?.id || user?.id)).map(a => [a.author.id, a.author])).values()).slice(0, 3), [articles, keyUser?.id, user?.id]);
+  const trendingTags = useMemo(() => {
+    const counts = new Map<string, number>();
+    articles.forEach(a => a.tags?.forEach(t => counts.set(t, (counts.get(t) || 0) + 1)));
+    return [...counts].sort((a,b) => b[1]-a[1]).slice(0,10).map(([tag]) => tag);
+  }, [articles]);
+
+  useEffect(() => {
+    let active = true;
+    const id = keyUser?.id || user?.id;
+    setJoinedCommunities({});
+    if (id) Promise.all(communities.map(async c => [c.id, await isCommunityMember(id, c.id)] as const)).then(entries => { if (active) setJoinedCommunities(Object.fromEntries(entries)); });
+    return () => { active = false; };
+  }, [communities, keyUser?.id, user?.id]);
+  const handleCommunity = async (id: string) => {
+    const memberId = keyUser?.id || user?.id;
+    if (!memberId) { setAuthMode('login'); setAuthModalOpen(true); return; }
+    const joined = joinedCommunities[id];
+    const result = joined ? await leaveCommunity(memberId, id) : await joinCommunity(memberId, id);
+    if (!result.success) { setActionError(result.error || 'Could not update community membership.'); return; }
+    setJoinedCommunities(prev => ({ ...prev, [id]: !joined }));
+  };
+
   // Filtered articles
   const displayedArticles = useMemo(() => {
-    return articles.filter(a => {
+    const filtered = articles.filter(a => {
       if (activeNav === 'Bookmarks') {
         return bookmarkedMap[a.id];
       }
-      if (activeCategory === 'For You') return true;
+      if (['For You', 'Hot', 'New'].includes(activeCategory)) return true;
       if (activeCategory === 'Following') return followedMap[a.author.handle];
       return (
         a.categoryGroup.toLowerCase() === activeCategory.toLowerCase() ||
         a.category.toLowerCase() === activeCategory.toLowerCase()
       );
     });
-  }, [articles, activeCategory, activeNav, bookmarkedMap, followedMap]);
+    if (activeCategory === 'Hot') return filtered.sort((a, b) => (voteStatsMap[b.id]?.score ?? 0) - (voteStatsMap[a.id]?.score ?? 0));
+    if (activeCategory === 'New') return filtered.sort((a, b) => (b.publishedAt ?? 0) - (a.publishedAt ?? 0));
+    return filtered;
+  }, [articles, activeCategory, activeNav, bookmarkedMap, followedMap, voteStatsMap]);
 
   // Functional Upvote ▲ and Downvote ▼ handler
   const handleVote = async (articleId: string, direction: 1 | -1) => {
@@ -285,8 +283,9 @@ export const SpatialFeedV4: React.FC = () => {
     }
 
     const isBookmarked = bookmarkedMap[articleId];
-    setBookmarkedMap(prev => ({ ...prev, [articleId]: !isBookmarked }));
-    await toggleBookmark(voterId, articleId);
+    const result = await toggleBookmark(voterId, articleId);
+    if (result.error) { setActionError(result.error); return; }
+    setBookmarkedMap(prev => ({ ...prev, [articleId]: result.isBookmarked }));
   };
 
   // Handle follow
@@ -299,23 +298,31 @@ export const SpatialFeedV4: React.FC = () => {
     }
 
     const isFollowed = followedMap[handle];
-    setFollowedMap(prev => ({ ...prev, [handle]: !isFollowed }));
-
-    if (isFollowed) {
-      await unfollowUser(voterId, authorId || handle);
-    } else {
-      await followUser(voterId, authorId || handle);
-    }
+    const result = isFollowed ? await unfollowUser(voterId, authorId || handle) : await followUser(voterId, authorId || handle);
+    if (result.error) { setActionError(result.error); return; }
+    setFollowedMap(prev => ({ ...prev, [handle]: result.isFollowing }));
   };
 
-  // Handle share
-  const handleShare = (slug: string, articleId: string) => {
-    const url = `${window.location.origin}/story/${slug}`;
-    if (navigator.clipboard) {
-      navigator.clipboard.writeText(url);
+  // Share only after the browser confirms completion.
+  const handleShare = async (slug: string, articleId: string) => {
+    const url = `${window.location.origin}/read?slug=${encodeURIComponent(slug)}`;
+    try {
+      if (navigator.share) await navigator.share({ url });
+      else await navigator.clipboard.writeText(url);
       setCopiedId(articleId);
       setTimeout(() => setCopiedId(null), 2000);
+    } catch (error) {
+      if (!(error instanceof DOMException && error.name === 'AbortError')) setActionError('Could not share this story. Please copy its link from the reader.');
     }
+  };
+  const handleReblog = (article: FeedArticleItem) => {
+    const authorId = keyUser?.id || user?.id;
+    if (!authorId) { setAuthMode('login'); setAuthModalOpen(true); return; }
+    if (readArticleDraft()) { setActionError('You have an unfinished draft. Save or publish it in the editor before starting a reblog.'); return; }
+    const url = `${window.location.origin}/read?slug=${encodeURIComponent(article.slug)}`;
+    const error = saveArticleDraft({ title: `Re: ${article.title}`, tags: (article.tags || []).join(', '), coverImageUrl: '', excerpt: '', content: `Originally published by @${article.author.handle}:\n\n${url}\n\nMy thoughts:\n`, updatedAt: new Date().toISOString(), postId: null, slug: null, authorId });
+    if (error) { setActionError(error); return; }
+    window.location.href = '/editor';
   };
 
   const totalUserUpvotes = useMemo(
@@ -324,7 +331,8 @@ export const SpatialFeedV4: React.FC = () => {
   );
 
   return (
-    <div className="w-full max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-6">
+    <div className="pn-mobile-feed w-full max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      {actionError && <p role="alert" className="text-sm text-red-700 p-3 rounded-xl bg-red-50">{actionError}</p>}
       {voteError && <p role="alert" className="text-sm text-red-700 p-3 rounded-xl bg-red-50">{voteError}</p>}
       {/* Main 3-Column Steemit-Inspired Publishing Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
@@ -391,15 +399,7 @@ export const SpatialFeedV4: React.FC = () => {
               <h4 className="pn-label">Trending Topics</h4>
             </div>
             <div className="flex flex-wrap gap-1.5">
-              {[
-                'Web3Publishing',
-                'Reputation',
-                'Curation',
-                'ProtocolDesign',
-                'ZeroKnowledge',
-                'Longform',
-                'CalmTech',
-              ].map(tag => (
+              {trendingTags.map(tag => (
                 <a
                   key={tag}
                   href={`/explore?tag=${encodeURIComponent(tag.toLowerCase())}`}
@@ -415,30 +415,14 @@ export const SpatialFeedV4: React.FC = () => {
 
         {/* ─── CENTER COLUMN: Editorial Feed (6 cols) ─────────────────────── */}
         <main className="col-span-1 lg:col-span-6 min-w-0 space-y-4">
-          {/* Horizontal Category Tabs */}
-                    {/* Mobile Featured Hero Card (Matches Reference Image 1) */}
-          <div className="relative rounded-2xl overflow-hidden bg-gradient-to-r from-[#06182C] via-[#0A2540] to-[#12345A] p-5 text-white border border-[#00E5F4]/20 shadow-md sm:hidden">
-            <div className="relative z-10 max-w-[210px] space-y-1.5">
-              <span className="font-serif italic text-2xl font-bold leading-tight block text-white">
-                Ideas<br />Write<br />Grow
-              </span>
-              <p className="text-[11px] text-[#A6FAFF] leading-snug">
-                A fairer internet for independent creators.
-              </p>
-              <div className="pt-1">
-                <a href="/editor" className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#00E5F4] text-[#0A2540] text-xs font-bold shadow-sm">
-                  <span>Start Writing</span>
-                  <ArrowRight className="h-3 w-3" />
-                </a>
-              </div>
-            </div>
-            <div className="absolute right-0 top-0 bottom-0 w-36 opacity-35 pointer-events-none">
-              <img src="/brand/penora-celestial-cover-default.jpg" alt="Atmosphere" className="w-full h-full object-cover" />
-            </div>
-          </div>
+          <form className="pn-mobile-feed-search md:hidden" action="/explore" role="search">
+            <Search size={19} aria-hidden="true" />
+            <input type="search" name="q" aria-label="Search blogs, creators, topics" placeholder="Search blogs, creators, topics…" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
+            <button type="submit" aria-label="Submit search"><ArrowRight size={18} /></button>
+          </form>
 
           {/* Section Header: Recommended for you */}
-          <div className="flex items-center justify-between pt-1">
+          <div className="hidden md:flex items-center justify-between pt-1">
             <h3 className="font-serif font-bold text-sm sm:text-base text-[#0A2540]">
               Recommended for you
             </h3>
@@ -458,8 +442,10 @@ export const SpatialFeedV4: React.FC = () => {
                   setActiveNav('Home');
                   setActiveCategory(cat);
                 }}
-                className="pn-tab"
+                className={`pn-tab ${['For You', 'Following', 'Hot', 'New'].includes(cat) ? 'pn-primary-tab' : 'pn-topic-tab'}`}
               >
+                {cat === 'Hot' && <Flame size={15} aria-hidden="true" />}
+                {cat === 'New' && <Sparkles size={15} aria-hidden="true" />}
                 {cat}
               </button>
             ))}
@@ -504,13 +490,23 @@ export const SpatialFeedV4: React.FC = () => {
                 return (
                   <article
                     key={article.id}
-                    className="pn-card pn-card-interactive p-5 sm:p-6 group"
+                    className="pn-feed-article pn-card pn-card-interactive p-5 sm:p-6 group"
                   >
-                    <div className="flex flex-col-reverse sm:flex-row gap-4 sm:gap-5 items-stretch sm:items-start">
+                    <div className="pn-mobile-author md:hidden">
+                      <a href={`/profile/${article.author.handle}`} className="pn-mobile-author-link">
+                        <img src={article.author.avatar} alt="" className="pn-avatar" loading="lazy" />
+                        <div className="min-w-0">
+                          <div className="pn-mobile-author-name"><span>{article.author.name}</span><span className="pn-mobile-reputation">Rep {article.author.reputation ?? '—'}</span></div>
+                          <p>in {article.category} · {article.readTime} · {article.publishedAgo}</p>
+                        </div>
+                      </a>
+                      <button type="button" className="pn-feed-follow pn-btn pn-btn-secondary pn-btn-sm" onClick={() => handleFollow(article.author.handle, article.author.id)}>{followedMap[article.author.handle] ? 'Following' : 'Follow'}</button>
+                    </div>
+                    <div className="pn-feed-article-body flex flex-col-reverse sm:flex-row gap-4 sm:gap-5 items-stretch sm:items-start">
                       {/* Left: Article Content */}
-                      <div className="flex-1 min-w-0 flex flex-col justify-between">
+                      <div className="pn-feed-article-text flex-1 min-w-0 flex flex-col justify-between">
                         {/* Meta Row */}
-                        <div className="flex items-center gap-2 mb-2.5 flex-wrap">
+                        <div className="pn-feed-meta flex items-center gap-2 mb-2.5 flex-wrap">
                           <span className="pn-tag">{article.category}</span>
                           <span className="pn-meta">{article.readTime}</span>
                           <span className="pn-meta">· {article.publishedAgo}</span>
@@ -518,8 +514,8 @@ export const SpatialFeedV4: React.FC = () => {
 
                         {/* Title */}
                         <a
-                          href={`/story/${article.slug}`}
-                          className="block group-hover:text-[#007C8B] transition-colors"
+                          href={`/read?slug=${encodeURIComponent(article.slug)}`}
+                          className="pn-feed-title block group-hover:text-[#007C8B] transition-colors"
                         >
                           <h2 className="pn-h2 mb-2 group-hover:text-[#007C8B] transition-colors">
                             {article.title}
@@ -527,16 +523,19 @@ export const SpatialFeedV4: React.FC = () => {
                         </a>
 
                         {/* Excerpt */}
-                        <p className="text-[13.5px] text-[#4A5B70] leading-relaxed line-clamp-2 mb-4">
+                        <p className="pn-feed-excerpt text-[13.5px] text-[#4A5B70] leading-relaxed line-clamp-2 mb-4">
                           {article.excerpt}
                         </p>
 
+                        <div className="pn-mobile-tags md:hidden">
+                          {(article.tags?.length ? article.tags : [article.category]).slice(0, 4).map(tag => <a key={tag} href={`/explore?tag=${encodeURIComponent(tag)}`}>#{tag}</a>)}
+                        </div>
                         {/* Author + Engagement Bar */}
-                        <div className="flex items-center justify-between gap-2 pt-3.5 border-t border-[#0A2540]/8 flex-wrap">
+                        <div className="pn-feed-footer flex items-center justify-between gap-2 pt-3.5 border-t border-[#0A2540]/8 flex-wrap">
                           {/* Author */}
                           <a
                             href={`/profile/${article.author.handle}`}
-                            className="flex items-center gap-2.5 group/author min-w-0"
+                            className="pn-feed-desktop-author flex items-center gap-2.5 group/author min-w-0"
                           >
                             <img
                               src={article.author.avatar}
@@ -561,8 +560,9 @@ export const SpatialFeedV4: React.FC = () => {
                             </div>
                           </a>
 
+
                           {/* Social Curation Actions: Upvote ▲ / Downvote ▼ + Comments + Bookmark + Share */}
-                          <div className="flex items-center gap-1 sm:gap-1.5 flex-shrink-0">
+                          <div className="pn-feed-actions flex items-center gap-1 sm:gap-1.5 flex-shrink-0">
                             <div className="pn-vote-group" role="group" aria-label="Article voting">
                               {/* Upvote ▲ */}
                               <button
@@ -606,7 +606,7 @@ export const SpatialFeedV4: React.FC = () => {
 
                             {/* Comments */}
                             <a
-                              href={`/story/${article.slug}#comments`}
+                              href={`/read?slug=${encodeURIComponent(article.slug)}#comments`}
                               className="pn-icon-btn"
                               title="Read responses"
                             >
@@ -614,6 +614,7 @@ export const SpatialFeedV4: React.FC = () => {
                               <span>{commentsCount}</span>
                             </a>
 
+                            <button type="button" onClick={() => handleReblog(article)} className="pn-icon-btn" title="Reblog with your thoughts" aria-label="Reblog with your thoughts"><Repeat2 className="h-3.5 w-3.5" /></button>
                             {/* Bookmark */}
                             <button
                               type="button"
@@ -645,8 +646,8 @@ export const SpatialFeedV4: React.FC = () => {
 
                       {/* Right: Cover Image */}
                       <a
-                        href={`/story/${article.slug}`}
-                        className="w-full sm:w-44 h-44 sm:h-36 rounded-xl sm:rounded-2xl overflow-hidden flex-shrink-0 border border-[#0A2540]/8 relative block"
+                        href={`/read?slug=${encodeURIComponent(article.slug)}`}
+                        className="pn-feed-cover w-full sm:w-44 h-44 sm:h-36 rounded-xl sm:rounded-2xl overflow-hidden flex-shrink-0 border border-[#0A2540]/8 relative block"
                       >
                         <img
                           src={article.thumbnail}
@@ -667,7 +668,7 @@ export const SpatialFeedV4: React.FC = () => {
               <div className="flex items-center gap-2.5">
                 <ShieldCheck className="h-4 w-4 text-[#007C8B] flex-shrink-0" />
                 <span>
-                  Showing curated editorial blogs. Remote Supabase tables are staged and ready for owner migration approval.
+                  The feed is temporarily unavailable. Please try again shortly.
                 </span>
               </div>
             </div>
@@ -733,7 +734,7 @@ export const SpatialFeedV4: React.FC = () => {
                   <div className="text-[11px] text-[#007C8B] font-medium flex items-center gap-1">
                     <span className="pn-status-dot" />
                     <span>
-                      {keyUser ? `${keyUser.keyRole.toUpperCase()} KEY · Rep 25` : 'Reputation: 25 (Active)'}
+                      {keyUser ? `${keyUser.keyRole.toUpperCase()} KEY · Rep ${profile?.reputation ?? '—'}` : `Reputation: ${profile?.reputation ?? '—'}`}
                     </span>
                   </div>
                 </div>
@@ -768,26 +769,7 @@ export const SpatialFeedV4: React.FC = () => {
               </a>
             </div>
             <div className="space-y-3">
-              {[
-                {
-                  name: 'Elena Park',
-                  handle: 'erostova',
-                  rep: 94,
-                  avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=160&q=80',
-                },
-                {
-                  name: 'Daniel Kim',
-                  handle: 'marcus_chen',
-                  rep: 88,
-                  avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=160&q=80',
-                },
-                {
-                  name: 'Sarah Jenkins',
-                  handle: 's_ross',
-                  rep: 91,
-                  avatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=160&q=80',
-                },
-              ].map(creator => {
+              {suggestedCreators.map(creator => {
                 const isFollowed = followedMap[creator.handle];
                 return (
                   <div key={creator.handle} className="flex items-center justify-between gap-2.5">
@@ -805,13 +787,13 @@ export const SpatialFeedV4: React.FC = () => {
                           {creator.name}
                         </div>
                         <div className="text-[11px] text-[#6E7D90] truncate">
-                          @{creator.handle} · <span className="text-[#007C8B] font-medium">Rep {creator.rep}</span>
+                          @{creator.handle} · <span className="text-[#007C8B] font-medium">Rep {creator.reputation ?? '—'}</span>
                         </div>
                       </div>
                     </a>
                     <button
                       type="button"
-                      onClick={() => handleFollow(creator.handle)}
+                      onClick={() => handleFollow(creator.handle, creator.id)}
                       className={`pn-btn pn-btn-sm ${
                         isFollowed ? 'pn-btn-subtle' : 'pn-btn-secondary'
                       }`}
@@ -824,35 +806,24 @@ export const SpatialFeedV4: React.FC = () => {
             </div>
           </div>
 
+          <section className="pn-panel p-4 space-y-3" aria-label="Writing prompts">
+            <div className="flex items-center justify-between"><h4 className="pn-label">Writing Challenges</h4><a href="/editor" className="text-[11px] text-[#007C8B]">Write now</a></div>
+            <a href="/editor" className="block rounded-2xl p-3 bg-gradient-to-r from-[#effcff] to-white border border-[#c9eff5]">
+              <span className="text-[10px] tracking-wide uppercase text-[#008fa7]">Writing inspiration</span>
+              <h3 className="text-sm font-bold text-[#0A2540] mt-1">A More Open Internet</h3>
+              <p className="text-xs leading-relaxed text-[#62788f] mt-1">Share your vision for a kinder, more open internet.</p>
+            </a>
+          </section>
           {/* Active Communities */}
           <div className="pn-panel p-4">
             <div className="flex items-center justify-between mb-3.5">
-              <h4 className="pn-label">Active Communities</h4>
+              <h4 className="pn-label">Community Spotlight</h4>
               <a href="/communities" className="text-[11px] font-semibold text-[#007C8B] hover:underline">
                 Directory
               </a>
             </div>
             <div className="space-y-3">
-              {[
-                {
-                  id: 'spatial-design',
-                  name: 'Protocol & UX Design',
-                  members: 2450,
-                  avatar: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=120&q=80',
-                },
-                {
-                  id: 'longform-blogs',
-                  name: 'Longform & Solitude',
-                  members: 1820,
-                  avatar: 'https://images.unsplash.com/photo-1457369804613-52c61a468e7d?auto=format&fit=crop&w=120&q=80',
-                },
-                {
-                  id: 'sustainable-tech',
-                  name: 'Calm Web3 Systems',
-                  members: 3100,
-                  avatar: 'https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=120&q=80',
-                },
-              ].map(comm => {
+              {communities.map(comm => {
                 const isJoined = joinedCommunities[comm.id];
                 return (
                   <div key={comm.id} className="flex items-center justify-between gap-2.5">
@@ -861,7 +832,7 @@ export const SpatialFeedV4: React.FC = () => {
                       className="flex items-center gap-2.5 min-w-0 group"
                     >
                       <img
-                        src={comm.avatar}
+                        src={comm.avatar_url || '/favicon.svg'}
                         alt={comm.name}
                         className="h-8 w-8 rounded-xl object-cover border border-[#0A2540]/10 flex-shrink-0"
                       />
@@ -870,19 +841,13 @@ export const SpatialFeedV4: React.FC = () => {
                           {comm.name}
                         </div>
                         <div className="text-[11px] text-[#6E7D90]">
-                          {comm.members.toLocaleString()} members
+                          {(comm.community_memberships?.[0]?.count ?? 0).toLocaleString()} members
                         </div>
                       </div>
                     </a>
                     <button
                       type="button"
-                      onClick={() => {
-                        setJoinedCommunities(prev => ({ ...prev, [comm.id]: !isJoined }));
-                        if (user) {
-                          if (isJoined) leaveCommunity(user.id, comm.id);
-                          else joinCommunity(user.id, comm.id);
-                        }
-                      }}
+                      onClick={() => handleCommunity(comm.id)}
                       className={`pn-btn pn-btn-sm ${
                         isJoined ? 'pn-btn-subtle' : 'pn-btn-primary'
                       }`}

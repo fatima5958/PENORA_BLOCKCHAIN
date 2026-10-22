@@ -273,7 +273,7 @@ export const Header: React.FC<HeaderProps> = ({ currentPath = '/' }) => {
 
   return (
     <>
-      <header className="pn-header sticky top-0 z-40">
+      <header className={`pn-header sticky top-0 z-40 ${(currentPath === '/' || currentPath === '/feed') ? 'pn-feed-header' : ''}`}>
         <div className="max-w-[1400px] mx-auto px-3 sm:px-6 lg:px-8 h-full flex items-center justify-between gap-2 sm:gap-4">
           {/* Left: Mobile Drawer Button + Official PENORA Horizontal Logo Lockup */}
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
