@@ -82,6 +82,8 @@ export const CreatorProfileV7: React.FC<CreatorProfileV7Props> = ({
 
   // Follow states
   const [isFollowing, setIsFollowing] = useState(false);
+  const [followBusy, setFollowBusy] = useState(false);
+  const [followError, setFollowError] = useState<string | null>(null);
   const [followersCount, setFollowersCount] = useState(0);
   const [followingCount, setFollowingCount] = useState(0);
 
@@ -324,15 +326,20 @@ export const CreatorProfileV7: React.FC<CreatorProfileV7Props> = ({
       return;
     }
 
-    const nextState = !isFollowing;
-    setIsFollowing(nextState);
-    setFollowersCount(prev => (nextState ? prev + 1 : Math.max(0, prev - 1)));
-
-    if (nextState) {
-      await followUser(activeUserId, creatorProfile.id || creatorProfile.handle);
-    } else {
-      await unfollowUser(activeUserId, creatorProfile.id || creatorProfile.handle);
-    }
+    if (followBusy || !creatorProfile.id || activeUserId === creatorProfile.id) return;
+    setFollowBusy(true);
+    setFollowError(null);
+    try {
+      const result = isFollowing
+        ? await unfollowUser(activeUserId, creatorProfile.id)
+        : await followUser(activeUserId, creatorProfile.id);
+      if (result.error) { setFollowError(result.error); return; }
+      setIsFollowing(result.isFollowing);
+      const counts = await getFollowCounts(creatorProfile.id);
+      setFollowersCount(counts.followers);
+    } catch {
+      setFollowError('Could not update follow. Please try again.');
+    } finally { setFollowBusy(false); }
   };
 
   // Handle upvote / downvote on published blogs with strict vote-switching
@@ -357,10 +364,7 @@ export const CreatorProfileV7: React.FC<CreatorProfileV7Props> = ({
   const displayArticles = creatorPosts;
   const activeUsername = (keyUser?.username || user?.email?.split('@')[0] || '').toLowerCase();
   const activeUserId = keyUser?.id || user?.id;
-  const isOwner = isOwnerView || Boolean(
-    (activeUsername && activeUsername === author.handle.toLowerCase()) ||
-    (activeUserId && activeUserId === author.id)
-  );
+  const isOwner = Boolean(activeUserId && activeUserId === author.id);
 
   const interestTags = author.interests && author.interests.length > 0
     ? author.interests
@@ -379,6 +383,7 @@ export const CreatorProfileV7: React.FC<CreatorProfileV7Props> = ({
 
   return (
     <div className="pn-creator-profile min-h-screen bg-[#EDF6F9] text-[#0A2540] relative overflow-hidden font-sans selection:bg-[#00E5F4]/30">
+      {followError && <p role="alert" className="text-sm text-red-700 p-3 rounded-xl bg-red-50">{followError}</p>}
       {voteError && <p role="alert" className="text-sm text-red-700 p-3 rounded-xl bg-red-50">{voteError}</p>}
       
       {/* Background Soft Celestial Atmosphere Elements */}
@@ -607,6 +612,7 @@ export const CreatorProfileV7: React.FC<CreatorProfileV7Props> = ({
                   <button
                     type="button"
                     onClick={handleFollowToggle}
+                    disabled={followBusy}
                     className={`px-6 py-2 rounded-full text-xs font-semibold transition-all ${
                       isFollowing
                         ? 'bg-[#E5F7F8] text-[#007C8B] border border-[#007C8B]/30'
@@ -1216,7 +1222,7 @@ export const CreatorProfileV7: React.FC<CreatorProfileV7Props> = ({
       `}</style>
       {/* Edit Profile Modal V5 */}
       <EditProfileModalV5
-        isOpen={editModalOpen}
+        isOpen={editModalOpen && isOwner}
         onClose={() => setEditModalOpen(false)}
         profileId={author.id || activeUserId || ''}
         initialDisplayName={author.name}

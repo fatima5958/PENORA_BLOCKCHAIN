@@ -79,7 +79,7 @@ const currentPath = Astro.url.pathname;
     <!-- Mobile Bottom Navigation Bar (<768px) -->
     <MobileBottomNav client:load currentPath={currentPath} />
 
-    <Footer client:idle />
+    {!['/', '/feed', '/feed/'].includes(currentPath) && <Footer client:idle />}
 
     <!-- Service Worker Registration -->
     <script is:inline>

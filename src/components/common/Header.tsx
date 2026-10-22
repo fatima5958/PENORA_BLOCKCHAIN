@@ -23,7 +23,7 @@ import {
   ArrowLeftRight,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
-import { getProfileById } from '../../lib/api/profiles';
+import { useLiveProfile } from '../../lib/hooks/useLiveProfile';
 import type { ProfileRecord } from '../../lib/api/types';
 import { SpatialAuthModalV4 } from '../design-v4/SpatialAuthModalV4';
 import { PenoraLogo } from '../brand/PenoraLogo';
@@ -50,7 +50,7 @@ function getInitials(nameOrEmail: string): string {
 export const Header: React.FC<HeaderProps> = ({ currentPath = '/' }) => {
   const [user, setUser] = useState<SupabaseUser | null>(null);
   const [keyUser, setKeyUser] = useState<PenoraUser | null>(null);
-  const [profile, setProfile] = useState<ProfileRecord | null>(null);
+  const profile = useLiveProfile(keyUser?.id || user?.id);
   const [avatarImageError, setAvatarImageError] = useState(false);
   const [authLoading, setAuthLoading] = useState(true);
   const [authModalOpen, setAuthModalOpen] = useState(false);
@@ -126,71 +126,7 @@ export const Header: React.FC<HeaderProps> = ({ currentPath = '/' }) => {
     };
   }, []);
 
-  // Fetch real authenticated creator profile from Supabase
-  useEffect(() => {
-    let mounted = true;
-
-    async function fetchUserProfile() {
-      setProfile(null);
-      setAvatarImageError(false);
-      const activeId = keyUser?.id || user?.id;
-      if (!activeId) {
-        setProfile(null);
-        return;
-      }
-
-      try {
-        const res = await getProfileById(activeId);
-        if (mounted && res.data) {
-          setProfile(res.data);
-          setAvatarImageError(false);
-        }
-      } catch {
-        // Fallback gracefully to initials
-      }
-    }
-
-    if (keyUser || user) {
-      fetchUserProfile();
-    } else {
-      setProfile(null);
-    }
-
-    return () => {
-      mounted = false;
-    };
-  }, [keyUser?.id, user?.id]);
-
-  // Listen for immediate profile and avatar changes across components
-  useEffect(() => {
-    const handleProfileUpdate = (e: Event) => {
-      const ce = e as CustomEvent<{
-        avatar_url?: string;
-        display_name?: string;
-        username?: string;
-      }>;
-      if (ce.detail) {
-        setProfile(prev => ({
-          ...(prev || {
-            id: keyUser?.id || user?.id || '',
-            username: ce.detail.username || user?.email?.split('@')[0] || 'creator',
-            display_name: ce.detail.display_name || user?.email?.split('@')[0] || 'creator',
-            reputation: 0,
-            created_at: new Date().toISOString(),
-          }),
-          ...(ce.detail.avatar_url !== undefined && { avatar_url: ce.detail.avatar_url }),
-          ...(ce.detail.display_name && { display_name: ce.detail.display_name }),
-          ...(ce.detail.username && { username: ce.detail.username }),
-        }));
-        setAvatarImageError(false);
-      }
-    };
-
-    window.addEventListener('penora:profile-updated', handleProfileUpdate);
-    return () => {
-      window.removeEventListener('penora:profile-updated', handleProfileUpdate);
-    };
-  }, [keyUser?.id, user?.id]);
+  useEffect(() => setAvatarImageError(false), [profile?.avatar_url, keyUser?.id, user?.id]);
 
   const activeUser = keyUser || user;
 

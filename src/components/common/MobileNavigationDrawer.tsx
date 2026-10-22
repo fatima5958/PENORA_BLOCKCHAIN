@@ -64,10 +64,10 @@ export const MobileNavigationDrawer: React.FC<MobileNavigationDrawerProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [avatarImageError, setAvatarImageError] = useState(false);
   const [stats, setStats] = useState({
-    followers: 128,
-    following: 86,
-    blogs: 12,
-    reputation: 25,
+    followers: 0,
+    following: 0,
+    blogs: 0,
+    reputation: 0,
   });
 
   const activeUser = keyUser || user;
@@ -78,7 +78,7 @@ export const MobileNavigationDrawer: React.FC<MobileNavigationDrawerProps> = ({
     keyUser?.username ||
     (user?.user_metadata?.username as string | undefined) ||
     user?.email?.split('@')[0] ||
-    'fatima_test';
+    'creator';
 
   const displayName =
     profile?.display_name ||
@@ -93,7 +93,7 @@ export const MobileNavigationDrawer: React.FC<MobileNavigationDrawerProps> = ({
 
   const bioTagline =
     profile?.bio ||
-    'Write • Tech • Faith • Soft Living ✧';
+    '';
 
   // Fetch real creator stats when opened
   useEffect(() => {
@@ -113,7 +113,7 @@ export const MobileNavigationDrawer: React.FC<MobileNavigationDrawerProps> = ({
             followers: followData.followers,
             following: followData.following,
             blogs: publishedCount,
-            reputation: profile?.reputation ?? 25,
+            reputation: profile?.reputation ?? 0,
           });
         }
       } catch {

@@ -38,7 +38,7 @@ import { getCommunities, isCommunityMember, joinCommunity, leaveCommunity } from
 import { SpatialAuthModalV4 } from '../design-v4/SpatialAuthModalV4';
 import { PenoraEmblem, PenoraLogo } from '../brand/PenoraLogo';
 import { penoraKeyAuth, type PenoraUser } from '../../lib/auth/penoraKeyAuth';
-import { getProfileById } from '../../lib/api/profiles';
+import { useLiveProfile } from '../../lib/hooks/useLiveProfile';
 import { getUserBookmarks } from '../../lib/api/bookmarks';
 import { isFollowing } from '../../lib/api/follows';
 import type { ProfileRecord, CommunityRecord } from '../../lib/api/types';
@@ -98,7 +98,9 @@ export const SpatialFeedV4: React.FC = () => {
   const [followedMap, setFollowedMap] = useState<Record<string, boolean>>({});
   const [joinedCommunities, setJoinedCommunities] = useState<Record<string, boolean>>({});
   const [communities, setCommunities] = useState<CommunityRecord[]>([]);
-  const [profile, setProfile] = useState<ProfileRecord | null>(null);
+  const profile = useLiveProfile(keyUser?.id || user?.id);
+  const [ownAvatarFailed, setOwnAvatarFailed] = useState(false);
+  useEffect(() => setOwnAvatarFailed(false), [profile?.avatar_url]);
   const [actionError, setActionError] = useState<string | null>(null);
 
   // Auth modal
@@ -204,12 +206,12 @@ export const SpatialFeedV4: React.FC = () => {
   useEffect(() => {
     let active = true;
     const id = keyUser?.id || user?.id;
-    setBookmarkedMap({}); setFollowedMap({}); setProfile(null);
+    setBookmarkedMap({}); setFollowedMap({});
     if (!id) return;
-    Promise.all([getUserBookmarks(id), getProfileById(id), Promise.all(articles.map(async a => [a.author.handle, await isFollowing(id, a.author.id || a.author.handle)] as const))]).then(([saved, own, follows]) => {
+    Promise.all([getUserBookmarks(id), Promise.all(articles.map(async a => [a.author.handle, await isFollowing(id, a.author.id || a.author.handle)] as const))]).then(([saved, follows]) => {
       if (!active) return;
       setBookmarkedMap(Object.fromEntries(saved.data.map(b => [b.post_id, true])));
-      setProfile(own.data); setFollowedMap(Object.fromEntries(follows));
+      setFollowedMap(Object.fromEntries(follows));
     });
     return () => { active = false; };
   }, [keyUser?.id, user?.id, articles]);
@@ -724,9 +726,11 @@ export const SpatialFeedV4: React.FC = () => {
           ) : (
             <div className="pn-card p-5 space-y-3.5">
               <div className="flex items-center gap-3">
-                <div className="pn-avatar-initials h-10 w-10 text-sm">
-                  {(keyUser?.username || user?.email || 'CR').slice(0, 2).toUpperCase()}
-                </div>
+                {profile?.avatar_url && !profile.avatar_url.includes('/brand/penora-avatar-') && !ownAvatarFailed ? (
+                  <img src={profile.avatar_url} alt={profile.display_name || profile.username} className="pn-avatar h-10 w-10 object-cover" onError={() => setOwnAvatarFailed(true)} />
+                ) : (
+                  <span role="img" aria-label="No profile photo uploaded" className="pn-avatar-initials h-10 w-10 text-sm"><UserIcon className="h-5 w-5" aria-hidden="true" /></span>
+                )}
                 <div className="min-w-0 flex-1">
                   <div className="font-semibold text-xs text-[#0A2540] truncate">
                     @{keyUser?.username || user?.email?.split('@')[0]}

@@ -1,5 +1,12 @@
 {
   "rewrites": [
-    { "source": "/story/:slug", "destination": "/read?slug=:slug" }
+    {
+      "source": "/profile/:handle((?!me(?:/|$))[^/]+)",
+      "destination": "/creator?handle=:handle"
+    },
+    {
+      "source": "/story/:slug",
+      "destination": "/read?slug=:slug"
+    }
   ]
 }
