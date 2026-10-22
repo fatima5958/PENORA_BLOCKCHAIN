@@ -1,0 +1,96 @@
+<dialog id="penora-install-dialog" aria-labelledby="penora-install-title" class="penora-install-dialog">
+  <form method="dialog">
+    <button class="install-close" aria-label="Close install invitation">×</button>
+  </form>
+  <img src="/icons/penora-192.png" alt="" width="64" height="64" />
+  <p class="install-eyebrow">TAKE PENORA WITH YOU</p>
+  <h2 id="penora-install-title">Your space. One tap away.</h2>
+  <p>Add PENORA to your home screen and open your blogs, communities and wallet like an app.</p>
+  <button id="penora-install-action" class="install-primary" type="button">Install PENORA</button>
+  <p id="penora-install-status" role="status" aria-live="polite"></p>
+  <div id="penora-install-help" hidden>
+    <p id="penora-install-instructions"></p>
+    <a href="/install/">View installation guide</a>
+  </div>
+  <form method="dialog"><button class="install-later">Maybe later</button></form>
+</dialog>
+
+<style>
+  .penora-install-dialog { width: min(420px, calc(100% - 32px)); max-height: calc(100dvh - 48px); overflow: auto; padding: 32px 24px 20px; border: 1px solid #c8e6e9; border-radius: 24px; background: #fff; color: #0a2540; box-shadow: 0 24px 100px #06182c40; text-align: center; }
+  .penora-install-dialog::backdrop { background: #06182ca6; backdrop-filter: blur(6px); }
+  .penora-install-dialog img { margin: 0 auto 16px; border-radius: 16px; }
+  .penora-install-dialog h2 { font-size: 24px; font-weight: 700; line-height: 1.25; margin: 10px 0 12px; }
+  .penora-install-dialog p { font-size: 14px; line-height: 1.6; color: #52677d; margin: 10px 0; }
+  .penora-install-dialog .install-eyebrow { font-size: 10px; letter-spacing: .15em; color: #007c8b; font-weight: 700; }
+  .install-close { position: absolute; top: 10px; right: 12px; width: 40px; height: 40px; font-size: 26px; border-radius: 50%; }
+  .install-primary { width: 100%; margin-top: 18px; padding: 14px 20px; background: #007c8b; color: #fff; border-radius: 14px; font-weight: 700; }
+  .install-primary:disabled { opacity: .65; }
+  .install-later { padding: 12px; color: #52677d; font-size: 14px; }
+  #penora-install-help { padding: 12px; border-radius: 14px; background: #edf6f9; }
+  #penora-install-help a { color: #007c8b; text-decoration: underline; font-size: 14px; }
+  .penora-install-dialog button:focus-visible, .penora-install-dialog a:focus-visible { outline: 2px solid #007c8b; outline-offset: 3px; }
+</style>
+
+<script>
+  interface InstallEvent extends Event {
+    prompt(): Promise<void>;
+    userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
+  }
+  const dialog = document.querySelector<HTMLDialogElement>('#penora-install-dialog');
+  const action = document.querySelector<HTMLButtonElement>('#penora-install-action');
+  const status = document.querySelector<HTMLElement>('#penora-install-status');
+  const help = document.querySelector<HTMLElement>('#penora-install-help');
+  const instructions = document.querySelector<HTMLElement>('#penora-install-instructions');
+  let deferred: InstallEvent | null = null;
+  const standalone = window.matchMedia('(display-mode: standalone)');
+  const isInstalled = () => standalone.matches || Boolean((navigator as Navigator & { standalone?: boolean }).standalone);
+  const isInstallPage = location.pathname.replace(/\/$/, '') === '/install';
+  const mobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const wasDismissed = () => { try { return sessionStorage.getItem('penora_install_dismissed') === '1'; } catch { return false; } };
+  const show = () => { if (!isInstalled() && dialog && !dialog.open) dialog.showModal(); };
+  const markInstalled = () => {
+    deferred = null;
+    dialog?.close();
+    document.querySelectorAll<HTMLButtonElement>('[data-penora-install]').forEach(button => {
+      button.textContent = 'PENORA is installed';
+      button.disabled = true;
+    });
+  };
+  dialog?.addEventListener('close', () => { try { sessionStorage.setItem('penora_install_dismissed', '1'); } catch {} });
+  window.addEventListener('beforeinstallprompt', event => {
+    event.preventDefault();
+    deferred = event as InstallEvent;
+    if (status) status.textContent = '';
+    if (help) help.hidden = true;
+    if ((mobile || isInstallPage) && !wasDismissed()) show();
+  });
+  window.addEventListener('appinstalled', markInstalled);
+  standalone.addEventListener('change', () => { if (isInstalled()) markInstalled(); });
+  document.querySelectorAll('[data-penora-install]').forEach(button => button.addEventListener('click', show));
+  action?.addEventListener('click', async () => {
+    if (isInstalled()) { markInstalled(); return; }
+    if (!deferred) {
+      if (help) help.hidden = false;
+      if (status) status.textContent = 'Use your browser’s installation option to continue.';
+      if (instructions) instructions.textContent = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+        ? 'In Safari, tap Share → Add to Home Screen → Add.'
+        : 'Open this link in Chrome, then tap ⋮ → Install and create shortcut → Install. Some versions show Add to Home screen instead.';
+      return;
+    }
+    const pending = deferred;
+    deferred = null;
+    action.disabled = true;
+    try {
+      await pending.prompt();
+      const choice = await pending.userChoice;
+      if (choice.outcome === 'accepted') {
+        if (status) status.textContent = 'Installation requested. Complete any browser instructions.';
+      } else if (status) status.textContent = 'Installation cancelled. You can continue using PENORA here.';
+    } catch {
+      if (status) status.textContent = 'The browser could not open installation. Use the installation guide below.';
+      if (help) help.hidden = false;
+    } finally { action.disabled = false; }
+  });
+  if (isInstalled()) markInstalled();
+  else if ((mobile || isInstallPage) && !wasDismissed()) show();
+</script>
