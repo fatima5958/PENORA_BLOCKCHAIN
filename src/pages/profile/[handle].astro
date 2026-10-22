@@ -1,7 +1,16 @@
 ---
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import { PublicCreatorProfile } from '../../components/profile/PublicCreatorProfile';
-export function getStaticPaths() { return []; }
+
+export function getStaticPaths() {
+  return [
+    { params: { handle: 'fatima_test' } },
+    { params: { handle: 'fatima' } },
+    { params: { handle: 'creator' } },
+    { params: { handle: 'mateen' } },
+    { params: { handle: 'penora' } },
+  ];
+}
 ---
 <BaseLayout title="Creator Profile — PENORA">
   <PublicCreatorProfile client:load />

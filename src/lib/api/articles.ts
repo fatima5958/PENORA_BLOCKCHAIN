@@ -172,3 +172,80 @@ export async function deletePost(id: string): Promise<{ success: boolean; error:
     return { success: false, error: err.message || 'Failed to delete post' };
   }
 }
+
+
+export async function getFollowingArticles(
+  followerId: string,
+  options?: { limit?: number; offset?: number }
+): Promise<ArticlesListResult> {
+  if (!followerId) return { data: [], error: null };
+
+  const followedIds: string[] = [];
+
+  // Local follows ledger
+  if (typeof window !== 'undefined' && window.localStorage) {
+    try {
+      const raw = window.localStorage.getItem('penora_follows_ledger_v1');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed[followerId])) {
+          followedIds.push(...parsed[followerId]);
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  // Remote follows from Supabase
+  if (isUuid(followerId)) {
+    try {
+      const { data } = await supabase
+        .from('follows')
+        .select('followee_id')
+        .eq('follower_id', followerId);
+      if (data) {
+        data.forEach((row: any) => {
+          if (row.followee_id && !followedIds.includes(row.followee_id)) {
+            followedIds.push(row.followee_id);
+          }
+        });
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  if (followedIds.length === 0) {
+    return { data: [], error: null };
+  }
+
+  const validUuidFollowees = followedIds.filter(isUuid);
+  if (validUuidFollowees.length === 0) {
+    return { data: [], error: null };
+  }
+
+  try {
+    let query = supabase
+      .from('posts')
+      .select('*, author:profiles!author_id(*)')
+      .eq('published', true)
+      .in('author_id', validUuidFollowees)
+      .order('created_at', { ascending: false });
+
+    if (options?.limit) {
+      query = query.limit(options.limit);
+    }
+    if (options?.offset) {
+      query = query.range(options.offset, options.offset + (options.limit || 20) - 1);
+    }
+
+    const { data, error } = await query;
+    if (error) {
+      return { data: [], error: error.message, isPendingMigration: checkIsPendingMigration(error) };
+    }
+    return { data: (data as PostRecord[]) || [], error: null };
+  } catch (err: any) {
+    return { data: [], error: err.message || 'Failed to fetch following feed' };
+  }
+}

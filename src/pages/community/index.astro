@@ -1,0 +1,11 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { CommunityDetailView } from '../../components/communities/CommunityDetailView';
+---
+
+<BaseLayout
+  title="Community Circle — PENORA"
+  description="Discover, participate in, and govern decentralized publishing circles on PENORA."
+>
+  <CommunityDetailView client:load />
+</BaseLayout>

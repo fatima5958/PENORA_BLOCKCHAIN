@@ -1,0 +1,11 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { CreatorAnalyticsView } from '../components/growth/CreatorAnalyticsView';
+---
+
+<BaseLayout
+  title="Creator Analytics & Streaks — PENORA"
+  description="Real readership metrics, discussion volume, and weekly publishing consistency across your PENORA stories."
+>
+  <CreatorAnalyticsView client:load />
+</BaseLayout>

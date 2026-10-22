@@ -1,0 +1,11 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { FollowingFeedView } from '../components/feed/FollowingFeedView';
+---
+
+<BaseLayout
+  title="Following Feed — PENORA"
+  description="Real-time stories, longform essays, and updates exclusively from creators you follow on PENORA."
+>
+  <FollowingFeedView client:load />
+</BaseLayout>

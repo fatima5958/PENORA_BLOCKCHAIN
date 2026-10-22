@@ -701,7 +701,7 @@ export const SpatialFeedV4: React.FC = () => {
           <div className="pn-panel p-4">
             <div className="flex items-center justify-between mb-3.5">
               <h4 className="pn-label">Suggested Creators</h4>
-              <a href="/explore" className="text-[11px] font-semibold text-[#007C8B] hover:underline">
+              <a href="/creators" className="text-[11px] font-semibold text-[#007C8B] hover:underline">
                 View all
               </a>
             </div>
@@ -744,8 +744,8 @@ export const SpatialFeedV4: React.FC = () => {
           </div>
 
           <section className="pn-panel p-4 space-y-3" aria-label="Writing prompts">
-            <div className="flex items-center justify-between"><h4 className="pn-label">Writing Challenges</h4><a href="/editor" className="text-[11px] text-[#007C8B]">Write now</a></div>
-            <a href="/editor" className="block rounded-2xl p-3 bg-gradient-to-r from-[#effcff] to-white border border-[#c9eff5]">
+            <div className="flex items-center justify-between"><h4 className="pn-label">Writing Challenges</h4><a href="/challenges" className="text-[11px] text-[#007C8B]">Explore all</a></div>
+            <a href="/challenges" className="block rounded-2xl p-3 bg-gradient-to-r from-[#effcff] to-white border border-[#c9eff5]">
               <span className="text-[10px] tracking-wide uppercase text-[#008fa7]">Writing inspiration</span>
               <h3 className="text-sm font-bold text-[#0A2540] mt-1">A More Open Internet</h3>
               <p className="text-xs leading-relaxed text-[#62788f] mt-1">Share your vision for a kinder, more open internet.</p>
@@ -765,7 +765,7 @@ export const SpatialFeedV4: React.FC = () => {
                 return (
                   <div key={comm.id} className="flex items-center justify-between gap-2.5">
                     <a
-                      href="/communities"
+                      href={comm.slug ? `/community/${comm.slug}` : '/communities'}
                       className="flex items-center gap-2.5 min-w-0 group"
                     >
                       <img

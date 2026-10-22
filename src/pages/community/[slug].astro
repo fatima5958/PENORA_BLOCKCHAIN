@@ -1,0 +1,18 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { CommunityDetailView } from '../../components/communities/CommunityDetailView';
+import { MOCK_COMMUNITIES } from '../../data/mockArticles';
+
+export function getStaticPaths() {
+  return MOCK_COMMUNITIES.map((c) => ({
+    params: { slug: c.slug },
+  }));
+}
+---
+
+<BaseLayout
+  title="Community Guild — PENORA Spatial Social Publishing"
+  description="Discover, participate in, and govern decentralized publishing guilds on PENORA."
+>
+  <CommunityDetailView client:load />
+</BaseLayout>

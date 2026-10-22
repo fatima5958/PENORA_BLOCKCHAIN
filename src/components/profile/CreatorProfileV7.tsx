@@ -12,9 +12,14 @@ import { getProfileById, getProfileByUsername } from '../../lib/api/profiles';
 import { getUserArticles } from '../../lib/api/articles';
 import { getUserBookmarks } from '../../lib/api/bookmarks';
 import { getUserComments } from '../../lib/api/comments';
+import { getUserReblogs } from '../../lib/api/reblogs';
+import { isCreatorMuted, muteCreator, unmuteCreator, blockCreator, submitReport } from '../../lib/api/moderation';
+
 import { getVotesForPost, type PostVoteStats } from '../../lib/api/votes';
 import { getArticleRewardState } from '../../lib/api/rewards';
 import { EditProfileModalV5 } from './EditProfileModalV5';
+import { CreatorReputationDashboard } from './CreatorReputationDashboard';
+import { computeCreatorLevel } from '../../lib/api/reputation';
 import { SpatialAuthModalV4 } from '../design-v4/SpatialAuthModalV4';
 import { PenoraEmblem, PenoraLogo } from '../brand/PenoraLogo';
 import type { PostRecord, ProfileRecord, CommentRecord } from '../../lib/api/types';
@@ -41,7 +46,16 @@ import {
   Lock,
   Share2,
   Crown,
+  Award,
   MoreHorizontal,
+  Repeat,
+  CornerDownRight,
+  VolumeX,
+  UserX,
+  Flag,
+  CheckCircle2,
+  Loader2,
+  MoreVertical,
   ArrowRight,
   Sparkles,
   ChevronRight,
@@ -79,7 +93,7 @@ export const CreatorProfileV7: React.FC<CreatorProfileV7Props> = ({
   const [editModalOpen, setEditModalOpen] = useState(false);
 
   // 6 profile tabs
-  const [activeTab, setActiveTab] = useState<'blogs' | 'replies' | 'media' | 'bookmarks' | 'communities' | 'about'>('blogs');
+  const [activeTab, setActiveTab] = useState<'blogs' | 'replies' | 'media' | 'bookmarks' | 'communities' | 'about' | 'reputation'>('blogs');
 
   // Follow states
   const [isFollowing, setIsFollowing] = useState(false);
@@ -127,6 +141,15 @@ export const CreatorProfileV7: React.FC<CreatorProfileV7Props> = ({
     }
   }, [initialAuthor]);
 
+  // Moderation state
+  const [isAuthorMuted, setIsAuthorMuted] = useState(false);
+  const [visitorMenuOpen, setVisitorMenuOpen] = useState(false);
+  const [reportModalOpen, setReportModalOpen] = useState(false);
+  const [reportReason, setReportReason] = useState('Spam');
+  const [reportDetails, setReportDetails] = useState('');
+  const [reportingBusy, setReportingBusy] = useState(false);
+  const [reportSubmitted, setReportSubmitted] = useState(false);
+
   // Secondary tab data
   const [creatorReplies, setCreatorReplies] = useState<CommentRecord[]>([]);
   const [loadingReplies, setLoadingReplies] = useState(false);
@@ -151,6 +174,12 @@ export const CreatorProfileV7: React.FC<CreatorProfileV7Props> = ({
       const params = new URLSearchParams(window.location.search);
       if (params.get('edit') === 'true') {
         setEditModalOpen(true);
+      }
+      const tabParam = params.get('tab');
+      if (tabParam === 'bookmarks' || tabParam === 'replies' || tabParam === 'about' || tabParam === 'communities' || tabParam === 'reputation') {
+        setActiveTab(tabParam as any);
+      } else if (tabParam === 'posts' || tabParam === 'blogs') {
+        setActiveTab('blogs');
       }
     }
 
@@ -205,7 +234,10 @@ export const CreatorProfileV7: React.FC<CreatorProfileV7Props> = ({
           }
 
           // Real published posts
-          const postsRes = await getUserArticles(p.id);
+          const [postsRes, reblogsRes] = await Promise.all([
+            getUserArticles(p.id),
+            getUserReblogs(p.id)
+          ]);
           if (mounted) {
             if (postsRes.data && postsRes.data.length > 0) {
               const mapped: Article[] = postsRes.data
@@ -240,7 +272,38 @@ export const CreatorProfileV7: React.FC<CreatorProfileV7Props> = ({
                     reputationPoints: p.reputation ?? 0,
                   },
                 }));
-              setCreatorPosts(mapped);
+              const rebloggedMapped: (Article & { isReblog?: boolean; rebloggedBy?: string })[] = (reblogsRes.data || []).map(r => ({
+                id: r.post.id,
+                slug: r.post.slug,
+                title: r.post.title,
+                subtitle: '',
+                excerpt: r.post.excerpt || (r.post.content ? r.post.content.slice(0, 160) + '...' : ''),
+                content: [r.post.content],
+                coverImage: r.post.cover_image_url || '/brand/article-thumb-build.jpg',
+                coverImageAlt: r.post.title,
+                topic: r.post.tags?.[0] || 'Curated',
+                publishedAt: new Date(r.post.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
+                readTimeMinutes: Math.max(1, Math.ceil((r.post.content || '').split(/\s+/).length / 200)),
+                author: {
+                  id: r.post.author?.id || '',
+                  name: r.post.author?.display_name || r.post.author?.username || 'Creator',
+                  handle: r.post.author?.username || 'creator',
+                  avatar: uploadedAvatar(r.post.author?.avatar_url || ''),
+                  reputationScore: r.post.author?.reputation ?? 25,
+                  role: 'Creator',
+                },
+                tags: r.post.tags || ['Curated'],
+                stats: {
+                  votesCount: 0,
+                  userHasVoted: false,
+                  commentsCount: 0,
+                  bookmarksCount: 0,
+                  reputationPoints: r.post.author?.reputation ?? 25,
+                },
+                isReblog: true,
+                rebloggedBy: p.display_name || p.username,
+              }));
+              setCreatorPosts([...mapped, ...rebloggedMapped]);
 
               for (const a of mapped) {
                 getVotesForPost(a.id, (keyUser?.id || user?.id)).then(st => {
@@ -313,6 +376,9 @@ export const CreatorProfileV7: React.FC<CreatorProfileV7Props> = ({
     const activeUserId = keyUser?.id || user?.id;
     const authorId = creatorProfile.id;
     if (activeUserId && authorId) {
+          if (activeUserId && authorId && activeUserId !== authorId) {
+      isCreatorMuted(activeUserId, authorId).then(m => setIsAuthorMuted(m));
+    }
       checkIsFollowing(activeUserId, authorId).then(following => {
         setIsFollowing(following);
       });
@@ -494,28 +560,93 @@ export const CreatorProfileV7: React.FC<CreatorProfileV7Props> = ({
                     </button>
                   </>
                 ) : (
-                  <button
-                    type="button"
-                    onClick={handleFollowToggle}
-                    disabled={followBusy}
-                    className={`px-6 py-2 rounded-full text-xs font-semibold transition-all ${
-                      isFollowing
-                        ? 'bg-[#E5F7F8] text-[#007C8B] border border-[#007C8B]/30'
-                        : 'bg-[#007C8B] hover:bg-[#006572] text-white shadow-2xs'
-                    }`}
-                  >
-                    {isFollowing ? (
-                      <span className="flex items-center gap-1.5">
-                        <Check className="h-3.5 w-3.5" />
-                        <span>Following</span>
-                      </span>
-                    ) : (
-                      <span className="flex items-center gap-1.5">
-                        <Plus className="h-3.5 w-3.5" />
-                        <span>Follow</span>
-                      </span>
-                    )}
-                  </button>
+                  <div className="flex items-center gap-2 relative">
+                    <button
+                      type="button"
+                      onClick={handleFollowToggle}
+                      disabled={followBusy}
+                      className={`px-6 py-2 rounded-full text-xs font-semibold transition-all ${
+                        isFollowing
+                          ? 'bg-[#E5F7F8] text-[#007C8B] border border-[#007C8B]/30'
+                          : 'bg-[#007C8B] hover:bg-[#006572] text-white shadow-2xs'
+                      }`}
+                    >
+                      {isFollowing ? (
+                        <span className="flex items-center gap-1.5">
+                          <Check className="h-3.5 w-3.5" />
+                          <span>Following</span>
+                        </span>
+                      ) : (
+                        <span className="flex items-center gap-1.5">
+                          <Plus className="h-3.5 w-3.5" />
+                          <span>Follow</span>
+                        </span>
+                      )}
+                    </button>
+
+                    <div className="relative">
+                      <button
+                        type="button"
+                        onClick={() => setVisitorMenuOpen(v => !v)}
+                        className="h-8 w-8 rounded-full bg-white border border-[#0A2540]/15 hover:border-[#007C8B] text-[#6E7D90] hover:text-[#0A2540] flex items-center justify-center shadow-2xs transition-all"
+                        aria-label="More creator actions"
+                      >
+                        <MoreVertical className="h-4 w-4" />
+                      </button>
+
+                      {visitorMenuOpen && (
+                        <div className="absolute right-0 top-full mt-2 w-48 rounded-2xl bg-white border border-[#0A2540]/10 shadow-lg py-2 z-50 text-xs text-[#0A2540]">
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              const activeUserId = keyUser?.id || user?.id;
+                              if (!activeUserId) { setAuthModalOpen(true); return; }
+                              if (isAuthorMuted) {
+                                await unmuteCreator(activeUserId, creatorProfile.id);
+                                setIsAuthorMuted(false);
+                              } else {
+                                await muteCreator(activeUserId, creatorProfile.id);
+                                setIsAuthorMuted(true);
+                              }
+                              setVisitorMenuOpen(false);
+                            }}
+                            className="w-full text-left px-4 py-2 hover:bg-[#F0F5F8] flex items-center gap-2 text-[#52657C] hover:text-[#0A2540]"
+                          >
+                            <VolumeX className="h-4 w-4 text-[#007C8B]" />
+                            <span>{isAuthorMuted ? 'Unmute Creator' : 'Mute Creator'}</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              const activeUserId = keyUser?.id || user?.id;
+                              if (!activeUserId) { setAuthModalOpen(true); return; }
+                              await blockCreator(activeUserId, creatorProfile.id);
+                              setIsAuthorMuted(true);
+                              setVisitorMenuOpen(false);
+                            }}
+                            className="w-full text-left px-4 py-2 hover:bg-[#F0F5F8] flex items-center gap-2 text-[#52657C] hover:text-[#0A2540]"
+                          >
+                            <UserX className="h-4 w-4 text-[#52657C]" />
+                            <span>Block Creator</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setReportReason('Spam');
+                              setReportDetails('');
+                              setReportSubmitted(false);
+                              setReportModalOpen(true);
+                              setVisitorMenuOpen(false);
+                            }}
+                            className="w-full text-left px-4 py-2 hover:bg-red-50 flex items-center gap-2 text-red-600 border-t border-[#0A2540]/6 mt-1 pt-2"
+                          >
+                            <Flag className="h-4 w-4" />
+                            <span>Report Creator</span>
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 )}
               </div>
             </div>
@@ -667,6 +798,19 @@ export const CreatorProfileV7: React.FC<CreatorProfileV7Props> = ({
             >
               <Info className={`h-3.5 w-3.5 ${activeTab === 'about' ? 'text-white' : ''}`} />
               <span>About</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab('reputation')}
+              className={`px-4 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-1.5 ${
+                activeTab === 'reputation'
+                  ? 'bg-gradient-to-r from-[#007C8B] via-[#00B3C4] to-[#00E5F4] text-white font-bold shadow-[0_4px_14px_rgba(0,188,212,0.35)]'
+                  : 'text-[#5A6E85] hover:text-[#0A2540] hover:bg-white'
+              }`}
+            >
+              <Award className={`h-3.5 w-3.5 ${activeTab === 'reputation' ? 'text-white' : ''}`} />
+              <span>Reputation & Badges</span>
             </button>
           </div>
 
@@ -845,9 +989,33 @@ export const CreatorProfileV7: React.FC<CreatorProfileV7Props> = ({
                 </div>
               ) : (
                 creatorReplies.map(reply => (
-                  <div key={reply.id} className="p-4 bg-white/90 rounded-2xl border border-[#007C8B]/10 space-y-1.5 text-xs">
-                    <span className="font-semibold text-[#0A2540]">@{author.handle}</span>
-                    <p className="text-sm text-[#3E526A]">{reply.body}</p>
+                  <div key={reply.id} className="p-4 bg-white/90 rounded-2xl border border-[#007C8B]/10 space-y-2 text-xs">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-[#0A2540]">@{author.handle}</span>
+                        {reply.parent_id && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#007C8B]/10 text-[#007C8B] text-[10px] font-semibold">
+                            <CornerDownRight className="h-2.5 w-2.5" />
+                            <span>Reply</span>
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-[11px] text-[#6E7D90]">
+                        {new Date(reply.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                      </span>
+                    </div>
+                    <p className="text-sm text-[#3E526A] leading-relaxed">{reply.body}</p>
+                    {reply.post && (
+                      <div className="pt-2 border-t border-[#0A2540]/6 flex items-center justify-between text-[11px]">
+                        <span className="text-[#6E7D90]">In discussion on:</span>
+                        <a
+                          href={`/story/${reply.post.slug || reply.post.id}#comments`}
+                          className="font-semibold text-[#007C8B] hover:underline truncate max-w-xs sm:max-w-md"
+                        >
+                          {reply.post.title} →
+                        </a>
+                      </div>
+                    )}
                   </div>
                 ))
               )}
@@ -911,6 +1079,11 @@ export const CreatorProfileV7: React.FC<CreatorProfileV7Props> = ({
             </div>
           )}
 
+          {/* TAB 7: REPUTATION & BADGES */}
+          {activeTab === 'reputation' && (
+            <CreatorReputationDashboard author={author} />
+          )}
+
         </main>
 
         {/* ========================================================================= */}
@@ -939,12 +1112,17 @@ export const CreatorProfileV7: React.FC<CreatorProfileV7Props> = ({
                 </span>
                 <span className="text-[10px] text-[#6E7D90] uppercase tracking-wider block">Blogs</span>
               </div>
-              <div className="px-1">
+              <button
+                type="button"
+                onClick={() => setActiveTab('reputation')}
+                className="px-1 text-center hover:opacity-80 transition-opacity"
+                title="View reputation & achievement breakdown"
+              >
                 <span className="block font-serif text-base sm:text-lg font-bold text-[#007C8B]">
                   {author.reputationScore}
                 </span>
                 <span className="text-[10px] text-[#6E7D90] uppercase tracking-wider block">Reputation</span>
-              </div>
+              </button>
             </div>
           </div>
 

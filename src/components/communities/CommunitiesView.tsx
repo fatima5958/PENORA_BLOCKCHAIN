@@ -180,7 +180,7 @@ export const CommunitiesView: React.FC<CommunitiesViewProps> = () => {
                 </div>
 
                 <h3 className="font-display text-lg font-bold text-[#0A2540] mb-1.5 leading-snug">
-                  {community.name}
+                  <a href={`/community/${community.slug}`} className="hover:text-[#007C8B] transition-colors">{community.name}</a>
                 </h3>
                 <p className="text-xs text-[#4A5E75] leading-relaxed line-clamp-3 mb-6">
                   {community.description}

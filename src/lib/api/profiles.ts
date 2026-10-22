@@ -168,11 +168,11 @@ export async function updateProfile(
       .maybeSingle();
 
     // If update returned null and authenticated via GoTrue, ensure the row is upserted
-    if (!data && !error && sessionUser) {
+    if (!data && !error && (sessionUser || keyUser)) {
       const fallbackUsername =
         keyUser?.username ||
-        sessionUser.user_metadata?.username ||
-        sessionUser.email?.split('@')[0] ||
+        sessionUser?.user_metadata?.username ||
+        sessionUser?.email?.split('@')[0] ||
         'creator';
 
       const upsertRes = await supabase
@@ -238,5 +238,22 @@ export async function updateProfile(
     return { data, error: null };
   } catch (err: any) {
     return { data: null, error: err.message || 'Failed to update profile' };
+  }
+}
+
+
+export async function getProfiles(options?: { limit?: number }): Promise<{ data: ProfileRecord[]; error: string | null }> {
+  try {
+    let query = supabase.from('profiles').select('*').order('reputation', { ascending: false });
+    if (options?.limit) {
+      query = query.limit(options.limit);
+    }
+    const { data, error } = await query;
+    if (error) {
+      return { data: [], error: error.message };
+    }
+    return { data: (data as ProfileRecord[]) || [], error: null };
+  } catch (err: any) {
+    return { data: [], error: err.message || 'Failed to fetch profiles' };
   }
 }

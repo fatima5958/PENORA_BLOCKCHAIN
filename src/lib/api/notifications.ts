@@ -99,7 +99,7 @@ export async function fetchUserNotifications(
             },
             createdAt: vote.created_at,
             read: readIds.has(notifId),
-            link: post?.slug ? `/story/${post.slug}` : '/',
+            link: post?.slug ? `/read?slug=${encodeURIComponent(post.slug)}` : '/',
           });
         }
       }
@@ -134,7 +134,7 @@ export async function fetchUserNotifications(
             },
             createdAt: c.created_at,
             read: readIds.has(notifId),
-            link: post?.slug ? `/story/${post.slug}#responses` : '/',
+            link: post?.slug ? `/read?slug=${encodeURIComponent(post.slug)}#comments` : '/',
           });
         }
       }
@@ -203,7 +203,7 @@ export async function fetchUserNotifications(
             },
             createdAt: m.created_at,
             read: readIds.has(notifId),
-            link: slug ? `/story/${slug}#responses` : '/',
+            link: slug ? `/read?slug=${encodeURIComponent(slug)}#comments` : '/',
           });
         }
       }

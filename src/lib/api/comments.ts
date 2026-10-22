@@ -42,6 +42,32 @@ function writeLocalComments(records: CommentRecord[]): void {
   }
 }
 
+/**
+ * Organizes a flat list of comments into a threaded hierarchy based on parent_id.
+ */
+export function organizeThreadedComments(comments: CommentRecord[]): CommentRecord[] {
+  const map = new Map<string, CommentRecord>();
+  const roots: CommentRecord[] = [];
+
+  // Clone items to avoid mutating originals
+  comments.forEach(c => {
+    map.set(c.id, { ...c, replies: [] });
+  });
+
+  comments.forEach(c => {
+    const item = map.get(c.id)!;
+    if (c.parent_id && map.has(c.parent_id)) {
+      const parent = map.get(c.parent_id)!;
+      parent.replies = parent.replies || [];
+      parent.replies.push(item);
+    } else {
+      roots.push(item);
+    }
+  });
+
+  return roots;
+}
+
 export async function getCommentsForPost(postId: string): Promise<CommentsListResult> {
   const localList = readLocalComments().filter(c => c.post_id === postId);
 
@@ -84,7 +110,7 @@ export async function getUserComments(authorId: string): Promise<CommentsListRes
   try {
     const { data, error } = await supabase
       .from('comments')
-      .select('*, author:profiles!author_id(*)')
+      .select('*, author:profiles!author_id(*), post:posts!post_id(id, title, slug)')
       .eq('author_id', authorId)
       .order('created_at', { ascending: false });
 
@@ -109,6 +135,7 @@ export async function addComment(comment: {
   post_id: string;
   author_id: string;
   body: string;
+  parent_id?: string | null;
   author_name?: string;
 }): Promise<SingleCommentResult> {
   const localRecord: CommentRecord = {
@@ -116,6 +143,7 @@ export async function addComment(comment: {
     post_id: comment.post_id,
     author_id: comment.author_id,
     body: comment.body.trim(),
+    parent_id: comment.parent_id || null,
     created_at: new Date().toISOString(),
     author: {
       id: comment.author_id,
@@ -138,17 +166,38 @@ export async function addComment(comment: {
   }
 
   try {
+    const insertPayload: Record<string, any> = {
+      post_id: comment.post_id,
+      author_id: comment.author_id,
+      body: comment.body.trim(),
+    };
+    if (comment.parent_id && isUuid(comment.parent_id)) {
+      insertPayload.parent_id = comment.parent_id;
+    }
+
     const { data, error } = await supabase
       .from('comments')
-      .insert({
-        post_id: comment.post_id,
-        author_id: comment.author_id,
-        body: comment.body.trim(),
-      })
+      .insert(insertPayload)
       .select('*, author:profiles!author_id(*)')
       .maybeSingle();
 
     if (error) {
+      // If column parent_id does not exist yet before migration, retry without parent_id
+      if (error.message.includes('parent_id') || error.code === '42703') {
+        const fallback = await supabase
+          .from('comments')
+          .insert({
+            post_id: comment.post_id,
+            author_id: comment.author_id,
+            body: comment.body.trim(),
+          })
+          .select('*, author:profiles!author_id(*)')
+          .maybeSingle();
+
+        if (!fallback.error && fallback.data) {
+          return { data: { ...(fallback.data as CommentRecord), parent_id: comment.parent_id || null }, error: null };
+        }
+      }
       const isPending = error.code === '42P01' || error.message.includes('relation');
       return { data: localRecord, error: isPending ? null : error.message, isPendingMigration: isPending };
     }
@@ -159,7 +208,7 @@ export async function addComment(comment: {
 }
 
 export async function deleteComment(id: string): Promise<{ success: boolean; error: string | null }> {
-  const currentLocal = readLocalComments().filter(c => c.id !== id);
+  const currentLocal = readLocalComments().filter(c => c.id !== id && c.parent_id !== id);
   writeLocalComments(currentLocal);
 
   if (!isUuid(id)) {

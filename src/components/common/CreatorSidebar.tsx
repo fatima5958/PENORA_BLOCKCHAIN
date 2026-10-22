@@ -1,18 +1,22 @@
 import React from 'react';
-import { Home, Compass, Users, Bookmark, Wallet, User, PenLine, ChevronRight, ArrowLeftRight } from 'lucide-react';
+import { Home, Compass, Users, Bookmark, Wallet, User, PenLine, ChevronRight, ArrowLeftRight, UserCheck, Trophy, BarChart3, Sparkles } from 'lucide-react';
 
-type SidebarPage = 'Home' | 'Explore' | 'Communities' | 'Bookmarks' | 'Wallet' | 'Profile' | 'Exchange';
+type SidebarPage = 'Home' | 'Following' | 'Explore' | 'Creators' | 'Communities' | 'Challenges' | 'Analytics' | 'Bookmarks' | 'Wallet' | 'Profile' | 'Exchange';
 const links = [
   { key: 'Home', label: 'Home Feed', icon: Home, href: '/' },
+  { key: 'Following', label: 'Following Feed', icon: UserCheck, href: '/following' },
   { key: 'Explore', label: 'Explore Topics', icon: Compass, href: '/explore' },
+  { key: 'Creators', label: 'Creator Discovery', icon: Sparkles, href: '/creators' },
   { key: 'Communities', label: 'Communities', icon: Users, href: '/communities' },
+  { key: 'Challenges', label: 'Writing Prompts', icon: Trophy, href: '/challenges' },
+  { key: 'Analytics', label: 'Creator Analytics', icon: BarChart3, href: '/analytics' },
   { key: 'Bookmarks', label: 'Saved Bookmarks', icon: Bookmark, href: '/?view=bookmarks' },
   { key: 'Wallet', label: 'Wallet & Rewards', icon: Wallet, href: '/wallet' },
   { key: 'Exchange', label: 'Exchange', icon: ArrowLeftRight, href: '/exchange/' },
   { key: 'Profile', label: 'My Profile', icon: User, href: '/profile/me' },
 ] as const;
 
-export function CreatorSidebar({ activePage }: { activePage: SidebarPage }) {
+export function CreatorSidebar({ activePage }: { activePage?: SidebarPage }) {
   return (
     <div className="space-y-4">
       <div className="pn-panel p-3">

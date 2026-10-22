@@ -30,6 +30,11 @@ import {
   CheckCircle2,
   Type,
   CornerDownRight,
+  Repeat,
+  VolumeX,
+  UserX,
+  Flag,
+  AlertTriangle,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 import { getArticleBySlug, getUserArticles } from '../../lib/api/articles';
@@ -38,6 +43,10 @@ import { getArticleRewardState } from '../../lib/api/rewards';
 import { getCommentsForPost, addComment, deleteComment } from '../../lib/api/comments';
 import { toggleBookmark, isPostBookmarked } from '../../lib/api/bookmarks';
 import { followUser, isFollowing, unfollowUser } from '../../lib/api/follows';
+import { getReblogState, toggleReblog } from '../../lib/api/reblogs';
+import { isCreatorMuted, muteCreator, unmuteCreator, blockCreator, submitReport } from '../../lib/api/moderation';
+import { recordArticleView } from '../../lib/api/analytics';
+
 import { SpatialAuthModalV4 } from '../design-v4/SpatialAuthModalV4';
 import { PenoraLogo } from '../brand/PenoraLogo';
 import { penoraKeyAuth, type PenoraUser } from '../../lib/auth/penoraKeyAuth';
@@ -90,12 +99,41 @@ export const ArticleReader: React.FC<ArticleReaderProps> = ({ article: initialAr
   const [followingAuthor, setFollowingAuthor] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
 
-  // Comments
-  const [comments, setComments] = useState<
-    Array<{ id?: string; authorId?: string; author: string; rep: number; text: string; time: string; likes?: number }>
-  >([]);
+  // Reblog state
+  const [reblogged, setReblogged] = useState(false);
+  const [reblogCount, setReblogCount] = useState(0);
+
+  // Threaded Comments state
+  interface CommentItem {
+    id: string;
+    authorId?: string;
+    author: string;
+    rep: number;
+    text: string;
+    time: string;
+    parent_id?: string | null;
+    replies?: CommentItem[];
+  }
+  const [comments, setComments] = useState<CommentItem[]>([]);
   const [newCommentText, setNewCommentText] = useState('');
   const [submittingComment, setSubmittingComment] = useState(false);
+  const [replyingToCommentId, setReplyingToCommentId] = useState<string | null>(null);
+  const [replyText, setReplyText] = useState('');
+  const [submittingReply, setSubmittingReply] = useState(false);
+
+  // Moderation state (Mute / Block / Report)
+  const [isAuthorMuted, setIsAuthorMuted] = useState(false);
+  const [showMutedContent, setShowMutedContent] = useState(false);
+  const [optionsMenuOpen, setOptionsMenuOpen] = useState(false);
+  const [reportModalOpen, setReportModalOpen] = useState(false);
+  const [reportTarget, setReportTarget] = useState<{ type: 'post' | 'comment'; id: string; name?: string }>({
+    type: 'post',
+    id: '',
+  });
+  const [reportReason, setReportReason] = useState('Spam');
+  const [reportDetails, setReportDetails] = useState('');
+  const [reportingBusy, setReportingBusy] = useState(false);
+  const [reportSubmitted, setReportSubmitted] = useState(false);
 
   // More articles from this author
   const [moreArticles, setMoreArticles] = useState<PostRecord[]>([]);
@@ -123,7 +161,11 @@ export const ArticleReader: React.FC<ArticleReaderProps> = ({ article: initialAr
   useEffect(() => {
     let mounted = true;
     const url = new URL(window.location.href);
-    const pathSlug = url.pathname.startsWith('/story/') ? url.pathname.slice(7).replace(/\/$/, '') : '';
+    const pathSlug = url.pathname.startsWith('/story/')
+      ? url.pathname.slice(7).replace(/\/$/, '')
+      : url.pathname.startsWith('/article/')
+      ? url.pathname.slice(9).replace(/\/$/, '')
+      : '';
     let targetSlug = url.searchParams.get('slug') || pathSlug || initialArticle.slug;
     try {
       targetSlug = decodeURIComponent(targetSlug);
@@ -160,15 +202,17 @@ export const ArticleReader: React.FC<ArticleReaderProps> = ({ article: initialAr
         tags: p.tags || [],
         author: {
           id: p.author_id,
-          name: p.author?.display_name || p.author?.username || 'fatima_test',
-          handle: p.author?.username || 'fatima_test',
+          name: p.author?.display_name || p.author?.username || 'Creator',
+          handle: p.author?.username || 'creator',
           avatar: p.author?.avatar_url || '/brand/penora-avatar-mateen.jpg',
-          bio: p.author?.bio || 'Building, learning and sharing my journey as a creator ♡',
+          bio: p.author?.bio || '',
           reputationScore: p.author?.reputation ?? 25,
           role: 'Creator',
         },
         stats: { votesCount: 0, commentsCount: 0, bookmarksCount: 0, reputationPoints: 0 },
       });
+
+      recordArticleView(p.id, keyUser?.id || user?.id);
 
       // Load more articles from this author
       if (p.author_id) {
@@ -210,48 +254,45 @@ export const ArticleReader: React.FC<ArticleReaderProps> = ({ article: initialAr
       setUser(session?.user ?? null);
     });
 
+    // Load Real Threaded Comments
     getCommentsForPost(article.id).then((res) => {
-      if (res.data && res.data.length > 0) {
-        const mapped = res.data.map((c: CommentRecord) => ({
+      if (res.data) {
+        const rawItems: CommentItem[] = res.data.map((c: CommentRecord) => ({
           id: c.id,
           authorId: c.author_id,
           author: c.author?.display_name || c.author?.username || 'community_member',
           rep: c.author?.reputation ?? 25,
           text: c.body,
-          time: new Date(c.created_at).toLocaleDateString(),
-          likes: 8,
+          time: new Date(c.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
+          parent_id: c.parent_id || null,
         }));
-        setComments(mapped);
-      } else {
-        // Fallback realistic comments matching reference mockup
-        setComments([
-          {
-            id: 'c1',
-            author: 'sana_writer',
-            rep: 25,
-            text: 'This is so relatable! ✨ I also struggle with consistency, bookmarking this for later.',
-            time: '2h ago',
-            likes: 12,
-          },
-          {
-            id: 'c2',
-            author: 'aimen.codes',
-            rep: 30,
-            text: 'Loved the practical tips, especially the small habit stack idea. Going to try this! 💙',
-            time: '5h ago',
-            likes: 8,
-          },
-          {
-            id: 'c3',
-            author: 'zara.life',
-            rep: 20,
-            text: 'Your writing style is so calming! More posts like this please ♡',
-            time: '1d ago',
-            likes: 15,
-          },
-        ]);
+
+        const map = new Map<string, CommentItem>();
+        const roots: CommentItem[] = [];
+        rawItems.forEach(item => map.set(item.id, { ...item, replies: [] }));
+        rawItems.forEach(item => {
+          const node = map.get(item.id)!;
+          if (item.parent_id && map.has(item.parent_id)) {
+            const p = map.get(item.parent_id)!;
+            p.replies = p.replies || [];
+            p.replies.push(node);
+          } else {
+            roots.push(node);
+          }
+        });
+        setComments(roots);
       }
     });
+
+    // Reblog and Mute Status
+    const activeVisitorId = keyUser?.id || user?.id;
+    getReblogState(article.id, activeVisitorId).then(st => {
+      setReblogged(st.isReblogged);
+      setReblogCount(st.reblogCount);
+    });
+    if (activeVisitorId && article.author.id) {
+      isCreatorMuted(activeVisitorId, article.author.id).then(m => setIsAuthorMuted(m));
+    }
 
     return () => {
       unsubKey();
@@ -266,7 +307,7 @@ export const ArticleReader: React.FC<ArticleReaderProps> = ({ article: initialAr
     getVotesForPost(article.id, voterId).then((stats) => {
       setVoteStats({
         ...stats,
-        upvotes: stats.upvotes > 0 ? stats.upvotes : 124, // Matching reference image 124
+        upvotes: stats.upvotes || 0,
       });
     });
   }, [article.id, keyUser, user]);
@@ -314,9 +355,150 @@ export const ArticleReader: React.FC<ArticleReaderProps> = ({ article: initialAr
     }
   };
 
+  const handleReblog = async () => {
+    const activeId = keyUser?.id || user?.id;
+    if (!activeId) {
+      setAuthModalOpen(true);
+      return;
+    }
+    const next = !reblogged;
+    setReblogged(next);
+    setReblogCount(c => next ? c + 1 : Math.max(0, c - 1));
+    const res = await toggleReblog(activeId, article.id);
+    if (!res.success && res.error) {
+      setReblogged(!next);
+      setReblogCount(c => !next ? c + 1 : Math.max(0, c - 1));
+    }
+  };
+
+  const handlePostReply = async (e: React.FormEvent, parentId: string) => {
+    e.preventDefault();
+    const authorId = keyUser?.id || user?.id;
+    if (!authorId) {
+      setAuthModalOpen(true);
+      return;
+    }
+    if (!replyText.trim()) return;
+    const text = replyText.trim();
+    setSubmittingReply(true);
+
+    const authorHandle = keyUser?.username || user?.email?.split('@')[0] || 'You';
+    const tempId = `temp_${Date.now()}`;
+    const newReplyItem: CommentItem = {
+      id: tempId,
+      authorId,
+      author: authorHandle,
+      rep: 25,
+      text,
+      time: 'Just now',
+      parent_id: parentId,
+    };
+
+    setComments(prev => prev.map(c => {
+      if (c.id === parentId) {
+        return { ...c, replies: [...(c.replies || []), newReplyItem] };
+      }
+      return c;
+    }));
+    setReplyText('');
+    setReplyingToCommentId(null);
+
+    try {
+      const res = await addComment({
+        post_id: article.id,
+        author_id: authorId,
+        body: text,
+        parent_id: parentId,
+        author_name: authorHandle,
+      });
+      if (res.data?.id) {
+        setComments(prev => prev.map(c => {
+          if (c.id === parentId) {
+            return {
+              ...c,
+              replies: (c.replies || []).map(r => r.id === tempId ? { ...r, id: res.data!.id } : r)
+            };
+          }
+          return c;
+        }));
+      }
+    } finally {
+      setSubmittingReply(false);
+    }
+  };
+
+  const handleToggleMute = async () => {
+    const activeId = keyUser?.id || user?.id;
+    if (!activeId || !article.author.id) {
+      setAuthModalOpen(true);
+      return;
+    }
+    if (isAuthorMuted) {
+      await unmuteCreator(activeId, article.author.id);
+      setIsAuthorMuted(false);
+    } else {
+      await muteCreator(activeId, article.author.id);
+      setIsAuthorMuted(true);
+    }
+    setOptionsMenuOpen(false);
+  };
+
+  const handleBlockAuthor = async () => {
+    const activeId = keyUser?.id || user?.id;
+    if (!activeId || !article.author.id) {
+      setAuthModalOpen(true);
+      return;
+    }
+    await blockCreator(activeId, article.author.id);
+    setIsAuthorMuted(true);
+    setOptionsMenuOpen(false);
+  };
+
+  const handleOpenReport = (type: 'post' | 'comment', id: string, name?: string) => {
+    setReportTarget({ type, id, name });
+    setReportReason('Spam');
+    setReportDetails('');
+    setReportSubmitted(false);
+    setReportModalOpen(true);
+    setOptionsMenuOpen(false);
+  };
+
+  const handleSubmitReport = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const activeId = keyUser?.id || user?.id;
+    if (!activeId) {
+      setAuthModalOpen(true);
+      return;
+    }
+    setReportingBusy(true);
+    try {
+      await submitReport({
+        reporterId: activeId,
+        targetType: reportTarget.type,
+        targetId: reportTarget.id,
+        reason: reportReason,
+        details: reportDetails,
+      });
+      setReportSubmitted(true);
+      setTimeout(() => {
+        setReportModalOpen(false);
+        setReportSubmitted(false);
+      }, 1500);
+    } finally {
+      setReportingBusy(false);
+    }
+  };
+
   const handleDeleteComment = async (commentId?: string) => {
     if (!commentId) return;
-    setComments((prev) => prev.filter((c) => c.id !== commentId));
+    setComments((prev) =>
+      prev
+        .filter((c) => c.id !== commentId)
+        .map((c) => ({
+          ...c,
+          replies: (c.replies || []).filter((r) => r.id !== commentId),
+        }))
+    );
     await deleteComment(commentId);
   };
 
@@ -409,7 +591,22 @@ export const ArticleReader: React.FC<ArticleReaderProps> = ({ article: initialAr
           <span>Back to Feed</span>
         </a>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 relative">
+          {/* Reblog Button */}
+          <button
+            type="button"
+            onClick={handleReblog}
+            data-active={reblogged ? 'true' : 'false'}
+            aria-pressed={reblogged}
+            className={`pn-icon-btn h-9 px-3 gap-1.5 bg-white border border-[#0A2540]/10 ${
+              reblogged ? 'text-[#007C8B] font-semibold' : ''
+            }`}
+            title={reblogged ? 'Undo reblog' : 'Reblog story to your profile'}
+          >
+            <Repeat className={`h-4 w-4 ${reblogged ? 'text-[#007C8B]' : ''}`} />
+            {reblogCount > 0 && <span className="text-xs">{reblogCount}</span>}
+          </button>
+
           <button
             type="button"
             onClick={handleBookmark}
@@ -429,10 +626,76 @@ export const ArticleReader: React.FC<ArticleReaderProps> = ({ article: initialAr
           >
             {copiedLink ? <Check className="h-4 w-4 text-[#007C8B]" /> : <Share2 className="h-4 w-4" />}
           </button>
+
+          {/* Desktop More Options Menu */}
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setOptionsMenuOpen(prev => !prev)}
+              className="pn-icon-btn h-9 w-9 bg-white border border-[#0A2540]/10"
+              title="More options"
+            >
+              <MoreVertical className="h-4 w-4" />
+            </button>
+            {optionsMenuOpen && (
+              <div className="absolute right-0 top-full mt-2 w-48 rounded-2xl bg-white border border-[#0A2540]/10 shadow-lg py-2 z-50 text-xs text-[#0A2540]">
+                <button
+                  type="button"
+                  onClick={handleToggleMute}
+                  className="w-full text-left px-4 py-2 hover:bg-[#F0F5F8] flex items-center gap-2 text-[#52657C] hover:text-[#0A2540]"
+                >
+                  <VolumeX className="h-4 w-4 text-[#007C8B]" />
+                  <span>{isAuthorMuted ? 'Unmute Author' : 'Mute Author'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleBlockAuthor}
+                  className="w-full text-left px-4 py-2 hover:bg-[#F0F5F8] flex items-center gap-2 text-[#52657C] hover:text-[#0A2540]"
+                >
+                  <UserX className="h-4 w-4 text-[#52657C]" />
+                  <span>Block Author</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleOpenReport('post', article.id, article.title)}
+                  className="w-full text-left px-4 py-2 hover:bg-red-50 flex items-center gap-2 text-red-600 border-t border-[#0A2540]/6 mt-1 pt-2"
+                >
+                  <Flag className="h-4 w-4" />
+                  <span>Report Story</span>
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
       <ArticleRewardPanel publishedAt={rewardPublishedAt} articleId={article.id} />
+
+            {/* Muted Author Alert Banner */}
+      {isAuthorMuted && !showMutedContent && (
+        <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <VolumeX className="h-4 w-4 text-amber-700 shrink-0" />
+            <span>You have muted @{article.author.handle}. Story content is collapsed.</span>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={() => setShowMutedContent(true)}
+              className="font-bold underline text-amber-800 hover:text-amber-950"
+            >
+              View Story
+            </button>
+            <button
+              type="button"
+              onClick={handleToggleMute}
+              className="px-2.5 py-1 rounded-lg bg-amber-200 text-amber-900 font-semibold"
+            >
+              Unmute
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Main Article Card */}
       <article className="pn-card p-6 sm:p-12">
@@ -585,15 +848,19 @@ export const ArticleReader: React.FC<ArticleReaderProps> = ({ article: initialAr
           </div>
         </form>
 
-        {comments.length > 0 && (
-          <div className="space-y-3 pt-4 border-t border-[#0A2540]/8">
+        {comments.length === 0 ? (
+          <div className="py-8 text-center text-xs text-[#6E7D90] border-t border-[#0A2540]/6">
+            No responses yet. Be the first to start the discussion!
+          </div>
+        ) : (
+          <div className="space-y-4 pt-4 border-t border-[#0A2540]/8">
             {comments.map((c, i) => {
               const currentUserId = keyUser?.id || user?.id;
               const currentUsername = keyUser?.username || user?.email?.split('@')[0];
               const isOwnComment = (c.authorId && c.authorId === currentUserId) || (c.author && c.author === currentUsername);
 
               return (
-                <div key={c.id || i} className="p-4 rounded-2xl bg-[#F4F7FA] border border-[#0A2540]/6 space-y-1.5">
+                <div key={c.id || i} className="p-4 rounded-2xl bg-[#F4F7FA] border border-[#0A2540]/6 space-y-2">
                   <div className="flex items-center justify-between text-xs">
                     <div className="flex items-center gap-2">
                       <span className="font-semibold text-[#0A2540]">@{c.author}</span>
@@ -601,6 +868,14 @@ export const ArticleReader: React.FC<ArticleReaderProps> = ({ article: initialAr
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="pn-meta">{c.time}</span>
+                      <button
+                        type="button"
+                        onClick={() => handleOpenReport('comment', c.id, c.text.slice(0, 30))}
+                        className="text-[#8C9BAE] hover:text-red-600 transition-colors p-1"
+                        title="Report comment"
+                      >
+                        <Flag className="h-3 w-3" />
+                      </button>
                       {isOwnComment && c.id && (
                         <button
                           type="button"
@@ -615,12 +890,206 @@ export const ArticleReader: React.FC<ArticleReaderProps> = ({ article: initialAr
                     </div>
                   </div>
                   <p className="text-xs sm:text-sm text-[#4A5B70] leading-relaxed">{c.text}</p>
+
+                  <div className="flex items-center gap-3 pt-1 text-xs text-[#6E7D90]">
+                    <button
+                      type="button"
+                      onClick={() => setReplyingToCommentId(replyingToCommentId === c.id ? null : c.id)}
+                      className="hover:text-[#007C8B] font-medium flex items-center gap-1"
+                    >
+                      <CornerDownRight className="h-3 w-3" />
+                      <span>Reply</span>
+                    </button>
+                  </div>
+
+                  {/* Inline Reply Composer */}
+                  {replyingToCommentId === c.id && (
+                    <form onSubmit={(e) => handlePostReply(e, c.id)} className="mt-3 pl-3 border-l-2 border-[#007C8B]/40 space-y-2">
+                      <div className="flex items-center justify-between text-[11px] text-[#52657C]">
+                        <span>Replying to <strong>@{c.author}</strong></span>
+                        <button type="button" onClick={() => setReplyingToCommentId(null)} className="hover:text-[#D93838]">Cancel</button>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          value={replyText}
+                          onChange={(e) => setReplyText(e.target.value)}
+                          placeholder={`Reply to @${c.author}...`}
+                          className="w-full text-xs px-3 py-1.5 rounded-xl border border-[#0A2540]/15 bg-white focus:outline-none focus:border-[#007C8B]"
+                          autoFocus
+                        />
+                        <button
+                          type="submit"
+                          disabled={submittingReply || !replyText.trim()}
+                          className="px-3 py-1.5 rounded-xl bg-[#007C8B] text-white text-xs font-semibold disabled:opacity-40 hover:bg-[#00E5F4] hover:text-[#0A2540]"
+                        >
+                          {submittingReply ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Reply'}
+                        </button>
+                      </div>
+                    </form>
+                  )}
+
+                  {/* Threaded Nested Replies */}
+                  {c.replies && c.replies.length > 0 && (
+                    <div className="mt-3 pl-4 border-l-2 border-[#007C8B]/25 space-y-2.5">
+                      {c.replies.map(rep => {
+                        const isOwnRep = (rep.authorId && rep.authorId === currentUserId) || rep.author === currentUsername;
+                        return (
+                          <div key={rep.id} className="p-3 rounded-xl bg-white border border-[#0A2540]/6 space-y-1">
+                            <div className="flex items-center justify-between text-xs">
+                              <div className="flex items-center gap-2">
+                                <span className="font-semibold text-[#0A2540]">@{rep.author}</span>
+                                <span className="text-[10px] text-[#6E7D90]">· {rep.time}</span>
+                              </div>
+                              <div className="flex items-center gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenReport('comment', rep.id, rep.text.slice(0, 30))}
+                                  className="text-[#8C9BAE] hover:text-red-600 transition-colors p-1"
+                                  title="Report reply"
+                                >
+                                  <Flag className="h-2.5 w-2.5" />
+                                </button>
+                                {isOwnRep && rep.id && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteComment(rep.id)}
+                                    className="text-[#8C9BAE] hover:text-[#D93838] p-1 transition-colors"
+                                    title="Delete reply"
+                                  >
+                                    <Trash2 className="h-3 w-3" />
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                            <p className="text-xs text-[#374151] leading-relaxed">{rep.text}</p>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               );
             })}
           </div>
         )}
       </div>
+
+            {/* Mobile More Options Dropdown Modal */}
+      {optionsMenuOpen && (
+        <div className="fixed inset-0 z-50 bg-[#0A2540]/40 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="w-full max-w-xs rounded-2xl bg-white border border-[#0A2540]/10 shadow-2xl p-4 space-y-2 text-xs">
+            <div className="flex items-center justify-between pb-2 border-b border-[#0A2540]/8">
+              <span className="font-bold text-[#0A2540]">Story Options</span>
+              <button type="button" onClick={() => setOptionsMenuOpen(false)} className="text-[#6E7D90]">✕</button>
+            </div>
+            <button
+              type="button"
+              onClick={handleToggleMute}
+              className="w-full text-left p-2.5 rounded-xl hover:bg-[#F0F5F8] flex items-center gap-2.5 text-[#52657C]"
+            >
+              <VolumeX className="h-4 w-4 text-[#007C8B]" />
+              <span>{isAuthorMuted ? 'Unmute Author' : 'Mute Author'}</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleBlockAuthor}
+              className="w-full text-left p-2.5 rounded-xl hover:bg-[#F0F5F8] flex items-center gap-2.5 text-[#52657C]"
+            >
+              <UserX className="h-4 w-4" />
+              <span>Block Author</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => handleOpenReport('post', article.id, article.title)}
+              className="w-full text-left p-2.5 rounded-xl hover:bg-red-50 flex items-center gap-2.5 text-red-600 border-t border-[#0A2540]/6 pt-2"
+            >
+              <Flag className="h-4 w-4" />
+              <span>Report Story</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Safety Report Modal */}
+      {reportModalOpen && (
+        <div className="fixed inset-0 z-50 bg-[#0A2540]/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-md bg-white rounded-3xl border border-[#0A2540]/10 shadow-2xl p-6 sm:p-8 space-y-5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-red-600 font-bold text-base">
+                <Flag className="h-5 w-5" />
+                <span>Report Content</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setReportModalOpen(false)}
+                className="text-[#6E7D90] hover:text-[#0A2540] text-sm"
+              >
+                ✕
+              </button>
+            </div>
+
+            {reportSubmitted ? (
+              <div className="py-6 text-center space-y-2 text-emerald-700">
+                <CheckCircle2 className="h-10 w-10 mx-auto text-emerald-600" />
+                <h4 className="font-bold text-sm">Report Received</h4>
+                <p className="text-xs text-[#52657C]">Thank you for helping keep PENORA safe. Our moderation team will review this submission.</p>
+              </div>
+            ) : (
+              <form onSubmit={handleSubmitReport} className="space-y-4">
+                <p className="text-xs text-[#52657C]">
+                  Reporting {reportTarget.type === 'comment' ? 'comment' : 'story'}{reportTarget.name ? `: "${reportTarget.name}"` : ''}.
+                </p>
+
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-semibold text-[#0A2540]">Reason for report</label>
+                  <select
+                    value={reportReason}
+                    onChange={(e) => setReportReason(e.target.value)}
+                    className="w-full text-xs p-2.5 rounded-xl border border-[#0A2540]/15 bg-white text-[#0A2540] focus:outline-none focus:border-[#007C8B]"
+                  >
+                    <option value="Spam">Spam or unwanted promotional content</option>
+                    <option value="Harassment">Harassment, threats, or abuse</option>
+                    <option value="Plagiarism">Plagiarism or copyright infringement</option>
+                    <option value="Misinformation">Misleading or deceptive information</option>
+                    <option value="Inappropriate">Inappropriate or offensive content</option>
+                    <option value="Other">Other policy violation</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-semibold text-[#0A2540]">Additional details (optional)</label>
+                  <textarea
+                    rows={3}
+                    value={reportDetails}
+                    onChange={(e) => setReportDetails(e.target.value)}
+                    placeholder="Provide details to assist our moderation review..."
+                    className="w-full text-xs p-2.5 rounded-xl border border-[#0A2540]/15 bg-white text-[#0A2540] focus:outline-none focus:border-[#007C8B] resize-none"
+                  />
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setReportModalOpen(false)}
+                    className="px-4 py-2 rounded-xl text-xs font-semibold text-[#52657C] hover:bg-[#F0F5F8]"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={reportingBusy}
+                    className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-red-600 hover:bg-red-700 disabled:opacity-50 flex items-center gap-1.5"
+                  >
+                    {reportingBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Flag className="h-3.5 w-3.5" />}
+                    <span>Submit Report</span>
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
 
       <SpatialAuthModalV4
         isOpen={authModalOpen}
@@ -678,13 +1147,35 @@ export const ArticleReader: React.FC<ArticleReaderProps> = ({ article: initialAr
             <Bookmark className={`h-5 w-5 ${bookmarked ? 'fill-current' : ''}`} />
           </button>
 
+          {/* Reblog Action */}
+          <button
+            type="button"
+            onClick={handleReblog}
+            aria-pressed={reblogged}
+            className={`p-1.5 rounded-full transition-colors ${
+              reblogged ? 'text-[#007C8B]' : 'text-[#52657C] hover:text-[#0A2540]'
+            }`}
+            title={reblogged ? 'Undo reblog' : 'Reblog story'}
+          >
+            <Repeat className="h-5 w-5" />
+          </button>
+
           <button
             type="button"
             onClick={handleShare}
             className="p-1.5 rounded-full text-[#52657C] hover:text-[#0A2540] transition-colors"
             title="Share article"
           >
-            {copiedLink ? <Check className="h-5 w-5 text-emerald-600" /> : <MoreVertical className="h-5 w-5" />}
+            {copiedLink ? <Check className="h-5 w-5 text-emerald-600" /> : <Share2 className="h-5 w-5" />}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setOptionsMenuOpen(v => !v)}
+            className="p-1.5 rounded-full text-[#52657C] hover:text-[#0A2540] transition-colors"
+            title="More options"
+          >
+            <MoreVertical className="h-5 w-5" />
           </button>
         </div>
       </nav>
@@ -696,7 +1187,22 @@ export const ArticleReader: React.FC<ArticleReaderProps> = ({ article: initialAr
           <span>Back to Feed</span>
         </a>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 relative">
+          {/* Reblog Button */}
+          <button
+            type="button"
+            onClick={handleReblog}
+            data-active={reblogged ? 'true' : 'false'}
+            aria-pressed={reblogged}
+            className={`pn-icon-btn h-9 px-3 gap-1.5 bg-white border border-[#0A2540]/10 ${
+              reblogged ? 'text-[#007C8B] font-semibold' : ''
+            }`}
+            title={reblogged ? 'Undo reblog' : 'Reblog story to your profile'}
+          >
+            <Repeat className={`h-4 w-4 ${reblogged ? 'text-[#007C8B]' : ''}`} />
+            {reblogCount > 0 && <span className="text-xs">{reblogCount}</span>}
+          </button>
+
           <button
             type="button"
             onClick={handleBookmark}
@@ -716,6 +1222,46 @@ export const ArticleReader: React.FC<ArticleReaderProps> = ({ article: initialAr
           >
             {copiedLink ? <Check className="h-4 w-4 text-[#007C8B]" /> : <Share2 className="h-4 w-4" />}
           </button>
+
+          {/* Desktop More Options Menu */}
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setOptionsMenuOpen(prev => !prev)}
+              className="pn-icon-btn h-9 w-9 bg-white border border-[#0A2540]/10"
+              title="More options"
+            >
+              <MoreVertical className="h-4 w-4" />
+            </button>
+            {optionsMenuOpen && (
+              <div className="absolute right-0 top-full mt-2 w-48 rounded-2xl bg-white border border-[#0A2540]/10 shadow-lg py-2 z-50 text-xs text-[#0A2540]">
+                <button
+                  type="button"
+                  onClick={handleToggleMute}
+                  className="w-full text-left px-4 py-2 hover:bg-[#F0F5F8] flex items-center gap-2 text-[#52657C] hover:text-[#0A2540]"
+                >
+                  <VolumeX className="h-4 w-4 text-[#007C8B]" />
+                  <span>{isAuthorMuted ? 'Unmute Author' : 'Mute Author'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleBlockAuthor}
+                  className="w-full text-left px-4 py-2 hover:bg-[#F0F5F8] flex items-center gap-2 text-[#52657C] hover:text-[#0A2540]"
+                >
+                  <UserX className="h-4 w-4 text-[#52657C]" />
+                  <span>Block Author</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleOpenReport('post', article.id, article.title)}
+                  className="w-full text-left px-4 py-2 hover:bg-red-50 flex items-center gap-2 text-red-600 border-t border-[#0A2540]/6 mt-1 pt-2"
+                >
+                  <Flag className="h-4 w-4" />
+                  <span>Report Story</span>
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -830,6 +1376,20 @@ export const ArticleReader: React.FC<ArticleReaderProps> = ({ article: initialAr
               </div>
 
               <div className="flex items-center gap-3">
+                {/* Reblog Action */}
+                <button
+                  type="button"
+                  onClick={handleReblog}
+                  className={`flex items-center gap-1 p-1.5 rounded-full transition-colors ${
+                    reblogged ? 'text-[#007C8B] font-semibold' : 'hover:text-[#0A2540]'
+                  }`}
+                  aria-label="Reblog story"
+                  title={reblogged ? 'Undo reblog' : 'Reblog story'}
+                >
+                  <Repeat className="h-5 w-5" />
+                  {reblogCount > 0 && <span className="text-xs">{reblogCount}</span>}
+                </button>
+
                 {/* Bookmark Action */}
                 <button
                   type="button"
@@ -933,54 +1493,137 @@ export const ArticleReader: React.FC<ArticleReaderProps> = ({ article: initialAr
 
           {/* Comments List */}
           <div className="space-y-4 pt-2">
-            {comments.map((c, i) => {
-              const currentUserId = keyUser?.id || user?.id;
-              const currentUsername = keyUser?.username || user?.email?.split('@')[0];
-              const isOwnComment =
-                (c.authorId && c.authorId === currentUserId) || (c.author && c.author === currentUsername);
+            {comments.length === 0 ? (
+              <div className="py-6 text-center text-xs text-[#6E7D90]">
+                No comments yet. Be the first to share your thoughts!
+              </div>
+            ) : (
+              comments.map((c, i) => {
+                const currentUserId = keyUser?.id || user?.id;
+                const currentUsername = keyUser?.username || user?.email?.split('@')[0];
+                const isOwnComment =
+                  (c.authorId && c.authorId === currentUserId) || (c.author && c.author === currentUsername);
 
-              return (
-                <div key={c.id || i} className="space-y-2 pb-3 border-b border-[#0A2540]/5 last:border-none">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex items-center gap-2.5">
-                      <div className="h-8 w-8 rounded-full bg-[#0A2540]/5 flex items-center justify-center font-bold text-xs text-[#007C8B] shrink-0">
-                        {c.author[0].toUpperCase()}
-                      </div>
-                      <div>
-                        <div className="text-xs font-bold text-[#0A2540] flex items-center gap-1.5">
-                          <span>{c.author}</span>
-                          <span className="text-[10px] font-normal text-[#6E7D90]">· {c.time}</span>
+                return (
+                  <div key={c.id || i} className="space-y-2 pb-3 border-b border-[#0A2540]/5 last:border-none">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-2.5">
+                        <div className="h-8 w-8 rounded-full bg-[#0A2540]/5 flex items-center justify-center font-bold text-xs text-[#007C8B] shrink-0">
+                          {c.author[0].toUpperCase()}
                         </div>
+                        <div>
+                          <div className="text-xs font-bold text-[#0A2540] flex items-center gap-1.5">
+                            <span>{c.author}</span>
+                            <span className="text-[10px] font-normal text-[#6E7D90]">· {c.time}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => handleOpenReport('comment', c.id, c.text.slice(0, 30))}
+                          className="text-[#8C9BAE] hover:text-red-600 p-1 transition-colors"
+                          title="Report comment"
+                        >
+                          <Flag className="h-3 w-3" />
+                        </button>
+                        {isOwnComment && c.id && (
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteComment(c.id)}
+                            className="text-[#8C9BAE] hover:text-[#D93838] p-1 transition-colors"
+                            title="Delete comment"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        )}
                       </div>
                     </div>
 
-                    {isOwnComment && c.id && (
+                    <p className="text-xs sm:text-sm text-[#374151] pl-10 leading-relaxed">{c.text}</p>
+
+                    <div className="flex items-center gap-4 pl-10 text-[11px] text-[#6E7D90]">
                       <button
                         type="button"
-                        onClick={() => handleDeleteComment(c.id)}
-                        className="text-[#8C9BAE] hover:text-[#D93838] p-1 transition-colors"
-                        title="Delete comment"
+                        onClick={() => setReplyingToCommentId(replyingToCommentId === c.id ? null : c.id)}
+                        className="hover:text-[#007C8B] font-medium flex items-center gap-1"
                       >
-                        <Trash2 className="h-3.5 w-3.5" />
+                        <CornerDownRight className="h-3 w-3" />
+                        <span>Reply</span>
                       </button>
+                    </div>
+
+                    {/* Mobile Inline Reply Composer */}
+                    {replyingToCommentId === c.id && (
+                      <form onSubmit={(e) => handlePostReply(e, c.id)} className="ml-10 mt-2 p-2.5 rounded-2xl bg-[#F0F5F8]/80 border border-[#007C8B]/20 space-y-2">
+                        <div className="flex items-center justify-between text-[10px] text-[#52657C]">
+                          <span>Replying to <strong>@{c.author}</strong></span>
+                          <button type="button" onClick={() => setReplyingToCommentId(null)} className="hover:text-[#D93838]">Cancel</button>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="text"
+                            value={replyText}
+                            onChange={(e) => setReplyText(e.target.value)}
+                            placeholder={`Reply to @${c.author}...`}
+                            className="w-full text-xs px-3 py-1.5 rounded-xl border border-[#0A2540]/15 bg-white focus:outline-none focus:border-[#007C8B]"
+                            autoFocus
+                          />
+                          <button
+                            type="submit"
+                            disabled={submittingReply || !replyText.trim()}
+                            className="px-3 py-1.5 rounded-xl bg-[#007C8B] text-white text-xs font-semibold disabled:opacity-40"
+                          >
+                            {submittingReply ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Send'}
+                          </button>
+                        </div>
+                      </form>
+                    )}
+
+                    {/* Mobile Threaded Replies */}
+                    {c.replies && c.replies.length > 0 && (
+                      <div className="ml-10 mt-2 pl-3 border-l-2 border-[#007C8B]/30 space-y-2">
+                        {c.replies.map(rep => {
+                          const isOwnRep = (rep.authorId && rep.authorId === currentUserId) || rep.author === currentUsername;
+                          return (
+                            <div key={rep.id} className="p-2.5 rounded-xl bg-[#F8FBFD] border border-[#0A2540]/6 space-y-1">
+                              <div className="flex items-center justify-between text-xs">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="font-semibold text-[#0A2540]">@{rep.author}</span>
+                                  <span className="text-[10px] text-[#6E7D90]">· {rep.time}</span>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenReport('comment', rep.id, rep.text.slice(0, 30))}
+                                    className="text-[#8C9BAE] hover:text-red-600 p-0.5"
+                                    title="Report reply"
+                                  >
+                                    <Flag className="h-2.5 w-2.5" />
+                                  </button>
+                                  {isOwnRep && rep.id && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDeleteComment(rep.id)}
+                                      className="text-[#8C9BAE] hover:text-[#D93838] p-0.5"
+                                      title="Delete reply"
+                                    >
+                                      <Trash2 className="h-3 w-3" />
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                              <p className="text-xs text-[#374151] leading-relaxed">{rep.text}</p>
+                            </div>
+                          );
+                        })}
+                      </div>
                     )}
                   </div>
-
-                  <p className="text-xs sm:text-sm text-[#374151] pl-10 leading-relaxed">{c.text}</p>
-
-                  <div className="flex items-center gap-4 pl-10 text-[11px] text-[#6E7D90]">
-                    <button type="button" className="flex items-center gap-1 hover:text-[#D0384B]">
-                      <Heart className="h-3.5 w-3.5" />
-                      <span>{c.likes || 8}</span>
-                    </button>
-                    <button type="button" className="hover:text-[#007C8B]">
-                      Reply
-                    </button>
-                    <span>···</span>
-                  </div>
-                </div>
-              );
-            })}
+                );
+              })
+            )}
           </div>
         </section>
 
@@ -1115,6 +1758,122 @@ export const ArticleReader: React.FC<ArticleReaderProps> = ({ article: initialAr
           <List className="h-4 w-4" />
         </button>
       </div>
+
+            {/* Mobile More Options Dropdown Modal */}
+      {optionsMenuOpen && (
+        <div className="fixed inset-0 z-50 bg-[#0A2540]/40 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="w-full max-w-xs rounded-2xl bg-white border border-[#0A2540]/10 shadow-2xl p-4 space-y-2 text-xs">
+            <div className="flex items-center justify-between pb-2 border-b border-[#0A2540]/8">
+              <span className="font-bold text-[#0A2540]">Story Options</span>
+              <button type="button" onClick={() => setOptionsMenuOpen(false)} className="text-[#6E7D90]">✕</button>
+            </div>
+            <button
+              type="button"
+              onClick={handleToggleMute}
+              className="w-full text-left p-2.5 rounded-xl hover:bg-[#F0F5F8] flex items-center gap-2.5 text-[#52657C]"
+            >
+              <VolumeX className="h-4 w-4 text-[#007C8B]" />
+              <span>{isAuthorMuted ? 'Unmute Author' : 'Mute Author'}</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleBlockAuthor}
+              className="w-full text-left p-2.5 rounded-xl hover:bg-[#F0F5F8] flex items-center gap-2.5 text-[#52657C]"
+            >
+              <UserX className="h-4 w-4" />
+              <span>Block Author</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => handleOpenReport('post', article.id, article.title)}
+              className="w-full text-left p-2.5 rounded-xl hover:bg-red-50 flex items-center gap-2.5 text-red-600 border-t border-[#0A2540]/6 pt-2"
+            >
+              <Flag className="h-4 w-4" />
+              <span>Report Story</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Safety Report Modal */}
+      {reportModalOpen && (
+        <div className="fixed inset-0 z-50 bg-[#0A2540]/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-md bg-white rounded-3xl border border-[#0A2540]/10 shadow-2xl p-6 sm:p-8 space-y-5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-red-600 font-bold text-base">
+                <Flag className="h-5 w-5" />
+                <span>Report Content</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setReportModalOpen(false)}
+                className="text-[#6E7D90] hover:text-[#0A2540] text-sm"
+              >
+                ✕
+              </button>
+            </div>
+
+            {reportSubmitted ? (
+              <div className="py-6 text-center space-y-2 text-emerald-700">
+                <CheckCircle2 className="h-10 w-10 mx-auto text-emerald-600" />
+                <h4 className="font-bold text-sm">Report Received</h4>
+                <p className="text-xs text-[#52657C]">Thank you for helping keep PENORA safe. Our moderation team will review this submission.</p>
+              </div>
+            ) : (
+              <form onSubmit={handleSubmitReport} className="space-y-4">
+                <p className="text-xs text-[#52657C]">
+                  Reporting {reportTarget.type === 'comment' ? 'comment' : 'story'}{reportTarget.name ? `: "${reportTarget.name}"` : ''}.
+                </p>
+
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-semibold text-[#0A2540]">Reason for report</label>
+                  <select
+                    value={reportReason}
+                    onChange={(e) => setReportReason(e.target.value)}
+                    className="w-full text-xs p-2.5 rounded-xl border border-[#0A2540]/15 bg-white text-[#0A2540] focus:outline-none focus:border-[#007C8B]"
+                  >
+                    <option value="Spam">Spam or unwanted promotional content</option>
+                    <option value="Harassment">Harassment, threats, or abuse</option>
+                    <option value="Plagiarism">Plagiarism or copyright infringement</option>
+                    <option value="Misinformation">Misleading or deceptive information</option>
+                    <option value="Inappropriate">Inappropriate or offensive content</option>
+                    <option value="Other">Other policy violation</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-semibold text-[#0A2540]">Additional details (optional)</label>
+                  <textarea
+                    rows={3}
+                    value={reportDetails}
+                    onChange={(e) => setReportDetails(e.target.value)}
+                    placeholder="Provide details to assist our moderation review..."
+                    className="w-full text-xs p-2.5 rounded-xl border border-[#0A2540]/15 bg-white text-[#0A2540] focus:outline-none focus:border-[#007C8B] resize-none"
+                  />
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setReportModalOpen(false)}
+                    className="px-4 py-2 rounded-xl text-xs font-semibold text-[#52657C] hover:bg-[#F0F5F8]"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={reportingBusy}
+                    className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-red-600 hover:bg-red-700 disabled:opacity-50 flex items-center gap-1.5"
+                  >
+                    {reportingBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Flag className="h-3.5 w-3.5" />}
+                    <span>Submit Report</span>
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
 
       <SpatialAuthModalV4
         isOpen={authModalOpen}

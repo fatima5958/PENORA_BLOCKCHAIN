@@ -30,6 +30,9 @@ import {
   Moon,
   Sparkles,
   ArrowRight,
+  UserCheck,
+  Trophy,
+  BarChart3,
 } from 'lucide-react';
 import { PenoraLogo } from '../brand/PenoraLogo';
 import { getFollowCounts } from '../../lib/api/follows';
@@ -405,6 +408,27 @@ export const MobileNavigationDrawer: React.FC<MobileNavigationDrawerProps> = ({
                 <ChevronRight className="h-3.5 w-3.5 opacity-50" />
               </a>
 
+              {/* Following Feed */}
+              <a
+                href="/following"
+                onClick={onClose}
+                className={`flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-medium transition-all ${
+                  currentPath === '/following'
+                    ? isLight
+                      ? 'bg-[#00E5F4]/15 text-[#007C8B] font-bold border-l-4 border-[#007C8B]'
+                      : 'bg-[#00E5F4]/20 text-[#00E5F4] font-bold border-l-4 border-[#00E5F4]'
+                    : isLight
+                    ? 'text-[#0A2540] hover:bg-white hover:text-[#007C8B]'
+                    : 'text-white/80 hover:bg-white/5 hover:text-white'
+                }`}
+              >
+                <div className="flex items-center gap-2.5">
+                  <UserCheck className="h-4 w-4 shrink-0" />
+                  <span>Following Feed</span>
+                </div>
+                <ChevronRight className="h-3.5 w-3.5 opacity-50" />
+              </a>
+
               {/* Explore Topics */}
               <a
                 href="/explore"
@@ -443,6 +467,27 @@ export const MobileNavigationDrawer: React.FC<MobileNavigationDrawerProps> = ({
                 <div className="flex items-center gap-2.5">
                   <Users className="h-4 w-4 shrink-0" />
                   <span>Communities</span>
+                </div>
+                <ChevronRight className="h-3.5 w-3.5 opacity-50" />
+              </a>
+
+              {/* Creator Discovery */}
+              <a
+                href="/creators"
+                onClick={onClose}
+                className={`flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-medium transition-all ${
+                  currentPath.startsWith('/creators')
+                    ? isLight
+                      ? 'bg-[#00E5F4]/15 text-[#007C8B] font-bold border-l-4 border-[#007C8B]'
+                      : 'bg-[#00E5F4]/20 text-[#00E5F4] font-bold border-l-4 border-[#00E5F4]'
+                    : isLight
+                    ? 'text-[#0A2540] hover:bg-white hover:text-[#007C8B]'
+                    : 'text-white/80 hover:bg-white/5 hover:text-white'
+                }`}
+              >
+                <div className="flex items-center gap-2.5">
+                  <Sparkles className="h-4 w-4 shrink-0" />
+                  <span>Creator Discovery</span>
                 </div>
                 <ChevronRight className="h-3.5 w-3.5 opacity-50" />
               </a>
@@ -502,6 +547,48 @@ export const MobileNavigationDrawer: React.FC<MobileNavigationDrawerProps> = ({
                   <span className="h-2 w-2 rounded-full bg-[#EF4444]" />
                   <ChevronRight className="h-3.5 w-3.5 opacity-50" />
                 </div>
+              </a>
+
+              {/* Writing Challenges */}
+              <a
+                href="/challenges"
+                onClick={onClose}
+                className={`flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-medium transition-all ${
+                  currentPath.startsWith('/challenges')
+                    ? isLight
+                      ? 'bg-[#00E5F4]/15 text-[#007C8B] font-bold border-l-4 border-[#007C8B]'
+                      : 'bg-[#00E5F4]/20 text-[#00E5F4] font-bold border-l-4 border-[#00E5F4]'
+                    : isLight
+                    ? 'text-[#0A2540] hover:bg-white hover:text-[#007C8B]'
+                    : 'text-white/80 hover:bg-white/5 hover:text-white'
+                }`}
+              >
+                <div className="flex items-center gap-2.5">
+                  <Trophy className="h-4 w-4 shrink-0 text-[#007C8B]" />
+                  <span>Writing Challenges</span>
+                </div>
+                <ChevronRight className="h-3.5 w-3.5 opacity-50" />
+              </a>
+
+              {/* Creator Analytics */}
+              <a
+                href="/analytics"
+                onClick={onClose}
+                className={`flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-medium transition-all ${
+                  currentPath.startsWith('/analytics')
+                    ? isLight
+                      ? 'bg-[#00E5F4]/15 text-[#007C8B] font-bold border-l-4 border-[#007C8B]'
+                      : 'bg-[#00E5F4]/20 text-[#00E5F4] font-bold border-l-4 border-[#00E5F4]'
+                    : isLight
+                    ? 'text-[#0A2540] hover:bg-white hover:text-[#007C8B]'
+                    : 'text-white/80 hover:bg-white/5 hover:text-white'
+                }`}
+              >
+                <div className="flex items-center gap-2.5">
+                  <BarChart3 className="h-4 w-4 shrink-0 text-[#007C8B]" />
+                  <span>Creator Analytics</span>
+                </div>
+                <ChevronRight className="h-3.5 w-3.5 opacity-50" />
               </a>
             </div>
 

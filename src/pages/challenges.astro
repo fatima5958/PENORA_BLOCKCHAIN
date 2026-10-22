@@ -1,0 +1,11 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { ChallengesView } from '../components/growth/ChallengesView';
+---
+
+<BaseLayout
+  title="Writing Challenges — PENORA"
+  description="Participate in curated editorial writing prompts, submit original stories, and gain recognition across PENORA Spotlight."
+>
+  <ChallengesView client:load />
+</BaseLayout>
