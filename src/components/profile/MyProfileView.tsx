@@ -44,6 +44,7 @@ export const MyProfileView: React.FC = () => {
         location?: string;
         website?: string;
         interests?: string[];
+        cover_url?: string;
       }>;
       if (ce.detail) {
         setProfile(prev => ({
@@ -55,6 +56,7 @@ export const MyProfileView: React.FC = () => {
           }),
           ...(ce.detail.display_name !== undefined && { display_name: ce.detail.display_name }),
           ...(ce.detail.bio !== undefined && { bio: ce.detail.bio }),
+          ...(ce.detail.cover_url !== undefined && { cover_url: ce.detail.cover_url }),
           ...(ce.detail.avatar_url !== undefined && { avatar_url: ce.detail.avatar_url }),
           ...(ce.detail.location !== undefined && { location: ce.detail.location }),
           ...(ce.detail.website !== undefined && { website: ce.detail.website }),
@@ -153,8 +155,8 @@ export const MyProfileView: React.FC = () => {
     : user
     ? {
         id: user.id,
-        username: user.email?.split('@')[0] || 'mateenwrites',
-        displayName: user.email?.split('@')[0] || 'Mateen Fatima',
+        username: user.email?.split('@')[0] || 'creator',
+        displayName: user.email?.split('@')[0] || 'Creator',
         keyRole: 'posting' as const,
         isKeyAuth: false,
       }
@@ -165,23 +167,23 @@ export const MyProfileView: React.FC = () => {
     : 'Oct 2026';
 
   const ownerAuthor: Author = {
-    id: activeCreator?.id || 'mateenfatima',
-    name: profile?.display_name || activeCreator?.displayName || 'Mateen Fatima',
-    handle: activeCreator?.username || 'mateenwrites',
-    avatar: profile?.avatar_url || '/brand/penora-avatar-mateen.jpg',
+    id: activeCreator?.id || '',
+    name: profile?.display_name || activeCreator?.displayName || 'Creator',
+    handle: activeCreator?.username || 'creator',
+    avatar: profile?.avatar_url || '',
     coverImage: profile?.cover_url || '/brand/penora-celestial-cover-default.jpg',
     bio:
       profile?.bio ||
-      'Building PENORA for a fairer internet where creators truly own their content. Sharing my learning journey, real experiences and small wins ♡',
-    location: profile?.location || 'Lahore, Pakistan',
+      '',
+    location: profile?.location || '',
     website: profile?.website || '',
-    interests: profile?.interests && profile.interests.length > 0 ? profile.interests : ['Writing', 'Tech', 'Faith', 'Productivity', 'Onchain'],
-    reputationScore: profile?.reputation ?? 25,
+    interests: profile?.interests && profile.interests.length > 0 ? profile.interests : [],
+    reputationScore: profile?.reputation ?? 0,
     joinedDate: joinedDate,
     role: 'Creator',
     followersCount: followCounts.followers,
     followingCount: followCounts.following,
-    postsCount: articles.length || 28,
+    postsCount: articles.length,
   };
 
   return (
