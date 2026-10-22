@@ -28,32 +28,17 @@ export const IS_PENORA_TOKEN_LIVE = false;
  * If inactive, returns "$—" with an honest explanatory tooltip.
  */
 export function getArticleRewardState(votesCount: number, eligibleTokens: number = 0): RewardEstimate {
-  const safeVotes = Math.max(0, votesCount || 0);
-
-  if (!IS_PENORA_TOKEN_LIVE) {
-    return {
-      isTokenLive: false,
-      voteCount: safeVotes,
-      eligibleTokenAmount: null,
-      verifiedTokenPriceUsd: null,
-      estimatedUsd: null,
-      displayUsd: '$—',
-      badgeLabel: `▲ ${safeVotes} votes · $—`,
-      tooltip: "USD rewards will appear when PENORA's token rewards and verified pricing are live.",
-    };
-  }
-
-  // Future onchain branch (once token contract and oracle feed are deployed):
-  const mockPrice = 0.00;
-  const estimated = eligibleTokens * mockPrice;
+  const safeVotes = Number.isFinite(votesCount) ? Math.max(0, Math.floor(votesCount)) : 0;
+  // Token settlement and USD valuation are independent. A vote count is never a cash amount.
+  // Until a verified allocation and price source are wired in, show unavailable USD honestly.
   return {
-    isTokenLive: true,
+    isTokenLive: false,
     voteCount: safeVotes,
-    eligibleTokenAmount: eligibleTokens,
-    verifiedTokenPriceUsd: mockPrice,
-    estimatedUsd: estimated,
-    displayUsd: `$${estimated.toFixed(2)}`,
-    badgeLabel: `▲ ${safeVotes} votes · $${estimated.toFixed(2)}`,
-    tooltip: `Eligible token payout: ${eligibleTokens} PENORA @ $${mockPrice} USD`,
+    eligibleTokenAmount: null,
+    verifiedTokenPriceUsd: null,
+    estimatedUsd: null,
+    displayUsd: '$—',
+    badgeLabel: `▲ ${safeVotes} votes · $—`,
+    tooltip: "USD rewards will appear when PENORA's token rewards and verified pricing are live. Blog rewards mature 7 days after first publication; a funded verified settlement is required for payment.",
   };
 }

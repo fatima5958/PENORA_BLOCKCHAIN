@@ -24,6 +24,7 @@ import { SpatialAuthModalV4 } from '../design-v4/SpatialAuthModalV4';
 import { penoraKeyAuth, type PenoraUser } from '../../lib/auth/penoraKeyAuth';
 import type { CommentRecord, PostRecord } from '../../lib/api/types';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
+import { ArticleRewardPanel } from './ArticleRewardPanel';
 import { ArticleMarkdown } from '../editor/ArticleMarkdown';
 
 interface ArticleReaderProps {
@@ -43,6 +44,7 @@ export const ArticleReader: React.FC<ArticleReaderProps> = ({ article: initialAr
   const [keyUser, setKeyUser] = useState<PenoraUser | null>(null);
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [article, setArticle] = useState<Article>(EMPTY_ARTICLE);
+  const [rewardPublishedAt, setRewardPublishedAt] = useState<string | null>(null);
   const [articleLoading, setArticleLoading] = useState(true);
   const [articleError, setArticleError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -77,9 +79,10 @@ export const ArticleReader: React.FC<ArticleReaderProps> = ({ article: initialAr
       setArticleLoading(false);
       if (!res.data) { setArticleError(res.error || 'This blog was not found or is not public.'); return; }
       const p = res.data;
+      setRewardPublishedAt(p.published_at ?? null);
       setArticle({
         id: p.id, slug: p.slug, title: p.title, subtitle: '', excerpt: p.excerpt || '', content: [p.content],
-        coverImage: p.cover_image_url || '', coverImageAlt: p.title, publishedAt: p.created_at,
+        coverImage: p.cover_image_url || '', coverImageAlt: p.title, publishedAt: p.published_at || p.created_at,
         readTimeMinutes: Math.max(1, Math.ceil(p.content.trim().split(/\s+/).length / 200)),
         topic: p.tags?.[0] || 'Blog', tags: p.tags || [],
         author: {
@@ -272,6 +275,8 @@ export const ArticleReader: React.FC<ArticleReaderProps> = ({ article: initialAr
           </button>
         </div>
       </div>
+
+      <ArticleRewardPanel publishedAt={rewardPublishedAt} />
 
       {/* Main Article Card */}
       <article className="pn-card p-6 sm:p-12">

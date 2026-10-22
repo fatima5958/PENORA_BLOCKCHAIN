@@ -25,6 +25,8 @@ export interface PostRecord {
   cover_image_url?: string | null;
   tags?: string[] | null;
   published: boolean;
+  published_at?: string | null;
+  payout_at?: string | null;
   created_at: string;
   updated_at: string;
   author?: ProfileRecord;
