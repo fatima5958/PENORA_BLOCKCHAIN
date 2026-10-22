@@ -6,7 +6,7 @@ import { PenoraEmblem } from '../brand/PenoraLogo';
 
 export const Footer: React.FC = () => {
   return (
-    <footer className="border-t border-[#0A2540]/8 bg-white/70 backdrop-blur-md py-4 px-4 sm:px-6 lg:px-8 mt-12">
+    <footer className="hidden md:block border-t border-[#0A2540]/8 bg-white/70 backdrop-blur-md py-4 px-4 sm:px-6 lg:px-8 mt-12">
       <div className="max-w-[1400px] mx-auto flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-[#6E7D90]">
         {/* Left: Brand & Copyright */}
         <div className="flex items-center gap-2.5">

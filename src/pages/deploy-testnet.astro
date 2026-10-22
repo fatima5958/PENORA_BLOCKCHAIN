@@ -1,0 +1,12 @@
+---
+// src/pages/deploy-testnet.astro
+// PENORA Blockchain — Polygon Amoy Testnet Deployment Dashboard
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { TestnetDeployView } from '../components/deploy/TestnetDeployView';
+---
+
+<BaseLayout title="Testnet Deployment Dashboard — PENORA">
+  <div class="min-h-screen bg-[#F8FAFC] py-8">
+    <TestnetDeployView client:load />
+  </div>
+</BaseLayout>

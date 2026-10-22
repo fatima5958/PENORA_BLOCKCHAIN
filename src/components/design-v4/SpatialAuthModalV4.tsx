@@ -25,11 +25,13 @@ import {
   RefreshCw,
   Sparkles,
   FileText,
+  ClipboardPaste,
 } from 'lucide-react';
 import { PenoraEmblem } from '../brand/PenoraLogo';
 import { penoraKeyAuth, type PenoraUser } from '../../lib/auth/penoraKeyAuth';
 import {
   deriveKeyInfoFromWif,
+  extractWifKey,
   type AccountKeySuite,
   type KeyRole,
 } from '../../lib/crypto/penoraKeys';
@@ -111,10 +113,30 @@ export const SpatialAuthModalV4: React.FC<SpatialAuthModalV4Props> = ({
 
   // Live WIF key inspection for Login
   const loginWifPreview = useMemo(() => {
-    const trimmed = loginPrivateKey.trim();
-    if (!trimmed || trimmed.length < 12) return null;
-    return deriveKeyInfoFromWif(trimmed);
+    const cleaned = extractWifKey(loginPrivateKey);
+    if (!cleaned || cleaned.length < 12) return null;
+    try {
+      return deriveKeyInfoFromWif(cleaned);
+    } catch {
+      return null;
+    }
   }, [loginPrivateKey]);
+
+  const handlePasteKey = async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (text) {
+        setLoginPrivateKey(extractWifKey(text));
+        setLoginError(null);
+      }
+    } catch {
+      const manual = window.prompt('Paste your Private Posting or Active Key:');
+      if (manual) {
+        setLoginPrivateKey(extractWifKey(manual));
+        setLoginError(null);
+      }
+    }
+  };
 
   // Lock background scrolling while modal is open
   useEffect(() => {
@@ -563,21 +585,32 @@ export const SpatialAuthModalV4: React.FC<SpatialAuthModalV4Props> = ({
                 </div>
               </div>
 
-              {/* Private Key Input (Password Masked with Reveal) */}
+              {/* Private Key Input (Password Masked with Reveal + Instant Paste) */}
               <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
                   <label htmlFor="login-private-key" className="block text-xs font-bold text-[#0A2540]">
                     Private Key (Posting or Active)
                   </label>
-                  {loginWifPreview ? (
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#E0FAFC] text-[#006B78] border border-[#00C8DC]/40">
-                      Valid WIF Key Detected
-                    </span>
-                  ) : (
-                    <span className="text-[10.5px] font-medium text-[#52657C]">
-                      Starts with &lsquo;5&rsquo;
-                    </span>
-                  )}
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={handlePasteKey}
+                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold text-[#007C8B] bg-[#00E5F4]/15 hover:bg-[#00E5F4]/25 transition-colors border border-[#007C8B]/20 cursor-pointer"
+                      title="Paste private key from clipboard"
+                    >
+                      <ClipboardPaste className="h-3 w-3" />
+                      <span>Paste</span>
+                    </button>
+                    {loginWifPreview ? (
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#E0FAFC] text-[#006B78] border border-[#00C8DC]/40">
+                        Valid WIF Key Detected
+                      </span>
+                    ) : (
+                      <span className="text-[10.5px] font-medium text-[#52657C]">
+                        Starts with &lsquo;5&rsquo;
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <div className="pn-icy-input-wrap">
                   <span className="pn-icy-input-badge">
@@ -589,7 +622,18 @@ export const SpatialAuthModalV4: React.FC<SpatialAuthModalV4Props> = ({
                     required
                     autoComplete="current-password"
                     value={loginPrivateKey}
-                    onChange={e => setLoginPrivateKey(e.target.value.trim())}
+                    onChange={e => {
+                      setLoginPrivateKey(extractWifKey(e.target.value));
+                      setLoginError(null);
+                    }}
+                    onPaste={e => {
+                      const text = e.clipboardData.getData('text');
+                      if (text) {
+                        e.preventDefault();
+                        setLoginPrivateKey(extractWifKey(text));
+                        setLoginError(null);
+                      }
+                    }}
                     placeholder="5J..."
                     style={{ paddingRight: '2.6rem' }}
                     className="pn-icy-input font-mono tracking-tight"

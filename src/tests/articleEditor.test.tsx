@@ -24,6 +24,16 @@ describe('Working article formatting', () => {
     const r = formatMarkdown('before CODE after', 7, 11, 'code');
     expect(r.text).toBe('before \n```\nCODE\n```\n after');
   });
+  it('supports h1, h3, ordered-list, divider, link, image, and strikethrough', () => {
+    expect(formatMarkdown('Heading', 0, 7, 'h1').text).toBe('# Heading');
+    expect(formatMarkdown('Subheading', 0, 10, 'h3').text).toBe('### Subheading');
+    expect(formatMarkdown('Item', 0, 4, 'ordered-list').text).toBe('1. Item');
+    expect(formatMarkdown('', 0, 0, 'divider').text).toContain('---');
+    expect(formatMarkdown('click here', 0, 10, 'link').text).toBe('[click here](https://)');
+    expect(formatMarkdown('Chart', 0, 5, 'image').text).toBe('![Chart](https://)');
+    expect(formatMarkdown('old', 0, 3, 'strikethrough').text).toBe('~~old~~');
+    expect(formatMarkdown('var', 0, 3, 'inline-code').text).toBe('`var`');
+  });
   it('renders toolbar Markdown as formatted content, including GFM tables', () => {
     const html = renderToStaticMarkup(<ArticleMarkdown content={'## Heading\n\n**Bold** and *italic*\n\n> Quote\n\n- Item\n\n```js\nlet x = 1;\n```\n\n|A|B|\n|-|-|\n|1|2|'} />);
     for (const tag of ['<h2', '<strong>', '<em>', '<blockquote', '<ul', '<li>', '<pre', '<code', '<table']) expect(html).toContain(tag);

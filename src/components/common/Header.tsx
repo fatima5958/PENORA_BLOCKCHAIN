@@ -27,6 +27,7 @@ import type { ProfileRecord } from '../../lib/api/types';
 import { SpatialAuthModalV4 } from '../design-v4/SpatialAuthModalV4';
 import { PenoraLogo } from '../brand/PenoraLogo';
 import { PenoraWriteIcon } from '../brand/PenoraWriteIcon';
+import { MobileNavigationDrawer } from './MobileNavigationDrawer';
 import { penoraKeyAuth, type PenoraUser } from '../../lib/auth/penoraKeyAuth';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 
@@ -107,11 +108,20 @@ export const Header: React.FC<HeaderProps> = ({ currentPath = '/' }) => {
     };
     window.addEventListener('keydown', onKeyDown);
 
+    const onOpenAuth = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail?.mode === 'register') setAuthMode('register');
+      else setAuthMode('login');
+      setAuthModalOpen(true);
+    };
+    window.addEventListener('penora:open-auth', onOpenAuth);
+
     return () => {
       mounted = false;
       unsubscribeKeyAuth();
       subscription.unsubscribe();
       window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('penora:open-auth', onOpenAuth);
     };
   }, []);
 
@@ -326,9 +336,9 @@ export const Header: React.FC<HeaderProps> = ({ currentPath = '/' }) => {
               href="/editor"
               aria-label="Open Article Studio"
               title="Create a blog"
-              className="pn-focus inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-[#007C8B]/20 bg-[#F4F7FA] shadow-sm transition-colors hover:bg-[#00E5F4]/10 hover:border-[#007C8B]/50"
+              className="pn-focus inline-flex h-8 w-8 sm:h-11 sm:w-11 shrink-0 items-center justify-center rounded-xl border border-[#007C8B]/20 bg-[#F4F7FA] shadow-sm transition-colors hover:bg-[#00E5F4]/10 hover:border-[#007C8B]/50"
             >
-              <PenoraWriteIcon className="h-9 w-9" />
+              <PenoraWriteIcon className="h-6 w-6 sm:h-9 sm:w-9" />
             </a>
 
             <div className="h-5 w-px bg-[#0A2540]/10 hidden sm:block mx-0.5" />
@@ -337,7 +347,17 @@ export const Header: React.FC<HeaderProps> = ({ currentPath = '/' }) => {
             {authLoading ? (
               <div className="h-9 w-9 rounded-full bg-[#0A2540]/8 animate-pulse" />
             ) : activeUser ? (
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                {/* Mobile Search Button (Reference Image 2) */}
+                <a
+                  href="/explore"
+                  className="pn-icon-btn h-8 w-8 sm:hidden"
+                  aria-label="Search topics and creators"
+                  title="Search"
+                >
+                  <Search className="h-4 w-4 text-[#0A2540]" />
+                </a>
+
                 {/* Notifications */}
                 <a
                   href="/notifications"
@@ -481,6 +501,14 @@ export const Header: React.FC<HeaderProps> = ({ currentPath = '/' }) => {
             ) : (
               /* Guest Controls */
               <div className="flex items-center gap-1.5 sm:gap-2">
+                <a
+                  href="/explore"
+                  className="pn-icon-btn h-8 w-8 sm:hidden"
+                  aria-label="Search topics and creators"
+                  title="Search"
+                >
+                  <Search className="h-4 w-4 text-[#0A2540]" />
+                </a>
                 <button
                   type="button"
                   onClick={openLogin}
@@ -503,87 +531,18 @@ export const Header: React.FC<HeaderProps> = ({ currentPath = '/' }) => {
         </div>
       </header>
 
-      {/* Mobile Drawer */}
-      {mobileMenuOpen && (
-        <div className="pn-dropdown lg:hidden fixed inset-x-0 top-[68px] rounded-none border-x-0 p-4 space-y-2 z-40">
-          <form onSubmit={handleSearchSubmit} className="mb-3">
-            <div className="pn-search">
-              <Search className="h-4 w-4 text-[#4A5B70]" />
-              <input
-                type="search"
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-                placeholder="Search PENORA..."
-              />
-            </div>
-          </form>
-          <a href="/" className="pn-nav-item" aria-current={currentPath === '/' ? 'page' : undefined}>
-            <Home className="h-4 w-4" /> Home Feed
-          </a>
-          <a href="/explore" className="pn-nav-item" aria-current={currentPath.startsWith('/explore') ? 'page' : undefined}>
-            <Compass className="h-4 w-4" /> Explore Topics
-          </a>
-          <a href="/communities" className="pn-nav-item" aria-current={currentPath.startsWith('/communities') ? 'page' : undefined}>
-            <Users className="h-4 w-4" /> Communities
-          </a>
-          <a href="/notifications" className="pn-nav-item" aria-current={currentPath.startsWith('/notifications') ? 'page' : undefined}>
-            <Bell className="h-4 w-4" /> Notifications
-          </a>
-          <a href="/editor" className="pn-nav-item" aria-current={currentPath.startsWith('/editor') ? 'page' : undefined}>
-            <PenLine className="h-4 w-4" /> Write Article
-          </a>
-          {activeUser ? (
-            <div className="space-y-1 pt-2 border-t border-[#0A2540]/8">
-              <a
-                href="/profile/me"
-                className="pn-nav-item"
-                aria-current={currentPath.startsWith('/profile/me') ? 'page' : undefined}
-                onClick={() => setMobileMenuOpen(false)}
-              >
-                <User className="h-4 w-4" /> My Profile (@{displayUsername})
-              </a>
-              <a
-                href="/wallet"
-                className="pn-nav-item"
-                aria-current={currentPath.startsWith('/wallet') ? 'page' : undefined}
-                onClick={() => setMobileMenuOpen(false)}
-              >
-                <Wallet className="h-4 w-4" /> Wallet & Rewards
-              </a>
-              <button
-                type="button"
-                onClick={handleLogout}
-                className="pn-nav-item w-full justify-start text-[#D0384B] hover:bg-[#FDECEE]"
-              >
-                <LogOut className="h-4 w-4" /> Sign Out
-              </button>
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 gap-2 pt-2 border-t border-[#0A2540]/8">
-              <button
-                type="button"
-                onClick={() => {
-                  setMobileMenuOpen(false);
-                  openLogin();
-                }}
-                className="pn-btn pn-btn-secondary pn-btn-sm justify-center"
-              >
-                Sign In
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setMobileMenuOpen(false);
-                  openRegister();
-                }}
-                className="pn-btn pn-btn-brand pn-btn-sm justify-center"
-              >
-                Create Account
-              </button>
-            </div>
-          )}
-        </div>
-      )}
+      {/* Mobile Navigation Drawer */}
+      <MobileNavigationDrawer
+        isOpen={mobileMenuOpen}
+        onClose={() => setMobileMenuOpen(false)}
+        currentPath={currentPath}
+        user={user}
+        keyUser={keyUser}
+        profile={profile}
+        onOpenLogin={openLogin}
+        onOpenRegister={openRegister}
+        onLogout={handleLogout}
+      />
 
       {/* Branded Authentication Modal */}
       <SpatialAuthModalV4

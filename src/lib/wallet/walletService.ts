@@ -1,16 +1,29 @@
 // src/lib/wallet/walletService.ts
 // PENORA Blockchain — EVM Wallet Service for Polygon Amoy (Chain ID 80002)
 // Clean separation of PENORA authority keys from EVM Web3 wallet keys.
-import { createPublicClient, http, formatEther } from 'viem';
-import { polygonAmoy, PENORA_TARGET_CHAIN_ID, AMOY_RPC_URL } from './chain';
+import { createPublicClient, http, fallback, formatEther } from 'viem';
+import { polygonAmoy, PENORA_TARGET_CHAIN_ID, AMOY_FALLBACK_RPCS } from './chain';
 import type { WalletState } from './types';
 import { isUsdtConfigured } from './contracts';
 import { penoraUsdtService, penoraPnrService } from './usdtService';
 
-// Create a public viem client for querying Polygon Amoy testnet
+// Create a robust public viem client with automatic RPC failover, bounded retries, and exponential backoff
 export const publicClient = createPublicClient({
   chain: polygonAmoy,
-  transport: http(AMOY_RPC_URL, { timeout: 10_000, retryCount: 1 }),
+  transport: fallback(
+    AMOY_FALLBACK_RPCS.map((url) =>
+      http(url, {
+        timeout: 8_000,
+        retryCount: 2,
+        retryDelay: 1_000,
+      })
+    ),
+    {
+      rank: false,
+      retryCount: 3,
+      retryDelay: 1_000,
+    }
+  ),
 });
 
 // Helper to get MetaMask / EIP-1193 injected provider
@@ -268,7 +281,7 @@ class PenoraWalletService {
                 chainId: chainIdHex,
                 chainName: polygonAmoy.name,
                 nativeCurrency: polygonAmoy.nativeCurrency,
-                rpcUrls: [polygonAmoy.rpcUrls.default.http[0]],
+                rpcUrls: AMOY_FALLBACK_RPCS,
                 blockExplorerUrls: [polygonAmoy.blockExplorers.default.url],
               },
             ],
@@ -283,6 +296,31 @@ class PenoraWalletService {
           error: switchError?.message || 'Failed to switch network',
         });
       }
+    }
+  }
+
+  public async updateAmoyRpc(customRpcUrl?: string): Promise<boolean> {
+    const eth = getEthereumProvider();
+    if (!eth) return false;
+    const rpcUrl = customRpcUrl || AMOY_FALLBACK_RPCS[0];
+    const chainIdHex = `0x${PENORA_TARGET_CHAIN_ID.toString(16)}`;
+    try {
+      await eth.request({
+        method: 'wallet_addEthereumChain',
+        params: [
+          {
+            chainId: chainIdHex,
+            chainName: 'Polygon Amoy Testnet',
+            nativeCurrency: polygonAmoy.nativeCurrency,
+            rpcUrls: [rpcUrl, ...AMOY_FALLBACK_RPCS],
+            blockExplorerUrls: [polygonAmoy.blockExplorers.default.url],
+          },
+        ],
+      });
+      return true;
+    } catch (err: any) {
+      console.error('Failed to update RPC in wallet:', err);
+      return false;
     }
   }
 

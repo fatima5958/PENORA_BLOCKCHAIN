@@ -10,6 +10,7 @@ import nacl from 'tweetnacl';
 import {
   generateAccountKeySuite,
   deriveKeyInfoFromWif,
+  extractWifKey,
   signChallenge,
   doubleSha256,
   type AccountKeySuite,
@@ -292,8 +293,8 @@ class PenoraKeyAuthService {
     username: string,
     privateKeyInput: string
   ): Promise<{ success: boolean; error?: string; user?: PenoraUser }> {
-    const cleanUsername = username.trim().toLowerCase();
-    const cleanKey = privateKeyInput.trim();
+    const cleanUsername = username.trim().toLowerCase().replace(/^@/, '');
+    const cleanKey = extractWifKey(privateKeyInput);
 
     if (!cleanUsername) {
       return { success: false, error: 'Please enter your username.' };
@@ -312,32 +313,30 @@ class PenoraKeyAuthService {
         .maybeSingle();
 
       if (prof) {
-        if (account && account.userId !== prof.id) {
+        const { data: authRow } = await supabase
+          .from('account_authorities')
+          .select('*')
+          .eq('account_id', prof.id)
+          .maybeSingle();
+
+        if (authRow) {
+          const syncedAuthorities: PublicAuthorities = {
+            owner_public_key: authRow.owner_public_key,
+            active_public_key: authRow.active_public_key,
+            posting_public_key: authRow.posting_public_key,
+            memo_public_key: authRow.memo_public_key,
+          };
+          const reg = authBroker.registerHydratedAccount({
+            userId: prof.id,
+            username: prof.username,
+            displayName: prof.display_name || prof.username,
+            authorities: syncedAuthorities,
+            keyVersion: authRow.key_version || 1,
+          });
+          account = reg.account || null;
+        } else if (account && account.userId !== prof.id) {
           authBroker.updateAccountUserId(cleanUsername, prof.id);
           account = authBroker.getAccount(cleanUsername);
-        } else if (!account) {
-          const { data: authRow } = await supabase
-            .from('account_authorities')
-            .select('*')
-            .eq('account_id', prof.id)
-            .maybeSingle();
-
-          if (authRow) {
-            const syncedAuthorities: PublicAuthorities = {
-              owner_public_key: authRow.owner_public_key,
-              active_public_key: authRow.active_public_key,
-              posting_public_key: authRow.posting_public_key,
-              memo_public_key: authRow.memo_public_key,
-            };
-            const reg = authBroker.registerHydratedAccount({
-              userId: prof.id,
-              username: prof.username,
-              displayName: prof.display_name || prof.username,
-              authorities: syncedAuthorities,
-              keyVersion: authRow.key_version || 1,
-            });
-            account = reg.account || null;
-          }
         }
       }
     } catch {

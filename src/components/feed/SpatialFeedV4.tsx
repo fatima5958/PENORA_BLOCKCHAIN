@@ -13,6 +13,8 @@ import {
   ChevronRight,
   ArrowRight,
   MessageCircle,
+  MoreVertical,
+  Heart,
   Share2,
   TrendingUp,
   Check,
@@ -414,6 +416,37 @@ export const SpatialFeedV4: React.FC = () => {
         {/* ─── CENTER COLUMN: Editorial Feed (6 cols) ─────────────────────── */}
         <main className="col-span-1 lg:col-span-6 min-w-0 space-y-4">
           {/* Horizontal Category Tabs */}
+                    {/* Mobile Featured Hero Card (Matches Reference Image 1) */}
+          <div className="relative rounded-2xl overflow-hidden bg-gradient-to-r from-[#06182C] via-[#0A2540] to-[#12345A] p-5 text-white border border-[#00E5F4]/20 shadow-md sm:hidden">
+            <div className="relative z-10 max-w-[210px] space-y-1.5">
+              <span className="font-serif italic text-2xl font-bold leading-tight block text-white">
+                Ideas<br />Write<br />Grow
+              </span>
+              <p className="text-[11px] text-[#A6FAFF] leading-snug">
+                A fairer internet for independent creators.
+              </p>
+              <div className="pt-1">
+                <a href="/editor" className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#00E5F4] text-[#0A2540] text-xs font-bold shadow-sm">
+                  <span>Start Writing</span>
+                  <ArrowRight className="h-3 w-3" />
+                </a>
+              </div>
+            </div>
+            <div className="absolute right-0 top-0 bottom-0 w-36 opacity-35 pointer-events-none">
+              <img src="/brand/penora-celestial-cover-default.jpg" alt="Atmosphere" className="w-full h-full object-cover" />
+            </div>
+          </div>
+
+          {/* Section Header: Recommended for you */}
+          <div className="flex items-center justify-between pt-1">
+            <h3 className="font-serif font-bold text-sm sm:text-base text-[#0A2540]">
+              Recommended for you
+            </h3>
+            <a href="/explore" className="text-xs font-semibold text-[#007C8B] hover:underline">
+              See all
+            </a>
+          </div>
+
           <div className="pn-tabs" role="tablist" aria-label="Feed categories">
             {CATEGORIES.map(cat => (
               <button
@@ -473,7 +506,7 @@ export const SpatialFeedV4: React.FC = () => {
                     key={article.id}
                     className="pn-card pn-card-interactive p-5 sm:p-6 group"
                   >
-                    <div className="flex flex-col sm:flex-row gap-5 items-start">
+                    <div className="flex flex-col-reverse sm:flex-row gap-4 sm:gap-5 items-stretch sm:items-start">
                       {/* Left: Article Content */}
                       <div className="flex-1 min-w-0 flex flex-col justify-between">
                         {/* Meta Row */}
@@ -529,7 +562,7 @@ export const SpatialFeedV4: React.FC = () => {
                           </a>
 
                           {/* Social Curation Actions: Upvote ▲ / Downvote ▼ + Comments + Bookmark + Share */}
-                          <div className="flex items-center gap-1.5">
+                          <div className="flex items-center gap-1 sm:gap-1.5 flex-shrink-0">
                             <div className="pn-vote-group" role="group" aria-label="Article voting">
                               {/* Upvote ▲ */}
                               <button
@@ -613,7 +646,7 @@ export const SpatialFeedV4: React.FC = () => {
                       {/* Right: Cover Image */}
                       <a
                         href={`/story/${article.slug}`}
-                        className="w-full sm:w-44 h-36 rounded-2xl overflow-hidden flex-shrink-0 border border-[#0A2540]/8 relative"
+                        className="w-full sm:w-44 h-44 sm:h-36 rounded-xl sm:rounded-2xl overflow-hidden flex-shrink-0 border border-[#0A2540]/8 relative block"
                       >
                         <img
                           src={article.thumbnail}
@@ -642,7 +675,7 @@ export const SpatialFeedV4: React.FC = () => {
         </main>
 
         {/* ─── RIGHT COLUMN: Brand CTA, Suggested Creators & Communities (3 cols) ─── */}
-        <aside className="col-span-1 lg:col-span-3 min-w-0 space-y-4 sticky top-24">
+        <aside className="hidden lg:block lg:col-span-3 min-w-0 space-y-4 sticky top-24">
           {/* Guest Inverse Brand Card OR Authenticated Summary Card */}
           {!user && !keyUser ? (
             <div className="pn-inverse p-6">

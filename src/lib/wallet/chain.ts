@@ -3,8 +3,12 @@
 import { defineChain } from 'viem';
 import type { WalletNetwork } from './types';
 
-// Current public Amoy endpoint from Polygon's network documentation.
+// Current high-performance public Amoy endpoints.
 export const AMOY_RPC_URL = import.meta.env.PUBLIC_AMOY_RPC_URL || 'https://polygon-amoy.drpc.org';
+export const AMOY_FALLBACK_RPCS = [
+  'https://polygon-amoy.drpc.org',
+  'https://polygon-amoy-bor-rpc.publicnode.com',
+];
 
 export const polygonAmoy = defineChain({
   id: 80002,
@@ -16,10 +20,10 @@ export const polygonAmoy = defineChain({
   },
   rpcUrls: {
     default: {
-      http: [AMOY_RPC_URL],
+      http: AMOY_FALLBACK_RPCS,
     },
     public: {
-      http: [AMOY_RPC_URL],
+      http: AMOY_FALLBACK_RPCS,
     },
   },
   blockExplorers: {
@@ -41,7 +45,7 @@ export const POLYGON_AMOY_CONFIG: WalletNetwork = {
     symbol: 'POL',
     decimals: 18,
   },
-  rpcUrls: [AMOY_RPC_URL],
+  rpcUrls: AMOY_FALLBACK_RPCS,
   blockExplorers: ['https://amoy.polygonscan.com'],
   testnet: true,
 };

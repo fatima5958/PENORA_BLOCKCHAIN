@@ -403,11 +403,11 @@ export const WalletView: React.FC = () => {
         className="fixed bottom-10 right-10 w-[600px] h-[600px] bg-[#007C8B]/6 rounded-full blur-[160px] pointer-events-none"
       />
 
-      <div className="max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8 py-8 relative z-10 space-y-6">
+      <div className="max-w-[1200px] mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8 relative z-10 space-y-4 sm:space-y-6">
         {/* ─── 1. TOP HEADER / TITLE BAR ────────────────────────────────────── */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-[#007C8B]/10">
           <div>
-            <div className="flex items-center gap-2.5">
+            <div className="flex items-center gap-2 sm:gap-2.5 flex-wrap">
               <span className="p-2 rounded-xl bg-[var(--wallet-surface)] border border-[#007C8B]/15 shadow-2xs">
                 <Wallet className="h-5 w-5 text-[#007C8B]" />
               </span>
@@ -419,7 +419,7 @@ export const WalletView: React.FC = () => {
               </span>
             </div>
             <p className="text-xs sm:text-sm text-[var(--wallet-muted)] mt-1">
-              Your tokens, your creative power. Manage PNR, test USDT and staking for @{username}.
+              Your tokens, your creative power. Manage Test PNR, Test USDT and staking for @{username}.
             </p>
           </div>
 
@@ -443,6 +443,14 @@ export const WalletView: React.FC = () => {
               <span className="font-semibold text-[var(--wallet-text)]">Polygon Amoy</span>
               <span className="text-[10px] font-mono text-[var(--wallet-muted)]">80002</span>
             </div>
+          </div>
+        </div>
+
+        {/* ─── PROMINENT TESTNET WARNING BANNER ───────────────────────────────── */}
+        <div className="flex items-start sm:items-center gap-3 px-4 py-3 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-900 dark:text-amber-200 text-xs shadow-xs">
+          <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0 mt-0.5 sm:mt-0" />
+          <div className="leading-relaxed">
+            <strong className="font-bold tracking-wide uppercase">TESTNET ENVIRONMENT — NO REAL VALUE:</strong> Operating strictly on Polygon Amoy Testnet (Chain ID 80002). All balances (Test PNR, Test USDT, POL) and contract interactions are for protocol testing only and carry zero monetary value. Never send real mainnet assets to these addresses.
           </div>
         </div>
 
@@ -471,11 +479,11 @@ export const WalletView: React.FC = () => {
         )}
 
         {/* ─── NAVIGATION TABS ──────────────────────────────────────────────── */}
-        <div className="flex flex-wrap items-center gap-2 bg-[var(--wallet-surface)] backdrop-blur-md p-1.5 rounded-2xl border border-[#007C8B]/15">
+        <div className="flex items-center gap-1.5 sm:gap-2 bg-[var(--wallet-surface)] backdrop-blur-md p-1.5 rounded-2xl border border-[#007C8B]/15 overflow-x-auto no-scrollbar scroll-smooth">
           <button
             type="button"
             onClick={() => setActiveTab('overview')}
-            className={`px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
+            className={`shrink-0 px-3.5 sm:px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
               activeTab === 'overview'
                 ? 'bg-gradient-to-r from-[#007C8B] via-[#00B3C4] to-[#00E5F4] text-white shadow-2xs'
                 : 'text-[var(--wallet-muted)] hover:text-[var(--wallet-text)] hover:bg-[var(--wallet-surface)]'
@@ -488,7 +496,7 @@ export const WalletView: React.FC = () => {
           <button
             type="button"
             onClick={() => setActiveTab('deposit')}
-            className={`px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
+            className={`shrink-0 px-3.5 sm:px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
               activeTab === 'deposit'
                 ? 'bg-gradient-to-r from-[#007C8B] via-[#00B3C4] to-[#00E5F4] text-white shadow-2xs'
                 : 'text-[var(--wallet-muted)] hover:text-[var(--wallet-text)] hover:bg-[var(--wallet-surface)]'
@@ -501,7 +509,7 @@ export const WalletView: React.FC = () => {
           <button
             type="button"
             onClick={() => setActiveTab('send')}
-            className={`px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
+            className={`shrink-0 px-3.5 sm:px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
               activeTab === 'send'
                 ? 'bg-gradient-to-r from-[#007C8B] via-[#00B3C4] to-[#00E5F4] text-white shadow-2xs'
                 : 'text-[var(--wallet-muted)] hover:text-[var(--wallet-text)] hover:bg-[var(--wallet-surface)]'
@@ -514,7 +522,7 @@ export const WalletView: React.FC = () => {
           <button
             type="button"
             onClick={() => setActiveTab('receive')}
-            className={`px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
+            className={`shrink-0 px-3.5 sm:px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
               activeTab === 'receive'
                 ? 'bg-gradient-to-r from-[#007C8B] via-[#00B3C4] to-[#00E5F4] text-white shadow-2xs'
                 : 'text-[var(--wallet-muted)] hover:text-[var(--wallet-text)] hover:bg-[var(--wallet-surface)]'
@@ -527,7 +535,7 @@ export const WalletView: React.FC = () => {
           <button
             type="button"
             onClick={() => setActiveTab('history')}
-            className={`px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
+            className={`shrink-0 px-3.5 sm:px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
               activeTab === 'history'
                 ? 'bg-gradient-to-r from-[#007C8B] via-[#00B3C4] to-[#00E5F4] text-white shadow-2xs'
                 : 'text-[var(--wallet-muted)] hover:text-[var(--wallet-text)] hover:bg-[var(--wallet-surface)]'
@@ -540,7 +548,7 @@ export const WalletView: React.FC = () => {
           <button
             type="button"
             onClick={() => setActiveTab('power_system')}
-            className={`px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
+            className={`shrink-0 px-3.5 sm:px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
               activeTab === 'power_system'
                 ? 'bg-gradient-to-r from-[#007C8B] via-[#00B3C4] to-[#00E5F4] text-white shadow-2xs'
                 : 'text-[var(--wallet-muted)] hover:text-[var(--wallet-text)] hover:bg-[var(--wallet-surface)]'
@@ -567,7 +575,7 @@ export const WalletView: React.FC = () => {
                 />
 
                 <div className="relative z-10 space-y-6">
-                  <div className="flex items-center justify-between">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="flex items-center gap-2">
                       <Coins className="h-4 w-4 text-[#00E5F4]" />
                       <span className="text-xs font-semibold tracking-wider uppercase text-white/70">
@@ -585,7 +593,7 @@ export const WalletView: React.FC = () => {
                     <div className="p-4 rounded-2xl bg-white/5 border border-white/10 space-y-2">
                       <div className="flex items-center justify-between">
                         <span className="text-[11px] font-medium uppercase tracking-wider text-white/70">
-                          Liquid Token
+                          Test PNR (Liquid)
                         </span>
                         <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded">
                           Transferable
@@ -621,7 +629,7 @@ export const WalletView: React.FC = () => {
                     <div className="p-4 rounded-2xl bg-white/5 border border-white/10 space-y-2">
                       <div className="flex items-center justify-between">
                         <span className="text-[11px] font-medium uppercase tracking-wider text-white/70">
-                          Test USDT Balance
+                          Test USDT
                         </span>
                         <span className="text-[10px] font-mono text-cyan-300 bg-cyan-500/10 px-1.5 py-0.5 rounded">
                           {walletState.usdtDecimals} Decimals
@@ -873,6 +881,94 @@ export const WalletView: React.FC = () => {
                 </div>
               </div>
             </div>
+
+            {/* Zero-Balance / Faucet & Testnet Setup Instructions */}
+            {walletState.status === 'connected' && walletState.isCorrectNetwork && (
+              <div className="bg-[var(--wallet-surface)] backdrop-blur-md rounded-3xl p-6 border border-[#007C8B]/20 shadow-sm space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Info className="h-4 w-4 text-[#007C8B]" />
+                    <h3 className="font-serif text-sm font-bold text-[var(--wallet-text)]">
+                      Polygon Amoy Testnet Setup &amp; Funding Guide
+                    </h3>
+                  </div>
+                  <span className="text-[10px] font-mono uppercase px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-semibold border border-emerald-500/20">
+                    Amoy RPC Active (80002)
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {/* Step 1: POL Gas */}
+                  <div className="p-4 rounded-2xl bg-[var(--wallet-inset)] border border-[#007C8B]/10 space-y-2 flex flex-col justify-between">
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-[var(--wallet-text)]">1. Test POL (Gas Fee)</span>
+                        <span className="text-[10px] font-mono text-[#007C8B] font-semibold">
+                          {walletState.balancePol ? `${walletState.balancePol} POL` : '0 POL'}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-[var(--wallet-muted)] leading-relaxed">
+                        Required for Polygon Amoy network transactions (transfers, power up, claims). Request free testnet POL directly from official faucets.
+                      </p>
+                    </div>
+                    <a
+                      href="https://faucet.polygon.technology/"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#007C8B] hover:underline pt-2"
+                    >
+                      <span>Polygon Official Faucet</span>
+                      <ExternalLink className="h-3 w-3" />
+                    </a>
+                  </div>
+
+                  {/* Step 2: Test PNR & Test USDT */}
+                  <div className="p-4 rounded-2xl bg-[var(--wallet-inset)] border border-[#007C8B]/10 space-y-2 flex flex-col justify-between">
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-[var(--wallet-text)]">2. Test Tokens Funding</span>
+                        <span className="text-[10px] font-mono text-cyan-600 dark:text-cyan-400 font-semibold">
+                          Target: 10,000 PNR / 1,000 USDT
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-[var(--wallet-muted)] leading-relaxed">
+                        Deploy and fund your test contracts directly with MetaMask on Polygon Amoy. Testnet tokens have zero monetary value.
+                      </p>
+                    </div>
+                    <a
+                      href="/deploy-testnet"
+                      className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#007C8B] hover:underline pt-2"
+                    >
+                      <span>Deploy via MetaMask (Amoy)</span>
+                      <ExternalLink className="h-3 w-3" />
+                    </a>
+                  </div>
+
+                  {/* Step 3: Power Up & Staking */}
+                  <div className="p-4 rounded-2xl bg-[var(--wallet-inset)] border border-[#007C8B]/10 space-y-2 flex flex-col justify-between">
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-[var(--wallet-text)]">3. Power Up &amp; Curation</span>
+                        <span className="text-[10px] font-mono text-amber-600 dark:text-amber-400 font-semibold">
+                          1 PNR = 1 PP
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-[var(--wallet-muted)] leading-relaxed">
+                        Deposit liquid Test PNR into the Power Escrow contract to convert it into locked PENORA Power (PP) for stake-weighted creator voting influence.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('power_system')}
+                      className="inline-flex items-center gap-1 text-xs font-semibold text-[#007C8B] hover:underline pt-2 text-left"
+                    >
+                      <span>Explore Power System</span>
+                      <ArrowUpRight className="h-3 w-3" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* 13-Week Schedule Tracker */}
             <div className="bg-[var(--wallet-surface)] backdrop-blur-md rounded-3xl p-6 border border-[#007C8B]/15 shadow-sm space-y-4">

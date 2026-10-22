@@ -367,3 +367,17 @@ export function verifyChallengeSignature(
     return false;
   }
 }
+
+/**
+ * Safely extracts a clean WIF private key from user input or pasted text.
+ * Strips quotes, line breaks, labels like "Posting Key: 5J...", and whitespace.
+ */
+export function extractWifKey(input: string): string {
+  if (!input) return '';
+  let str = input.trim().replace(/^["'`]|["'`]$/g, '').trim();
+  // Match standard 50-52 char base58 string starting with 5
+  const match = str.match(/5[1-9A-HJ-NP-Za-km-z]{49,52}/);
+  if (match) return match[0];
+  return str.replace(/\s+/g, '');
+}
+

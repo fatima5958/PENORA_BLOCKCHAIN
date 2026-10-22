@@ -22,7 +22,7 @@ module.exports = {
     polygonAmoy: {
       url: "https://rpc-amoy.polygon.technology",
       chainId: 80002,
-      // Deployment accounts are NOT configured here to maintain strict non-custodial security
+      accounts: process.env.AMOY_DEPLOYER_PRIVATE_KEY ? [process.env.AMOY_DEPLOYER_PRIVATE_KEY] : [],
     },
   },
   paths: {

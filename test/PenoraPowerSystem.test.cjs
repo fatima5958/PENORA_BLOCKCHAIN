@@ -55,7 +55,7 @@ describe("PENORA Power Up / Power Down & Financial Integration Suite", function 
 
     // 1. Deploy Liquid PenoraToken (Model A: 100M fixed supply minted at genesis)
     const PenoraTokenFactory = await ethers.getContractFactory("PenoraToken");
-    pnrToken = await PenoraTokenFactory.deploy(owner.address);
+    pnrToken = await PenoraTokenFactory.deploy(owner.address, ethers.ZeroAddress, 0);
     await pnrToken.waitForDeployment();
 
     // 2. Deploy PenoraPowerEscrow
@@ -104,6 +104,63 @@ describe("PENORA Power Up / Power Down & Financial Integration Suite", function 
       await pnrToken.connect(creator1).burn(burnAmount);
       expect(await pnrToken.balanceOf(creator1.address)).to.equal(ethers.parseEther("9000"));
       expect(await pnrToken.totalSupply()).to.equal(FIXED_TOTAL_SUPPLY - burnAmount);
+    });
+
+    it("correctly allocates genesis tokens between tester and sovereign treasury vault", async function () {
+      const PenoraTokenFactory = await ethers.getContractFactory("PenoraToken");
+      const testAllocation = ethers.parseEther("10000"); // 10,000 PNR
+      const stagedToken = await PenoraTokenFactory.deploy(owner.address, creator1.address, testAllocation);
+      await stagedToken.waitForDeployment();
+
+      // Verify tester receives exactly 10,000 PNR
+      expect(await stagedToken.balanceOf(creator1.address)).to.equal(testAllocation);
+
+      // Verify contract holds exactly 99,990,000 PNR in sovereign treasury vault
+      const expectedTreasury = FIXED_TOTAL_SUPPLY - testAllocation;
+      expect(await stagedToken.getTreasuryBalance()).to.equal(expectedTreasury);
+      expect(await stagedToken.balanceOf(await stagedToken.getAddress())).to.equal(expectedTreasury);
+
+      // Verify total supply invariant strictly equals 100M PNR
+      expect(await stagedToken.totalSupply()).to.equal(FIXED_TOTAL_SUPPLY);
+      expect((await stagedToken.balanceOf(creator1.address)) + (await stagedToken.getTreasuryBalance())).to.equal(FIXED_TOTAL_SUPPLY);
+    });
+
+    it("strictly prevents unauthorized withdrawal of treasury tokens", async function () {
+      const PenoraTokenFactory = await ethers.getContractFactory("PenoraToken");
+      const testAllocation = ethers.parseEther("10000");
+      const stagedToken = await PenoraTokenFactory.deploy(owner.address, creator1.address, testAllocation);
+      await stagedToken.waitForDeployment();
+
+      // Attacker attempts to withdraw from treasury
+      await expect(
+        stagedToken.connect(attacker).releaseTreasuryTokens(attacker.address, ethers.parseEther("1000"))
+      ).to.be.revertedWithCustomError(stagedToken, "OwnableUnauthorizedAccount");
+    });
+
+    it("permits owner to release treasury tokens to protocol pools", async function () {
+      const PenoraTokenFactory = await ethers.getContractFactory("PenoraToken");
+      const testAllocation = ethers.parseEther("10000");
+      const stagedToken = await PenoraTokenFactory.deploy(owner.address, creator1.address, testAllocation);
+      await stagedToken.waitForDeployment();
+
+      const releaseAmount = ethers.parseEther("40000000"); // 40M PNR for rewards
+      await expect(stagedToken.connect(owner).releaseTreasuryTokens(vault.target, releaseAmount))
+        .to.emit(stagedToken, "TreasuryTokensReleased")
+        .withArgs(vault.target, releaseAmount);
+
+      expect(await stagedToken.balanceOf(vault.target)).to.equal(releaseAmount);
+      expect(await stagedToken.getTreasuryBalance()).to.equal(FIXED_TOTAL_SUPPLY - testAllocation - releaseAmount);
+
+      // Reverts if requested amount exceeds remaining treasury balance
+      const excessiveAmount = FIXED_TOTAL_SUPPLY;
+      await expect(
+        stagedToken.connect(owner).releaseTreasuryTokens(creator2.address, excessiveAmount)
+      ).to.be.revertedWithCustomError(stagedToken, "InsufficientTreasuryBalance");
+
+      // Reverts if destination is zero address
+      await expect(
+        stagedToken.connect(owner).releaseTreasuryTokens(ethers.ZeroAddress, ethers.parseEther("100"))
+      ).to.be.revertedWithCustomError(stagedToken, "ZeroAddress");
     });
   });
 

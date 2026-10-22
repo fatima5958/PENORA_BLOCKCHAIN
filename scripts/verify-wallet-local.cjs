@@ -23,7 +23,7 @@ async function main() {
     await instance.waitForDeployment();
     return instance;
   };
-  const pnr = await deploy('PenoraToken', owner.address);
+  const pnr = await deploy('PenoraToken', owner.address, hre.ethers.ZeroAddress, 0);
   const usdt = await deploy('MockUSDT', 'Local Test USDT', 'USDT', 1_000_000_000n, owner.address);
   const escrow = await deploy('PenoraPowerEscrow', await pnr.getAddress(), owner.address);
   const influence = await deploy('PenoraVotingInfluence', await escrow.getAddress(), owner.address);

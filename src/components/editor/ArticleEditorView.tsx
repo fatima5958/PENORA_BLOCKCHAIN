@@ -103,6 +103,7 @@ export const ArticleEditorView: React.FC = () => {
           setEditorReady(true);
         } else {
           setPublishError(res.error || 'This blog could not be loaded. Use New Blank to start another blog.');
+          setEditorReady(true);
         }
       });
     } else {
@@ -680,7 +681,7 @@ export const ArticleEditorView: React.FC = () => {
 
       {/* Main Studio Card */}
       <fieldset
-        disabled={!editorReady || !!unsavedDraftAvailable || isPublishing || isSavingDraft || !!ownershipError || (!!editingPostId && !activeAuthorId)}
+        disabled={!editorReady || isPublishing || isSavingDraft || !!ownershipError || (!!editingPostId && !activeAuthorId)}
         className="pn-card p-6 sm:p-10 relative overflow-hidden min-w-0"
       >
         {/* Top signature teal gradient accent */}

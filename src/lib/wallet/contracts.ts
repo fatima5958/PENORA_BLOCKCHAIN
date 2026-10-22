@@ -3,32 +3,41 @@ import { isAddress, zeroAddress } from 'viem';
 // src/lib/wallet/contracts.ts
 // PENORA Blockchain — Smart Contract Addresses & Complete ABIs for Polygon Amoy Testnet (Chain ID 80002)
 
+function getContractAddress(envKey: string, storageKey: string): string {
+  if (typeof window !== 'undefined' && window.localStorage) {
+    try {
+      const stored = localStorage.getItem(`penora_contract_${storageKey}`);
+      if (stored && isAddress(stored) && stored.toLowerCase() !== zeroAddress) {
+        return stored;
+      }
+    } catch {}
+  }
+  const envVal =
+    (typeof import.meta !== 'undefined' && (import.meta as any).env?.[envKey]) ||
+    (typeof process !== 'undefined' && process.env?.[envKey]);
+  return envVal || '0x0000000000000000000000000000000000000000';
+}
+
 export const PENORA_CONTRACT_ADDRESSES = {
-  // Configured via environment variables; defaults to null/zero address until live on-chain deployment
-  PNR_TOKEN:
-    (typeof import.meta !== 'undefined' && (import.meta as any).env?.PUBLIC_PNR_TOKEN_ADDRESS) ||
-    (typeof process !== 'undefined' && process.env?.PUBLIC_PNR_TOKEN_ADDRESS) ||
-    '0x0000000000000000000000000000000000000000',
-  POWER_ESCROW:
-    (typeof import.meta !== 'undefined' && (import.meta as any).env?.PUBLIC_PP_ESCROW_ADDRESS) ||
-    (typeof process !== 'undefined' && process.env?.PUBLIC_PP_ESCROW_ADDRESS) ||
-    '0x0000000000000000000000000000000000000000',
-  VOTING_INFLUENCE:
-    (typeof import.meta !== 'undefined' && (import.meta as any).env?.PUBLIC_INFLUENCE_ADDRESS) ||
-    (typeof process !== 'undefined' && process.env?.PUBLIC_INFLUENCE_ADDRESS) ||
-    '0x0000000000000000000000000000000000000000',
-  REWARD_VAULT:
-    (typeof import.meta !== 'undefined' && (import.meta as any).env?.PUBLIC_REWARD_VAULT_ADDRESS) ||
-    (typeof process !== 'undefined' && process.env?.PUBLIC_REWARD_VAULT_ADDRESS) ||
-    '0x0000000000000000000000000000000000000000',
-  REWARD_DISTRIBUTOR:
-    (typeof import.meta !== 'undefined' && (import.meta as any).env?.PUBLIC_REWARD_DISTRIBUTOR_ADDRESS) ||
-    (typeof process !== 'undefined' && process.env?.PUBLIC_REWARD_DISTRIBUTOR_ADDRESS) ||
-    '0x0000000000000000000000000000000000000000',
-  USDT_TOKEN:
-    (typeof import.meta !== 'undefined' && (import.meta as any).env?.PUBLIC_USDT_CONTRACT_ADDRESS) ||
-    (typeof process !== 'undefined' && process.env?.PUBLIC_USDT_CONTRACT_ADDRESS) ||
-    '0x0000000000000000000000000000000000000000',
+  // Configured via environment variables or testnet deployer storage; defaults to zero address until live on-chain deployment
+  get PNR_TOKEN(): string {
+    return getContractAddress('PUBLIC_PNR_TOKEN_ADDRESS', 'PNR_TOKEN');
+  },
+  get POWER_ESCROW(): string {
+    return getContractAddress('PUBLIC_PP_ESCROW_ADDRESS', 'POWER_ESCROW');
+  },
+  get VOTING_INFLUENCE(): string {
+    return getContractAddress('PUBLIC_INFLUENCE_ADDRESS', 'VOTING_INFLUENCE');
+  },
+  get REWARD_VAULT(): string {
+    return getContractAddress('PUBLIC_REWARD_VAULT_ADDRESS', 'REWARD_VAULT');
+  },
+  get REWARD_DISTRIBUTOR(): string {
+    return getContractAddress('PUBLIC_REWARD_DISTRIBUTOR_ADDRESS', 'REWARD_DISTRIBUTOR');
+  },
+  get USDT_TOKEN(): string {
+    return getContractAddress('PUBLIC_USDT_CONTRACT_ADDRESS', 'USDT_TOKEN');
+  },
 };
 
 export function areContractsConfigured(): boolean {

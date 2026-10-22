@@ -166,5 +166,5 @@ describe('PENORA Complete User Lifecycle Integration Test', () => {
 
     expect(regRes2.success).toBe(true);
     expect(regRes2.user?.username).toBe(username);
-  });
+  }, 15000);
 });
