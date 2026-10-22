@@ -47,3 +47,52 @@ The operator/relayer or beneficiary calls `claimArticleReward` for each proof. A
 - Full existing and new Solidity regression: 47 passing.
 - The publication trigger is also exercised in isolated PostgreSQL (PGlite): draft creation, direct publication, first publication, date/identity tampering, republish, legacy unknown dates and repeat migration.
 - Live Amoy transactions, production database migration, real reward-pool funding and an automatic payout worker remain unverified/unconfigured. This implementation must not be presented as live automated payout capability.
+
+## Durable preparation backend (22 October 2026)
+
+The database publication clock, settlement ledger and wallet challenge migrations have been applied to the existing PENORA-Dev project (`ssjdirzophcveisnubwj`). The clock starts on first publication and cannot be reset by editing or republishing. Existing published posts with unknown publication dates remain unscheduled. A transaction that created and republished a temporary post was rolled back after verifying the live trigger.
+
+Three standalone Vercel Node functions accompany the static Astro site:
+
+- `POST /api/rewards/wallet`: validates the Supabase Auth token with `getUser`, issues an account-bound five-minute challenge, checks the EOA wallet signature and atomically consumes the nonce. A signature does not send tokens. Key-only local sessions cannot impersonate a Supabase account. Contract-wallet signatures are not yet supported.
+- `GET /api/rewards/process` (also POST): requires the server `CRON_SECRET` bearer token. It selects a closed, matured cohort, reserves its budget once and indexes finalized canonical influence events. A lease and durable cursor let later invocations resume a long range. Provider errors or changed block hashes block the batch for operator review. It prepares deterministic allocation/proof records; it does not sign or broadcast transactions.
+- `GET /api/rewards/article?id=<uuid>`: returns a summary for a currently published post. Prepared allocations explicitly have `paymentConfirmed: false`. Drafts are not exposed.
+
+All five internal reward tables use RLS with no client policies and revoked browser grants. All six privileged reward RPCs deny `anon`/`authenticated` execution and allow only the service role. The service key belongs exclusively in the server environment. A missing-wallet cohort waits as a whole, while later verified cohorts may proceed; no author is silently removed from a cohort. Wallet changes affect future reservations, never an existing snapshot.
+
+### Budget policy implemented by the preparation worker
+
+The operator must explicitly configure a daily PNR cap. There is no default cap and configuration does not create or fund tokens. Each UTC day has 1,440 fixed minute slots: a slot receives `floor(dailyCap / 1440)` base units, with integer remainder assigned to 23:59 UTC. Articles maturing in that minute share its budget according to eligible net influence and the 70/20/10 split. Empty slots are not carried over. Once any slot is reserved, that day's cap is fixed. Retries retain the original cohort, budget, block anchor and vote source; they cannot allocate it again. This minute-slot policy is explicit and should be reviewed before financial activation.
+
+### Server configuration and activation
+
+Set the following as server-only environment variables, never `PUBLIC_*`:
+
+```
+SUPABASE_URL
+SUPABASE_SERVICE_ROLE_KEY
+CRON_SECRET                       # at least 32 characters
+REWARDS_RPC_URL                   # HTTPS Amoy RPC with finalized/history/log support
+REWARDS_ARTICLE_CONTRACT          # deployed PenoraArticleRewards, not legacy weekly distributor
+REWARDS_INFLUENCE_CONTRACT        # verified PenoraVotingInfluence deployment
+REWARDS_INFLUENCE_START_BLOCK      # its actual deployment block
+REWARDS_DAILY_BUDGET_PNR           # explicit positive decimal PNR amount, at most 18 decimals
+```
+
+No scheduler has been enabled and no production environment values have been supplied by this change. The local environment has none of these configured. Activation requires a verified Amoy deployment, a funded reward pool, server configuration, a scheduler appropriate to the hosting plan, and an authenticated end-to-end run. The worker relies on a trusted archival RPC for complete logs. It processes up to 10,000 blocks per invocation and can need multiple invocations for a seven-day window. Eligibility starts after seven days; processing and chain confirmation can finish later.
+
+**Prepared is not paid.** A funded settlement operator still has to register each immutable publication on the new distributor, submit its immutable root/budget after maturity, and relay claims to the committed recipients. There is currently no automatic transaction signer/relayer or confirmed-payment reconciliation worker. Do not enable a UI `Paid` status or promise automatic transfers from this preparation endpoint.
+
+### Verification
+
+`npx vitest run src/tests/articleRewards.test.ts src/tests/rewardWorker.test.ts src/tests/rewardWalletApi.test.ts` checks calculation boundaries, canonical log handling, configuration, request authentication, durable progress and actual EOA signatures (including wrong signer, changed message, expired/used nonce and consume races).
+
+For isolated PostgreSQL verification install `@electric-sql/pglite@0.3.14` outside the repository, then run:
+
+```
+PGLITE_MODULE_PATH=/absolute/path/node_modules/@electric-sql/pglite node scripts/check-reward-ledger.cjs
+```
+
+The 27 PostgreSQL assertions exercise publication immutability, wallet expiry/replay/rate limits, cohort selection without starvation, exact large-integer budgets, concurrent lease rejection, cursor resumption, immutable plans and browser privilege denial. Live role-grant checks also confirm the six RPCs deny browser access.
+
+The Supabase advisor reports INFO notices for the five deliberately service-only RLS tables without client policies. Existing warnings for unrelated trigger-function grants and password settings predate these migrations; these are recorded here rather than expanding this reward change into an authentication migration. Advisor guidance: https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy and https://supabase.com/docs/guides/database/database-linter?lint=0028_anon_security_definer_function_executable .

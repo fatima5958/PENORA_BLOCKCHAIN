@@ -1,6 +1,7 @@
 // src/components/wallet/WalletView.tsx
 // PENORA Blockchain — Option 4 Hybrid Wallet (Phase 3: Real USDT Deposits, Withdrawals & Transfers)
 import '../../styles/wallet.css';
+import { RewardWalletLink } from './RewardWalletLink';
 import React, { useState, useEffect, useRef } from 'react';
 import QRCode from 'qrcode';
 import {
@@ -545,6 +546,8 @@ export const WalletView: React.FC = () => {
             {!tokenConfigured && <span className="text-sm text-[var(--wallet-muted)]">{asset} deposits and transfers open after contract deployment.</span>}
           </div>
         )}
+
+        <RewardWalletLink address={walletState.isCorrectNetwork ? walletState.address : null} />
 
         {/* ─── NAVIGATION TABS ──────────────────────────────────────────────── */}
         <div className="flex flex-wrap items-center gap-2 bg-[var(--wallet-surface)] backdrop-blur-md p-1.5 rounded-2xl border border-[#007C8B]/15">

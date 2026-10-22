@@ -276,7 +276,7 @@ export const ArticleReader: React.FC<ArticleReaderProps> = ({ article: initialAr
         </div>
       </div>
 
-      <ArticleRewardPanel publishedAt={rewardPublishedAt} />
+      <ArticleRewardPanel publishedAt={rewardPublishedAt} articleId={article.id} />
 
       {/* Main Article Card */}
       <article className="pn-card p-6 sm:p-12">
