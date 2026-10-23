@@ -17,6 +17,8 @@ export interface WalletActivityPreviewProps {
   error: string | null;
   hasAddress: boolean;
   onViewAll: () => void;
+  onStartSend?: () => void;
+  onConnect?: () => void;
 }
 
 export const WalletActivityPreview: React.FC<WalletActivityPreviewProps> = ({
@@ -25,6 +27,8 @@ export const WalletActivityPreview: React.FC<WalletActivityPreviewProps> = ({
   error,
   hasAddress,
   onViewAll,
+  onStartSend,
+  onConnect,
 }) => {
   const recent = transactions.slice(0, 3);
 
@@ -157,10 +161,31 @@ export const WalletActivityPreview: React.FC<WalletActivityPreviewProps> = ({
           <span>Unavailable: {error}</span>
         </div>
       ) : (
-        <div className="py-5 px-3 text-center rounded-xl bg-[var(--wallet-inset)] text-xs text-[var(--wallet-muted)]">
-          {hasAddress
-            ? 'No recent transactions in the current query window.'
-            : 'Connect your wallet on Polygon Amoy to view your recent transactions.'}
+        <div className="py-4 px-3.5 rounded-xl bg-[var(--wallet-inset)] text-xs text-[var(--wallet-muted)] flex flex-wrap items-center justify-between gap-2">
+          <span>
+            {hasAddress
+              ? 'No recent transactions in the current query window.'
+              : 'Connect your wallet on Polygon Amoy to view your recent transactions.'}
+          </span>
+          {hasAddress && onStartSend ? (
+            <button
+              type="button"
+              onClick={onStartSend}
+              className="inline-flex items-center gap-1 font-semibold text-[#007C8B] dark:text-[#00E5F4] hover:underline shrink-0"
+            >
+              <span>Send Tokens</span>
+              <ChevronRight className="h-3.5 w-3.5" />
+            </button>
+          ) : !hasAddress && onConnect ? (
+            <button
+              type="button"
+              onClick={onConnect}
+              className="inline-flex items-center gap-1 font-semibold text-[#007C8B] dark:text-[#00E5F4] hover:underline shrink-0"
+            >
+              <span>Connect Wallet</span>
+              <ChevronRight className="h-3.5 w-3.5" />
+            </button>
+          ) : null}
         </div>
       )}
     </section>

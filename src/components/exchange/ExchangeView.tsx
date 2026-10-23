@@ -433,7 +433,7 @@ export function ExchangeView() {
               </div>
               <div className="ex-spot">
                 <strong>{market ? `${compact(market.rate)} PNR` : '—'}</strong>
-                <span>{market ? 'Per 1 test USDT · owner-set' : 'Price awaiting activation'}</span>
+                <span>{market && market.rate > 0n ? `Per 1 test USDT · 1 PNR = ${(1 / Number(formatUnits(market.rate, 18))).toFixed(2)} MockUSDT` : market ? 'Per 1 test USDT · owner-set' : 'Price awaiting activation'}</span>
               </div>
               <div className="ex-market-stat">
                 <span>Available liquidity</span>
@@ -766,12 +766,16 @@ export function ExchangeView() {
                       <button
                         className="ex-primary"
                         type="submit"
-                        disabled={busy || !configured || market?.paused || !amount}
+                        disabled={busy || !configured || market?.paused || market?.inventory === 0n || !amount}
                       >
                         {busy
                           ? 'Working…'
                           : !configured
                           ? 'Trading opens after activation'
+                          : market?.paused
+                          ? 'Desk paused by owner'
+                          : market?.inventory === 0n
+                          ? 'Desk inventory empty (0 PNR)'
                           : 'Review purchase'}{' '}
                         <ArrowUpRight size={17} />
                       </button>

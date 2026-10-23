@@ -30,7 +30,12 @@ export const WalletPowerView: React.FC<WalletPowerViewProps> = ({
   onCancelPowerDown,
   onRefreshWallet,
 }) => {
+  const isConnectedAmoy = Boolean(
+    state.address && state.isCorrectNetwork && state.status === 'connected'
+  );
   const canPower = Boolean(state.address && state.isCorrectNetwork && state.contractsDeployed);
+  const hasStakedPp = state.balancePp !== null && Number(state.balancePp) > 0;
+  const hasLiquidPnr = state.balancePnr !== null && Number(state.balancePnr) > 0;
   const manaPercent =
     state.votingManaPercent !== null ? Math.min(100, Math.max(0, state.votingManaPercent)) : 0;
 
@@ -85,7 +90,11 @@ export const WalletPowerView: React.FC<WalletPowerViewProps> = ({
               Staked PENORA Power
             </span>
             <div className="text-2xl font-bold font-mono tabular-nums text-[var(--wallet-text)]">
-              {state.balancePp ? `${state.balancePp} PP` : '— PP'}
+              {state.balancePp !== null
+                ? `${state.balancePp} PP`
+                : isConnectedAmoy
+                ? 'Unavailable'
+                : '— PP'}
             </div>
             <span className="text-[11px] text-[var(--wallet-muted)]">Locked 1:1 in Power Escrow</span>
           </div>
@@ -95,7 +104,11 @@ export const WalletPowerView: React.FC<WalletPowerViewProps> = ({
               Available Liquid PNR
             </span>
             <div className="text-2xl font-bold font-mono tabular-nums text-[var(--wallet-text)]">
-              {state.balancePnr ? `${state.balancePnr} PNR` : '— PNR'}
+              {state.balancePnr !== null
+                ? `${state.balancePnr} PNR`
+                : isConnectedAmoy
+                ? 'Unavailable'
+                : '— PNR'}
             </div>
             <span className="text-[11px] text-[var(--wallet-muted)]">Ready for instant Power Up</span>
           </div>
@@ -106,7 +119,11 @@ export const WalletPowerView: React.FC<WalletPowerViewProps> = ({
                 Voting Mana
               </span>
               <span className="font-mono text-sm font-bold text-[#007C8B] dark:text-[#00E5F4]">
-                {state.votingManaPercent !== null ? `${state.votingManaPercent.toFixed(1)}%` : '—'}
+                {state.votingManaPercent !== null
+                  ? `${state.votingManaPercent.toFixed(1)}%`
+                  : isConnectedAmoy
+                  ? 'Unavailable'
+                  : '—'}
               </span>
             </div>
             <div className="w-full h-2 rounded-full bg-[var(--wallet-surface)] overflow-hidden">
@@ -198,18 +215,40 @@ export const WalletPowerView: React.FC<WalletPowerViewProps> = ({
               </div>
             </div>
           ) : (
-            <div className="p-4 rounded-xl bg-[var(--wallet-inset)] border border-[var(--wallet-border)] space-y-1.5">
-              <div className="flex items-center gap-2 text-xs font-semibold text-[var(--wallet-text)]">
-                <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-                <span>
-                  {state.contractsDeployed
-                    ? 'No active Power Down schedule'
-                    : 'Power Down status unavailable'}
-                </span>
+            <div className="p-4 rounded-xl bg-[var(--wallet-inset)] border border-[var(--wallet-border)] flex flex-wrap items-center justify-between gap-3">
+              <div className="space-y-1 max-w-xl">
+                <div className="flex items-center gap-2 text-xs font-semibold text-[var(--wallet-text)]">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                  <span>
+                    {state.contractsDeployed
+                      ? 'No active Power Down schedule'
+                      : 'Power Down status unavailable'}
+                  </span>
+                </div>
+                <p className="text-xs text-[var(--wallet-muted)] leading-relaxed">
+                  Power Down reserves requested PP immediately and unlocks 1/13th every 7 days over 13 weeks. The final installment resolves any rounding remainder.
+                </p>
               </div>
-              <p className="text-xs text-[var(--wallet-muted)] leading-relaxed">
-                Power Down reserves requested PP immediately and unlocks 1/13th every 7 days over 13 weeks. The final installment resolves any rounding remainder.
-              </p>
+
+              {canPower && hasStakedPp ? (
+                <button
+                  type="button"
+                  onClick={onPowerDown}
+                  className="min-h-[38px] px-3.5 py-1.5 rounded-xl bg-[var(--wallet-surface)] border border-[var(--wallet-border)] hover:border-amber-500/40 text-xs font-semibold text-[var(--wallet-text)] inline-flex items-center gap-1.5 transition-colors shrink-0"
+                >
+                  <TrendingDown className="h-3.5 w-3.5 text-amber-500" />
+                  <span>Start Power Down</span>
+                </button>
+              ) : canPower && hasLiquidPnr ? (
+                <button
+                  type="button"
+                  onClick={onPowerUp}
+                  className="min-h-[38px] px-3.5 py-1.5 rounded-xl bg-[#007C8B] hover:bg-[#006673] text-white text-xs font-semibold inline-flex items-center gap-1.5 transition-colors shrink-0"
+                >
+                  <Zap className="h-3.5 w-3.5 text-[#00E5F4]" />
+                  <span>Power Up PNR First</span>
+                </button>
+              ) : null}
             </div>
           )}
         </div>

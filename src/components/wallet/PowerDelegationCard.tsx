@@ -301,9 +301,23 @@ export const PowerDelegationCard: React.FC<PowerDelegationCardProps> = ({
         </div>
 
         {overview.activeDelegations.length === 0 ? (
-          <div className="p-6 rounded-2xl bg-[var(--wallet-inset)] border border-dashed border-black/10 dark:border-white/10 text-center space-y-1 text-xs text-[var(--wallet-muted)]">
-            <p>You have not delegated voting power to any creators yet.</p>
-            <p className="text-[11px]">Empower emerging writers by lending a portion of your curation weight.</p>
+          <div className="p-5 rounded-2xl bg-[var(--wallet-inset)] border border-[var(--wallet-border)] flex flex-wrap items-center justify-between gap-3 text-xs text-[var(--wallet-muted)]">
+            <div className="space-y-0.5">
+              <p className="font-semibold text-[var(--wallet-text)]">
+                No active outgoing delegations
+              </p>
+              <p className="text-[11px]">
+                Empower emerging writers by lending a portion of your curation weight while keeping 100% token ownership.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowDelegateModal(true)}
+              className="min-h-[38px] px-3.5 py-1.5 rounded-xl bg-[var(--wallet-surface)] border border-[var(--wallet-border)] hover:border-[#007C8B]/40 text-xs font-semibold text-[#007C8B] dark:text-[#00E5F4] inline-flex items-center gap-1.5 transition-colors shrink-0"
+            >
+              <PlusCircle className="h-3.5 w-3.5" />
+              <span>Delegate Power</span>
+            </button>
           </div>
         ) : (
           <div className="space-y-2">

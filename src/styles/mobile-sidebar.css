@@ -40,7 +40,7 @@
 .pn-sidebar .pn-sidebar-header button { background: transparent; color: #bad1da; padding: 8px; }
 .pn-sidebar .pn-sidebar-header button:hover { background: rgb(255 255 255 / 8%); color: #fff; }
 .pn-sidebar .pn-sidebar-manifesto { padding: 17px 0 15px; }
-.pn-sidebar .pn-sidebar-eyebrow { font-family: 'Michroma', sans-serif; font-size: 7px; letter-spacing: .13em; color: #94bfca; }
+.pn-sidebar .pn-sidebar-eyebrow { font-family: 'Sora', sans-serif; font-size: 8px; letter-spacing: .08em; font-weight: 600; color: #94bfca; }
 .pn-sidebar .pn-sidebar-manifesto p {
   margin: 7px 0 0; font-family: 'Sora', sans-serif; font-size: clamp(22px, 6.3vw, 27px);
   line-height: 1.2; font-weight: 500; letter-spacing: -.055em; color: #fff;

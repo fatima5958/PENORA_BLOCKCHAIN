@@ -1,28 +1,23 @@
 // src/components/wallet/CreatorEarningsCard.tsx
-// PENORA Creator Economy Earnings Dashboard (Phase 14)
-// Tabs: Overview | Article Rewards | Curation | Comments | Beneficiaries | History | Economics
+// PENORA Creator Economy Earnings Dashboard (Phase 21 — Simplified & Honest On-Chain vs Database State)
 
 import React, { useState, useEffect } from 'react';
 import {
   Award,
   Clock,
   CheckCircle2,
-  AlertCircle,
   ExternalLink,
-  ChevronRight,
   ShieldAlert,
   Sparkles,
   RefreshCw,
   PieChart,
-  Zap,
-  Info,
   Users,
   MessageSquare,
   History,
   FileText,
   DollarSign,
-  Lock,
   Coins,
+  ArrowRight,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 import {
@@ -57,16 +52,22 @@ export interface RewardItem {
   txHash?: string;
 }
 
-type TabKey = 'overview' | 'articles' | 'curation' | 'comments' | 'beneficiaries' | 'history' | 'economics';
+type TabKey =
+  | 'overview'
+  | 'articles'
+  | 'curation'
+  | 'comments'
+  | 'beneficiaries'
+  | 'history'
+  | 'economics';
 
 export function CreatorEarningsCard({
   address,
   isCorrectNetwork,
-  balancePp = '0.00',
-  votingManaPercent = 100,
 }: CreatorEarningsCardProps) {
   const [activeTab, setActiveTab] = useState<TabKey>('overview');
   const [loading, setLoading] = useState(false);
+  const [settlementAvailable, setSettlementAvailable] = useState(false);
   const [pendingPnr, setPendingPnr] = useState('0.00');
   const [eligiblePnr, setEligiblePnr] = useState('0.00');
   const [claimablePnr, setClaimablePnr] = useState('0.00');
@@ -74,8 +75,6 @@ export function CreatorEarningsCard({
   const [authorTotalPnr, setAuthorTotalPnr] = useState('0.00');
   const [curatorTotalPnr, setCuratorTotalPnr] = useState('0.00');
   const [beneficiaryTotalPnr, setBeneficiaryTotalPnr] = useState('0.00');
-  const [poweredUpTotalPnr, setPoweredUpTotalPnr] = useState('0.00');
-  const [declinedTotalPnr, setDeclinedTotalPnr] = useState('0.00');
 
   const [items, setItems] = useState<RewardItem[]>([]);
   const [claimingId, setClaimingId] = useState<string | null>(null);
@@ -97,11 +96,11 @@ export function CreatorEarningsCard({
       let pending = 0;
       let eligible = 0;
       let claimable = 0;
+      let claimed = 0;
       let authorSum = 0;
       let curatorSum = 0;
       let beneficiarySum = 0;
-      let poweredUpSum = 0;
-      let declinedSum = 0;
+      let anyDistributorFound = false;
       const itemList: RewardItem[] = [];
 
       const now = Date.now();
@@ -109,7 +108,9 @@ export function CreatorEarningsCard({
       if (posts) {
         for (const post of posts) {
           const publishedMs = post.published_at ? Date.parse(post.published_at) : now;
-          const payoutMs = post.payout_at ? Date.parse(post.payout_at) : publishedMs + 7 * 86400 * 1000;
+          const payoutMs = post.payout_at
+            ? Date.parse(post.payout_at)
+            : publishedMs + 7 * 86400 * 1000;
           const isAccruing = now < payoutMs;
 
           let status: RewardItem['status'] = isAccruing ? 'accruing' : 'awaiting_settlement';
@@ -131,11 +132,21 @@ export function CreatorEarningsCard({
               curatorSum += parseFloat(curatorPnr);
 
               if (info.userClaim) {
-                status = 'claimable';
-                itemPnr = info.userClaim.amountPnr;
-                proof = info.userClaim.proof;
-                distributor = info.userClaim.distributor;
-                claimable += parseFloat(itemPnr);
+                anyDistributorFound = true;
+                if (info.userClaim.claimed) {
+                  status = 'claimed';
+                  itemPnr = info.userClaim.amountPnr;
+                  claimed += parseFloat(itemPnr);
+                } else {
+                  status = 'claimable';
+                  itemPnr = info.userClaim.amountPnr;
+                  proof = info.userClaim.proof;
+                  distributor = info.userClaim.distributor;
+                  claimable += parseFloat(itemPnr);
+                }
+              } else if (isAccruing) {
+                itemPnr = authorPnr;
+                pending += parseFloat(itemPnr);
               } else if (info.status === 'prepared') {
                 itemPnr = authorPnr;
                 eligible += parseFloat(itemPnr);
@@ -161,14 +172,14 @@ export function CreatorEarningsCard({
         }
       }
 
+      setSettlementAvailable(anyDistributorFound);
       setPendingPnr(pending.toFixed(2));
       setEligiblePnr(eligible.toFixed(2));
       setClaimablePnr(claimable.toFixed(2));
+      setClaimedPnr(claimed.toFixed(2));
       setAuthorTotalPnr(authorSum.toFixed(2));
       setCuratorTotalPnr(curatorSum.toFixed(2));
       setBeneficiaryTotalPnr(beneficiarySum.toFixed(2));
-      setPoweredUpTotalPnr(poweredUpSum.toFixed(2));
-      setDeclinedTotalPnr(declinedSum.toFixed(2));
       setItems(itemList);
     } catch {
       // Graceful fallback
@@ -184,7 +195,7 @@ export function CreatorEarningsCard({
   const handleClaimLiquid = async (item: RewardItem) => {
     if (!item.proof || !item.distributor || !address || claimingId) return;
     setClaimingId(item.articleId);
-    setClaimMessage('Initiating on-chain Merkle claim signature (Liquid PNR)...');
+    setClaimMessage('Awaiting wallet approval for on-chain Merkle claim (Liquid PNR)…');
     setClaimTxHash(null);
     try {
       const result = await executeArticleRewardClaim({
@@ -193,17 +204,22 @@ export function CreatorEarningsCard({
         recipientAddress: address as `0x${string}`,
         amountWei: BigInt(Math.floor(parseFloat(item.amountPnr) * 1e18)),
         proof: item.proof,
-        onProgress: (status) => setClaimMessage(status),
+        onProgress: status => setClaimMessage(status),
       });
 
       if (result.success && result.confirmed && result.txHash) {
         setClaimTxHash(result.txHash);
         const blockText = result.blockNumber ? ` in block #${result.blockNumber}` : '';
-        setClaimMessage(`Claim confirmed on Polygon Amoy${blockText}! Tokens delivered to your wallet.`);
+        setClaimMessage(
+          `Confirmed on Polygon Amoy${blockText}! Liquid PNR delivered to your wallet.`
+        );
         await loadEarnings();
       } else if (result.txHash && !result.confirmed) {
         setClaimTxHash(result.txHash);
-        setClaimMessage(result.error || `Transaction pending on Polygon Amoy. Please check block explorer.`);
+        setClaimMessage(
+          result.error ||
+            'Submitted — awaiting receipt confirmation on Polygon Amoy. Check PolygonScan.'
+        );
       } else {
         setClaimMessage(result.error || 'Claim transaction failed.');
       }
@@ -217,7 +233,7 @@ export function CreatorEarningsCard({
   const handleClaimPowerUp = async (item: RewardItem) => {
     if (!item.proof || !item.distributor || !address || claimingId) return;
     setClaimingId(item.articleId);
-    setClaimMessage('Initiating 100% Power Up claim on Polygon Amoy...');
+    setClaimMessage('Awaiting wallet approval for 100% Power Up claim on Polygon Amoy…');
     setClaimTxHash(null);
     try {
       const result = await executeArticleRewardPowerUp({
@@ -226,17 +242,22 @@ export function CreatorEarningsCard({
         recipientAddress: address as `0x${string}`,
         amountWei: BigInt(Math.floor(parseFloat(item.amountPnr) * 1e18)),
         proof: item.proof,
-        onProgress: (status) => setClaimMessage(status),
+        onProgress: status => setClaimMessage(status),
       });
 
       if (result.success && result.confirmed && result.txHash) {
         setClaimTxHash(result.txHash);
         const blockText = result.blockNumber ? ` in block #${result.blockNumber}` : '';
-        setClaimMessage(`100% Power Up confirmed${blockText}! PENORA Power credited directly to your escrow.`);
+        setClaimMessage(
+          `Confirmed${blockText}! 100% Power Up credited directly to your PENORA Power escrow.`
+        );
         await loadEarnings();
       } else if (result.txHash && !result.confirmed) {
         setClaimTxHash(result.txHash);
-        setClaimMessage(result.error || `Transaction pending on Polygon Amoy. Please check block explorer.`);
+        setClaimMessage(
+          result.error ||
+            'Submitted — awaiting receipt confirmation on Polygon Amoy. Check PolygonScan.'
+        );
       } else {
         setClaimMessage(result.error || 'Power Up transaction failed.');
       }
@@ -247,52 +268,75 @@ export function CreatorEarningsCard({
     }
   };
 
-  const articleItems = items.filter((i) => i.type === 'article');
-  const curationItems = items.filter((i) => i.type === 'curation' || parseFloat(i.curatorPnr) > 0);
-  const beneficiaryItems = items.filter((i) => i.type === 'beneficiary');
+  const hasAddress = Boolean(address);
+  const articleItems = items.filter(i => i.type === 'article');
+  const curationItems = items.filter(i => i.type === 'curation' || parseFloat(i.curatorPnr) > 0);
+  const beneficiaryItems = items.filter(i => i.type === 'beneficiary');
 
   return (
-    <div className="bg-[var(--wallet-surface)] backdrop-blur-md rounded-3xl p-6 sm:p-7 border border-[#007C8B]/20 shadow-sm space-y-6">
-      {/* ─── HEADER & SUB-NAVIGATION ───────────────────────────────────────── */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2.5">
-          <div className="p-2 rounded-xl bg-[#007C8B]/10 text-[#007C8B]">
+    <section
+      aria-label="Creator earnings and rewards"
+      className="rounded-2xl bg-[var(--wallet-surface)] border border-[var(--wallet-border)] p-5 sm:p-6 shadow-2xs space-y-5"
+    >
+      {/* ─── HEADER ────────────────────────────────────────────────────────── */}
+      <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-[var(--wallet-border)]">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-[#0A2540] text-[#00E5F4] flex items-center justify-center shrink-0">
             <Award className="h-5 w-5" />
           </div>
           <div>
-            <h3 className="font-serif text-base font-bold text-[var(--wallet-text)]">
-              PENORA Creator Economy
-            </h3>
+            <h2 className="text-base sm:text-lg font-bold text-[var(--wallet-text)]">
+              Creator Earnings &amp; Rewards
+            </h2>
             <p className="text-xs text-[var(--wallet-muted)]">
-              70% Author / 20% Curator split, 7-day maturation, beneficiaries &amp; power-up preferences.
+              70% Author / 20% Curator split · 7-day voting window · On-chain Merkle claims
             </p>
           </div>
         </div>
 
-        {address && (
+        {hasAddress && (
           <button
             type="button"
             onClick={loadEarnings}
             disabled={loading}
-            title="Refresh earnings"
-            className="p-1.5 rounded-xl hover:bg-[var(--wallet-inset)] text-[#007C8B] transition-colors"
+            className="min-h-[38px] px-3 py-1.5 rounded-xl bg-[var(--wallet-inset)] border border-[var(--wallet-border)] hover:border-[#007C8B]/40 text-xs font-semibold text-[var(--wallet-text)] inline-flex items-center gap-1.5 transition-colors"
           >
-            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
+            <span>Refresh</span>
           </button>
         )}
       </div>
 
-      {/* ─── 7-TAB NAVIGATION BAR ─────────────────────────────────────────── */}
-      <div className="flex items-center gap-1 overflow-x-auto pb-1 border-b border-[#007C8B]/15 text-xs font-semibold">
+      {/* ─── HONEST SETTLEMENT DISTINCTION BANNER ──────────────────────────── */}
+      <div className="flex items-start gap-2.5 p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-900 dark:text-amber-200 text-xs">
+        <ShieldAlert className="h-4 w-4 shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" />
+        <div className="space-y-0.5">
+          <span className="font-semibold block">
+            {!hasAddress
+              ? 'Wallet Connection Required'
+              : settlementAvailable
+              ? 'On-Chain Reward Settlement Active (Polygon Amoy)'
+              : 'Database Estimates vs. Confirmed Blockchain Earnings'}
+          </span>
+          <p className="text-[11px] opacity-90 leading-relaxed">
+            {!hasAddress
+              ? 'Connect your wallet on Polygon Amoy (80002) to check verified claimable PNR and reward history.'
+              : 'Pending rewards are off-chain database estimates during the 7-day voting window. Tokens become confirmed blockchain earnings only after an on-chain Merkle root is published and claimed.'}
+          </p>
+        </div>
+      </div>
+
+      {/* ─── SUB-NAVIGATION BAR ────────────────────────────────────────────── */}
+      <div className="flex items-center gap-1 overflow-x-auto pb-1 border-b border-[var(--wallet-border)] text-xs font-semibold">
         {[
           { key: 'overview', label: 'Overview', icon: PieChart },
           { key: 'articles', label: 'Article Rewards', icon: FileText },
+          { key: 'history', label: 'Reward History', icon: History },
           { key: 'curation', label: 'Curation', icon: Sparkles },
-          { key: 'comments', label: 'Comments', icon: MessageSquare },
           { key: 'beneficiaries', label: 'Beneficiaries', icon: Users },
-          { key: 'history', label: 'History', icon: History },
+          { key: 'comments', label: 'Comments', icon: MessageSquare },
           { key: 'economics', label: 'Economics', icon: DollarSign },
-        ].map((tab) => {
+        ].map(tab => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.key;
           return (
@@ -300,9 +344,9 @@ export function CreatorEarningsCard({
               key={tab.key}
               type="button"
               onClick={() => setActiveTab(tab.key as TabKey)}
-              className={`shrink-0 py-2 px-3 rounded-xl flex items-center gap-1.5 transition-all ${
+              className={`shrink-0 min-h-[38px] py-1.5 px-3 rounded-xl flex items-center gap-1.5 transition-colors ${
                 isActive
-                  ? 'bg-gradient-to-r from-[#007C8B] to-[#00E5F4] text-white shadow-xs font-bold'
+                  ? 'bg-[#0A2540] text-white dark:bg-[#007C8B] font-bold'
                   : 'text-[var(--wallet-muted)] hover:text-[var(--wallet-text)] hover:bg-[var(--wallet-inset)]'
               }`}
             >
@@ -313,28 +357,21 @@ export function CreatorEarningsCard({
         })}
       </div>
 
-      {/* Testnet Notice Banner */}
-      <div className="flex items-start gap-2.5 p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-800 dark:text-amber-300 text-xs">
-        <ShieldAlert className="h-4 w-4 shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" />
-        <div className="space-y-0.5">
-          <span className="font-semibold block">Polygon Amoy Testnet (Chain ID 80002)</span>
-          <p className="text-[11px] opacity-90 leading-relaxed">
-            All earnings represent testnet PNR tokens backed by on-chain Merkle settlement roots. Fixed 100M total supply strictly preserved.
-          </p>
-        </div>
-      </div>
-
-      {/* Transaction Status Message */}
+      {/* ─── TRANSACTION STATUS MESSAGE ────────────────────────────────────── */}
       {claimMessage && (
         <div
           role="status"
-          className={`p-4 rounded-2xl border text-xs flex items-center gap-2.5 ${
+          className={`p-3.5 rounded-xl border text-xs flex items-center gap-2.5 ${
             claimTxHash
-              ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-800 dark:text-emerald-300'
-              : 'bg-cyan-500/10 border-cyan-500/20 text-cyan-800 dark:text-cyan-300'
+              ? 'bg-emerald-500/12 border-emerald-500/25 text-emerald-800 dark:text-emerald-200'
+              : 'bg-[#007C8B]/10 border-[#007C8B]/25 text-[var(--wallet-text)]'
           }`}
         >
-          {claimTxHash ? <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" /> : <Clock className="h-4 w-4 shrink-0 text-cyan-600 animate-spin" />}
+          {claimTxHash ? (
+            <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />
+          ) : (
+            <Clock className="h-4 w-4 shrink-0 text-[#007C8B] animate-spin" />
+          )}
           <div className="space-y-0.5 flex-1 min-w-0">
             <span className="font-semibold block">{claimMessage}</span>
             {claimTxHash && (
@@ -342,9 +379,9 @@ export function CreatorEarningsCard({
                 href={`https://amoy.polygonscan.com/tx/${claimTxHash}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 font-mono text-[10px] underline hover:opacity-80"
+                className="inline-flex items-center gap-1 font-mono text-[11px] underline hover:opacity-80"
               >
-                <span>View Polygon Amoy transaction ({claimTxHash.slice(0, 10)}...)</span>
+                <span>View PolygonScan receipt ({claimTxHash.slice(0, 10)}…)</span>
                 <ExternalLink className="h-3 w-3" />
               </a>
             )}
@@ -352,105 +389,168 @@ export function CreatorEarningsCard({
         </div>
       )}
 
-      {/* ─── TAB 1: OVERVIEW ──────────────────────────────────────────────── */}
+      {/* ─── TAB 1: OVERVIEW (Pending, Claimable, Claimed, History Summary) ── */}
       {activeTab === 'overview' && (
-        <div className="space-y-6">
+        <div className="space-y-5">
           {/* 4 Main Top Metrics */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-            <div className="p-4 rounded-2xl bg-[var(--wallet-inset)] border border-[#007C8B]/10 space-y-1">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--wallet-muted)] block">
-                Pending (In 7-Day Window)
-              </span>
-              <div className="font-mono text-xl sm:text-2xl font-bold text-[var(--wallet-text)]">
-                {pendingPnr} <span className="text-xs font-normal text-[var(--wallet-muted)]">PNR</span>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            <div className="p-4 rounded-xl bg-[var(--wallet-inset)] border border-[var(--wallet-border)] space-y-1">
+              <div className="flex items-center justify-between gap-1">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--wallet-muted)]">
+                  Pending Rewards
+                </span>
+                <span className="text-[9px] font-semibold uppercase px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-700 dark:text-amber-300">
+                  Estimate
+                </span>
               </div>
-              <span className="text-[10px] text-[var(--wallet-muted)] block">Accruing voting influence</span>
+              <div className="font-mono text-xl sm:text-2xl font-bold text-[var(--wallet-text)] tabular-nums">
+                {hasAddress ? pendingPnr : '—'}{' '}
+                <span className="text-xs font-normal text-[var(--wallet-muted)]">PNR</span>
+              </div>
+              <span className="text-[11px] text-[var(--wallet-muted)] block">
+                7-day voting window (unconfirmed)
+              </span>
             </div>
 
-            <div className="p-4 rounded-2xl bg-[var(--wallet-inset)] border border-[#007C8B]/10 space-y-1">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-[#007C8B] block">
-                Eligible for Settlement
-              </span>
-              <div className="font-mono text-xl sm:text-2xl font-bold text-[#007C8B]">
-                {eligiblePnr} <span className="text-xs font-normal text-[var(--wallet-muted)]">PNR</span>
+            <div className="p-4 rounded-xl bg-[var(--wallet-inset)] border border-[var(--wallet-border)] space-y-1">
+              <div className="flex items-center justify-between gap-1">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--wallet-muted)]">
+                  Awaiting Settlement
+                </span>
+                <span className="text-[9px] font-semibold uppercase px-1.5 py-0.5 rounded bg-[var(--wallet-surface)] text-[var(--wallet-muted)]">
+                  Matured
+                </span>
               </div>
-              <span className="text-[10px] text-[var(--wallet-muted)] block">7-day maturity complete</span>
+              <div className="font-mono text-xl sm:text-2xl font-bold text-[var(--wallet-text)] tabular-nums">
+                {hasAddress ? eligiblePnr : '—'}{' '}
+                <span className="text-xs font-normal text-[var(--wallet-muted)]">PNR</span>
+              </div>
+              <span className="text-[11px] text-[var(--wallet-muted)] block">
+                Pending on-chain Merkle root
+              </span>
             </div>
 
-            <div className="p-4 rounded-2xl bg-emerald-500/5 border border-emerald-500/20 space-y-1">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 block">
-                Claimable Now
-              </span>
-              <div className="font-mono text-xl sm:text-2xl font-bold text-emerald-600 dark:text-emerald-400">
-                {claimablePnr} <span className="text-xs font-normal text-[var(--wallet-muted)]">PNR</span>
+            <div className="p-4 rounded-xl bg-emerald-500/8 border border-emerald-500/25 space-y-1">
+              <div className="flex items-center justify-between gap-1">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-300">
+                  Claimable PNR
+                </span>
+                <span className="text-[9px] font-semibold uppercase px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-700 dark:text-emerald-300">
+                  On-Chain
+                </span>
               </div>
-              <span className="text-[10px] text-emerald-700/80 dark:text-emerald-400/80 block">Verified on-chain root</span>
+              <div className="font-mono text-xl sm:text-2xl font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">
+                {hasAddress ? claimablePnr : '—'}{' '}
+                <span className="text-xs font-normal text-[var(--wallet-muted)]">PNR</span>
+              </div>
+              <span className="text-[11px] text-[var(--wallet-muted)] block">
+                Verified Merkle proof ready
+              </span>
             </div>
 
-            <div className="p-4 rounded-2xl bg-[var(--wallet-inset)] border border-[#007C8B]/10 space-y-1">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--wallet-muted)] block">
-                Claimed Historically
-              </span>
-              <div className="font-mono text-xl sm:text-2xl font-bold text-[var(--wallet-text)]">
-                {claimedPnr} <span className="text-xs font-normal text-[var(--wallet-muted)]">PNR</span>
+            <div className="p-4 rounded-xl bg-[var(--wallet-inset)] border border-[var(--wallet-border)] space-y-1">
+              <div className="flex items-center justify-between gap-1">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--wallet-muted)]">
+                  Claimed PNR
+                </span>
+                <span className="text-[9px] font-semibold uppercase px-1.5 py-0.5 rounded bg-[#007C8B]/15 text-[#007C8B] dark:text-[#00E5F4]">
+                  Confirmed
+                </span>
               </div>
-              <span className="text-[10px] text-[var(--wallet-muted)] block">Delivered to wallet</span>
-            </div>
-          </div>
-
-          {/* PENORA Category Breakdown */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="p-4 rounded-2xl bg-[var(--wallet-inset)] border border-[#007C8B]/15 space-y-2">
-              <span className="text-xs font-bold uppercase text-[var(--wallet-muted)] flex items-center gap-1.5">
-                <FileText className="h-4 w-4 text-[#007C8B]" />
-                <span>Author Earnings (70%)</span>
-              </span>
-              <div className="font-mono text-xl font-bold text-[var(--wallet-text)]">
-                {authorTotalPnr} PNR
+              <div className="font-mono text-xl sm:text-2xl font-bold text-[var(--wallet-text)] tabular-nums">
+                {hasAddress ? claimedPnr : '—'}{' '}
+                <span className="text-xs font-normal text-[var(--wallet-muted)]">PNR</span>
               </div>
-              <p className="text-[11px] text-[var(--wallet-muted)]">Direct earnings from your published stories.</p>
-            </div>
-
-            <div className="p-4 rounded-2xl bg-[var(--wallet-inset)] border border-[#007C8B]/15 space-y-2">
-              <span className="text-xs font-bold uppercase text-[var(--wallet-muted)] flex items-center gap-1.5">
-                <Sparkles className="h-4 w-4 text-cyan-500" />
-                <span>Curation Shares (20%)</span>
+              <span className="text-[11px] text-[var(--wallet-muted)] block">
+                Delivered to wallet on Amoy
               </span>
-              <div className="font-mono text-xl font-bold text-cyan-600 dark:text-cyan-400">
-                {curatorTotalPnr} PNR
-              </div>
-              <p className="text-[11px] text-[var(--wallet-muted)]">Earned from discoverability votes on articles.</p>
-            </div>
-
-            <div className="p-4 rounded-2xl bg-[var(--wallet-inset)] border border-[#007C8B]/15 space-y-2">
-              <span className="text-xs font-bold uppercase text-[var(--wallet-muted)] flex items-center gap-1.5">
-                <Users className="h-4 w-4 text-emerald-500" />
-                <span>Beneficiary &amp; Powered Up</span>
-              </span>
-              <div className="font-mono text-xl font-bold text-emerald-600 dark:text-emerald-400">
-                {beneficiaryTotalPnr} PNR
-              </div>
-              <p className="text-[11px] text-[var(--wallet-muted)]">Collaborator revenue splits &amp; auto-staked PP.</p>
             </div>
           </div>
 
-          {/* Quick P2P Marketplace Banner */}
-          <div className="p-4 rounded-2xl bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-[#007C8B]/10 border border-emerald-500/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div className="space-y-1">
+          {/* Empty State for Zero Claimable Rewards */}
+          {(!hasAddress || parseFloat(claimablePnr) <= 0) && (
+            <div className="p-4 rounded-xl bg-[var(--wallet-inset)] border border-[var(--wallet-border)] flex flex-wrap items-center justify-between gap-3 text-xs">
+              <div className="space-y-0.5">
+                <strong className="font-semibold text-[var(--wallet-text)] block">
+                  {hasAddress
+                    ? 'No claimable on-chain PNR rewards right now'
+                    : 'Connect your wallet to check claimable PNR'}
+                </strong>
+                <p className="text-[11px] text-[var(--wallet-muted)]">
+                  {hasAddress
+                    ? 'Publish stories or curate articles with PENORA Power to earn from the 70% Author / 20% Curator reward pool.'
+                    : 'On-chain reward claims verify your connected Polygon Amoy address against published Merkle roots.'}
+                </p>
+              </div>
+              <a
+                href="/write"
+                className="min-h-[38px] px-3.5 py-1.5 rounded-xl bg-[#007C8B] hover:bg-[#006673] text-white text-xs font-semibold inline-flex items-center gap-1.5 transition-colors shrink-0"
+              >
+                <span>Write an Article</span>
+                <ArrowRight className="h-3.5 w-3.5" />
+              </a>
+            </div>
+          )}
+
+          {/* Category Breakdown */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="p-4 rounded-xl bg-[var(--wallet-inset)] border border-[var(--wallet-border)] space-y-1">
               <span className="text-xs font-bold text-[var(--wallet-text)] flex items-center gap-1.5">
-                <Coins className="h-4 w-4 text-emerald-500" />
-                <span>P2P Token Marketplace</span>
+                <FileText className="h-3.5 w-3.5 text-[#007C8B] dark:text-[#00E5F4]" />
+                <span>Author Share (70%)</span>
+              </span>
+              <div className="font-mono text-lg font-bold text-[var(--wallet-text)] tabular-nums">
+                {hasAddress ? `${authorTotalPnr} PNR` : '— PNR'}
+              </div>
+              <p className="text-[11px] text-[var(--wallet-muted)]">
+                Estimated &amp; settled author allocations from your published articles.
+              </p>
+            </div>
+
+            <div className="p-4 rounded-xl bg-[var(--wallet-inset)] border border-[var(--wallet-border)] space-y-1">
+              <span className="text-xs font-bold text-[var(--wallet-text)] flex items-center gap-1.5">
+                <Sparkles className="h-3.5 w-3.5 text-amber-500" />
+                <span>Curation Share (20%)</span>
+              </span>
+              <div className="font-mono text-lg font-bold text-[var(--wallet-text)] tabular-nums">
+                {hasAddress ? `${curatorTotalPnr} PNR` : '— PNR'}
+              </div>
+              <p className="text-[11px] text-[var(--wallet-muted)]">
+                Earned by upvoting quality articles with staked PENORA Power.
+              </p>
+            </div>
+
+            <div className="p-4 rounded-xl bg-[var(--wallet-inset)] border border-[var(--wallet-border)] space-y-1">
+              <span className="text-xs font-bold text-[var(--wallet-text)] flex items-center gap-1.5">
+                <Users className="h-3.5 w-3.5 text-emerald-500" />
+                <span>Beneficiary Splits</span>
+              </span>
+              <div className="font-mono text-lg font-bold text-[var(--wallet-text)] tabular-nums">
+                {hasAddress ? `${beneficiaryTotalPnr} PNR` : '— PNR'}
+              </div>
+              <p className="text-[11px] text-[var(--wallet-muted)]">
+                Co-author and collaborator revenue splits configured on posts.
+              </p>
+            </div>
+          </div>
+
+          {/* Exchange / P2P Shortcut */}
+          <div className="p-4 rounded-xl bg-[var(--wallet-inset)] border border-[var(--wallet-border)] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="space-y-0.5">
+              <span className="text-xs font-bold text-[var(--wallet-text)] flex items-center gap-1.5">
+                <Coins className="h-4 w-4 text-[#007C8B] dark:text-[#00E5F4]" />
+                <span>PENORA Exchange &amp; P2P Marketplace</span>
               </span>
               <p className="text-[11px] text-[var(--wallet-muted)]">
-                Trade your earned liquid PNR tokens directly for MockUSDT in the non-custodial P2P escrow.
+                Trade claimed liquid PNR for MockUSDT on the non-custodial P2P escrow or purchase desk.
               </p>
             </div>
             <a
               href="/exchange/"
-              className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-500 text-white font-semibold text-xs hover:opacity-95 transition-all shrink-0 shadow-xs"
+              className="min-h-[38px] inline-flex items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-[#0A2540] hover:bg-[#103152] text-white font-semibold text-xs transition-colors shrink-0"
             >
-              <span>Trade PNR</span>
-              <ExternalLink className="h-3 w-3" />
+              <span>Open Exchange</span>
+              <ExternalLink className="h-3 w-3 text-[#00E5F4]" />
             </a>
           </div>
         </div>
@@ -460,45 +560,70 @@ export function CreatorEarningsCard({
       {activeTab === 'articles' && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--wallet-muted)]">
-              Your Published Articles &amp; Author Allocations
-            </h4>
-            <span className="text-[11px] text-[var(--wallet-muted)]">{articleItems.length} articles</span>
+            <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--wallet-muted)]">
+              Published Articles &amp; Reward Status
+            </h3>
+            <span className="text-[11px] text-[var(--wallet-muted)]">
+              {articleItems.length} articles
+            </span>
           </div>
 
           {articleItems.length === 0 ? (
-            <div className="p-8 text-center rounded-2xl bg-[var(--wallet-inset)] border border-dashed border-black/10 text-xs text-[var(--wallet-muted)]">
-              No published articles found. Publish stories from the editor to accrue 7-day author rewards.
+            <div className="p-6 rounded-xl bg-[var(--wallet-inset)] border border-[var(--wallet-border)] flex flex-wrap items-center justify-between gap-3 text-xs text-[var(--wallet-muted)]">
+              <span>
+                No published articles found. Publish stories from the editor to accrue 7-day author rewards.
+              </span>
+              <a
+                href="/write"
+                className="font-semibold text-[#007C8B] dark:text-[#00E5F4] hover:underline inline-flex items-center gap-1"
+              >
+                <span>Write Article</span>
+                <ArrowRight className="h-3.5 w-3.5" />
+              </a>
             </div>
           ) : (
-            <div className="space-y-3">
-              {articleItems.map((item) => {
+            <div className="space-y-2.5">
+              {articleItems.map(item => {
                 const isClaiming = claimingId === item.articleId;
                 const isClaimable = item.status === 'claimable';
+                const statusLabel =
+                  item.status === 'claimable'
+                    ? 'On-Chain Claimable'
+                    : item.status === 'claimed'
+                    ? 'Claimed On-Chain'
+                    : item.status === 'awaiting_settlement'
+                    ? 'Awaiting Merkle Settlement (Estimate)'
+                    : 'Accruing in 7-Day Window (Estimate)';
                 return (
                   <div
                     key={item.articleId}
-                    className="p-4 rounded-2xl bg-[var(--wallet-inset)] border border-[#007C8B]/15 flex flex-wrap items-center justify-between gap-3 text-xs"
+                    className="p-4 rounded-xl bg-[var(--wallet-inset)] border border-[var(--wallet-border)] flex flex-wrap items-center justify-between gap-3 text-xs"
                   >
-                    <div className="space-y-1 max-w-sm">
-                      <span className="font-serif font-bold text-sm text-[var(--wallet-text)] block truncate">
+                    <div className="space-y-1 max-w-md min-w-0">
+                      <span className="font-bold text-sm text-[var(--wallet-text)] block truncate">
                         {item.title}
                       </span>
-                      <div className="flex items-center gap-2 text-[11px] text-[var(--wallet-muted)]">
+                      <div className="flex items-center gap-2 flex-wrap text-[11px] text-[var(--wallet-muted)]">
                         <span>Maturity: {new Date(item.payoutAt).toLocaleDateString()}</span>
                         <span>·</span>
-                        <span className="px-1.5 py-0.5 rounded bg-[#EEFBFC] text-[#006573] dark:bg-[#007C8B]/20 dark:text-[#00E5F4] font-medium">
-                          {item.payoutPreference === 'power_up' ? '100% Power Up' : item.payoutPreference === 'declined' ? 'Declined' : 'Liquid PNR'}
+                        <span className="px-1.5 py-0.5 rounded bg-[var(--wallet-surface)] text-[var(--wallet-text)] font-medium">
+                          {item.payoutPreference === 'power_up'
+                            ? '100% Power Up'
+                            : item.payoutPreference === 'declined'
+                            ? 'Declined'
+                            : 'Liquid PNR'}
                         </span>
                       </div>
                     </div>
 
                     <div className="flex items-center gap-3">
                       <div className="text-right">
-                        <span className="font-mono font-bold text-sm text-[var(--wallet-text)] block">
+                        <span className="font-mono font-bold text-sm text-[var(--wallet-text)] block tabular-nums">
                           {item.authorPnr} PNR
                         </span>
-                        <span className="text-[10px] text-[var(--wallet-muted)] uppercase">{item.status}</span>
+                        <span className="text-[10px] text-[var(--wallet-muted)]">
+                          {statusLabel}
+                        </span>
                       </div>
 
                       {isClaimable && (
@@ -507,7 +632,7 @@ export function CreatorEarningsCard({
                             type="button"
                             onClick={() => handleClaimLiquid(item)}
                             disabled={isClaiming || !isCorrectNetwork}
-                            className="py-1.5 px-3 rounded-xl bg-gradient-to-r from-[#007C8B] to-[#00E5F4] text-white text-xs font-bold hover:brightness-110 shadow-xs disabled:opacity-50"
+                            className="min-h-[38px] py-1.5 px-3 rounded-xl bg-[#007C8B] hover:bg-[#006673] text-white text-xs font-bold disabled:opacity-50"
                           >
                             {isClaiming ? 'Claiming…' : 'Claim PNR'}
                           </button>
@@ -515,7 +640,7 @@ export function CreatorEarningsCard({
                             type="button"
                             onClick={() => handleClaimPowerUp(item)}
                             disabled={isClaiming || !isCorrectNetwork}
-                            className="py-1.5 px-3 rounded-xl bg-[var(--wallet-surface)] border border-[#007C8B]/30 text-[#007C8B] dark:text-[#00E5F4] text-xs font-bold hover:bg-[#007C8B]/10 shadow-xs disabled:opacity-50"
+                            className="min-h-[38px] py-1.5 px-3 rounded-xl bg-[var(--wallet-surface)] border border-[var(--wallet-border)] text-[#007C8B] dark:text-[#00E5F4] text-xs font-bold hover:border-[#007C8B]/40 disabled:opacity-50"
                             title="Auto-stake 100% into PENORA Power"
                           >
                             Power Up
@@ -531,35 +656,109 @@ export function CreatorEarningsCard({
         </div>
       )}
 
-      {/* ─── TAB 3: CURATION SHARES ───────────────────────────────────────── */}
-      {activeTab === 'curation' && (
+      {/* ─── TAB 3: REWARD HISTORY ────────────────────────────────────────── */}
+      {activeTab === 'history' && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--wallet-muted)]">
-              Curation Rewards Earned From Voting
-            </h4>
-            <span className="font-mono text-xs font-bold text-cyan-600 dark:text-cyan-400">
-              Total: {curatorTotalPnr} PNR
-            </span>
+            <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--wallet-muted)]">
+              Creator Reward History
+            </h3>
+            <span className="text-[11px] text-[var(--wallet-muted)]">{items.length} records</span>
           </div>
 
-          <div className="p-4 rounded-2xl bg-[#EEFBFC]/60 dark:bg-[#007C8B]/10 border border-[#007C8B]/20 text-xs text-[#006573] dark:text-[#00E5F4] leading-relaxed">
-            <strong>20% Curation Pool:</strong> Curators who upvote quality stories within the 7-day window earn a stake-weighted share of the curation reward. Self-votes do not earn curation rewards.
-          </div>
-
-          {curationItems.length === 0 ? (
-            <div className="p-8 text-center rounded-2xl bg-[var(--wallet-inset)] border border-dashed border-black/10 text-xs text-[var(--wallet-muted)]">
-              No curation earnings recorded. Upvote articles with PENORA Power to earn 20% curation shares.
+          {items.length === 0 ? (
+            <div className="p-6 rounded-xl bg-[var(--wallet-inset)] border border-[var(--wallet-border)] flex flex-wrap items-center justify-between gap-3 text-xs text-[var(--wallet-muted)]">
+              <span>No reward history recorded for this wallet yet.</span>
+              <a
+                href="/write"
+                className="font-semibold text-[#007C8B] dark:text-[#00E5F4] hover:underline inline-flex items-center gap-1"
+              >
+                <span>Write an Article</span>
+                <ArrowRight className="h-3.5 w-3.5" />
+              </a>
             </div>
           ) : (
             <div className="space-y-2">
-              {curationItems.map((item) => (
+              {items.map(item => (
                 <div
                   key={item.articleId}
-                  className="p-3.5 rounded-2xl bg-[var(--wallet-inset)] border border-black/5 flex items-center justify-between gap-3 text-xs"
+                  className="p-3.5 rounded-xl bg-[var(--wallet-inset)] border border-[var(--wallet-border)] flex flex-wrap items-center justify-between gap-3 text-xs"
                 >
-                  <span className="font-semibold text-[var(--wallet-text)] truncate">{item.title}</span>
-                  <span className="font-mono font-bold text-cyan-600 dark:text-cyan-400">
+                  <div className="space-y-0.5 min-w-0">
+                    <span className="font-semibold text-[var(--wallet-text)] block truncate max-w-xs">
+                      {item.title}
+                    </span>
+                    <span className="text-[10px] text-[var(--wallet-muted)]">
+                      Published {new Date(item.publishedAt).toLocaleDateString()} · Payout{' '}
+                      {new Date(item.payoutAt).toLocaleDateString()}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <span className="font-mono font-bold text-[var(--wallet-text)] tabular-nums">
+                      {item.authorPnr} PNR
+                    </span>
+                    <span
+                      className={`px-2 py-0.5 rounded-md text-[10px] font-bold uppercase ${
+                        item.status === 'claimable'
+                          ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'
+                          : item.status === 'claimed'
+                          ? 'bg-[#007C8B]/15 text-[#007C8B] dark:text-[#00E5F4]'
+                          : 'bg-amber-500/15 text-amber-700 dark:text-amber-300'
+                      }`}
+                    >
+                      {item.status === 'claimable'
+                        ? 'Claimable'
+                        : item.status === 'claimed'
+                        ? 'Claimed'
+                        : 'Estimate'}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ─── TAB 4: CURATION SHARES ───────────────────────────────────────── */}
+      {activeTab === 'curation' && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--wallet-muted)]">
+              Curation Rewards (20% Pool)
+            </h3>
+            <span className="font-mono text-xs font-bold text-[#007C8B] dark:text-[#00E5F4]">
+              Total: {hasAddress ? `${curatorTotalPnr} PNR` : '— PNR'}
+            </span>
+          </div>
+
+          <p className="text-xs text-[var(--wallet-muted)]">
+            Curators who upvote quality stories within the 7-day window earn a stake-weighted share of the 20% curation reward pool. Self-votes do not earn curation rewards.
+          </p>
+
+          {curationItems.length === 0 ? (
+            <div className="p-5 rounded-xl bg-[var(--wallet-inset)] border border-[var(--wallet-border)] flex flex-wrap items-center justify-between gap-2 text-xs text-[var(--wallet-muted)]">
+              <span>No curation earnings recorded yet. Upvote articles with PENORA Power to earn.</span>
+              <a
+                href="/"
+                className="font-semibold text-[#007C8B] dark:text-[#00E5F4] hover:underline inline-flex items-center gap-1"
+              >
+                <span>Explore Stories</span>
+                <ArrowRight className="h-3.5 w-3.5" />
+              </a>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {curationItems.map(item => (
+                <div
+                  key={item.articleId}
+                  className="p-3.5 rounded-xl bg-[var(--wallet-inset)] border border-[var(--wallet-border)] flex items-center justify-between gap-3 text-xs"
+                >
+                  <span className="font-semibold text-[var(--wallet-text)] truncate">
+                    {item.title}
+                  </span>
+                  <span className="font-mono font-bold text-[#007C8B] dark:text-[#00E5F4]">
                     +{item.curatorPnr} PNR
                   </span>
                 </div>
@@ -569,61 +768,36 @@ export function CreatorEarningsCard({
         </div>
       )}
 
-      {/* ─── TAB 4: COMMENTS & REPLIES ────────────────────────────────────── */}
-      {activeTab === 'comments' && (
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--wallet-muted)]">
-              Comment &amp; Reply Rewards
-            </h4>
-            <span className="text-[11px] text-amber-600 dark:text-amber-400 font-mono">
-              [Budget Gate: Disabled by Default]
-            </span>
-          </div>
-
-          <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-800 dark:text-amber-300 leading-relaxed space-y-1">
-            <strong>Scheduled Budget Funding Gate:</strong>
-            <p className="text-[11px] opacity-90">
-              In accordance with PENORA creator governance, comment rewards reside in a separate capped allocation within the 30M scheduled creator budget, with zero funding allocated by default. Active comment emissions remain disabled until founder authorization.
-            </p>
-          </div>
-
-          <div className="p-8 text-center rounded-2xl bg-[var(--wallet-inset)] border border-dashed border-black/10 text-xs text-[var(--wallet-muted)] space-y-1">
-            <MessageSquare className="h-6 w-6 mx-auto text-[var(--wallet-muted)] mb-2" />
-            <p className="font-semibold text-[var(--wallet-text)]">No Active Comment Reward Emissions</p>
-            <p className="text-[11px]">Quality discussions continue to accrue social discoverability and community reputation.</p>
-          </div>
-        </div>
-      )}
-
       {/* ─── TAB 5: BENEFICIARIES ─────────────────────────────────────────── */}
       {activeTab === 'beneficiaries' && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--wallet-muted)]">
-              Reward Beneficiary Revenue Sharing
-            </h4>
+            <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--wallet-muted)]">
+              Beneficiary Revenue Sharing
+            </h3>
             <span className="font-mono text-xs font-bold text-emerald-600 dark:text-emerald-400">
-              Total: {beneficiaryTotalPnr} PNR
+              Total: {hasAddress ? `${beneficiaryTotalPnr} PNR` : '— PNR'}
             </span>
           </div>
 
-          <div className="p-4 rounded-2xl bg-[#EEFBFC]/60 dark:bg-[#007C8B]/10 border border-[#007C8B]/20 text-xs text-[#006573] dark:text-[#00E5F4] leading-relaxed">
-            <strong>Collaborator Revenue Splits:</strong> Authors can designate co-creators, illustrators, or editors to automatically receive a percentage of their author reward (up to 100%). Beneficiary shares are paid directly from the author's 70% portion.
-          </div>
+          <p className="text-xs text-[var(--wallet-muted)]">
+            Authors can designate co-creators or editors to automatically receive a percentage of the 70% author share upon settlement.
+          </p>
 
           {beneficiaryItems.length === 0 ? (
-            <div className="p-8 text-center rounded-2xl bg-[var(--wallet-inset)] border border-dashed border-black/10 text-xs text-[var(--wallet-muted)]">
-              No beneficiary payouts recorded. When publishing, you can add collaborator wallet percentages in article settings.
+            <div className="p-5 rounded-xl bg-[var(--wallet-inset)] border border-[var(--wallet-border)] text-xs text-[var(--wallet-muted)]">
+              No beneficiary payouts recorded for this wallet.
             </div>
           ) : (
             <div className="space-y-2">
-              {beneficiaryItems.map((item) => (
+              {beneficiaryItems.map(item => (
                 <div
                   key={item.articleId}
-                  className="p-3.5 rounded-2xl bg-[var(--wallet-inset)] border border-black/5 flex items-center justify-between gap-3 text-xs"
+                  className="p-3.5 rounded-xl bg-[var(--wallet-inset)] border border-[var(--wallet-border)] flex items-center justify-between gap-3 text-xs"
                 >
-                  <span className="font-semibold text-[var(--wallet-text)] truncate">{item.title}</span>
+                  <span className="font-semibold text-[var(--wallet-text)] truncate">
+                    {item.title}
+                  </span>
                   <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400">
                     +{item.amountPnr} PNR
                   </span>
@@ -634,65 +808,30 @@ export function CreatorEarningsCard({
         </div>
       )}
 
-      {/* ─── TAB 6: COMPLETE HISTORY ──────────────────────────────────────── */}
-      {activeTab === 'history' && (
-        <div className="space-y-4">
+      {/* ─── TAB 6: COMMENTS ──────────────────────────────────────────────── */}
+      {activeTab === 'comments' && (
+        <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--wallet-muted)]">
-              Comprehensive Creator Payout History
-            </h4>
-            <span className="text-[11px] text-[var(--wallet-muted)]">{items.length} records</span>
+            <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--wallet-muted)]">
+              Comment &amp; Reply Rewards
+            </h3>
+            <span className="text-[11px] text-amber-600 dark:text-amber-400 font-mono">
+              Budget Gate: Disabled by Default
+            </span>
           </div>
 
-          {items.length === 0 ? (
-            <div className="p-8 text-center rounded-2xl bg-[var(--wallet-inset)] border border-dashed border-black/10 text-xs text-[var(--wallet-muted)]">
-              No reward history available yet.
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {items.map((item) => (
-                <div
-                  key={item.articleId}
-                  className="p-3.5 rounded-2xl bg-[var(--wallet-inset)] border border-black/5 dark:border-white/5 flex flex-wrap items-center justify-between gap-3 text-xs"
-                >
-                  <div className="space-y-0.5">
-                    <span className="font-semibold text-[var(--wallet-text)] block truncate max-w-xs">
-                      {item.title}
-                    </span>
-                    <span className="text-[10px] text-[var(--wallet-muted)]">
-                      Published {new Date(item.publishedAt).toLocaleDateString()} · Payout {new Date(item.payoutAt).toLocaleDateString()}
-                    </span>
-                  </div>
-
-                  <div className="flex items-center gap-3">
-                    <span className="font-mono font-bold text-[var(--wallet-text)]">
-                      {item.authorPnr} PNR
-                    </span>
-                    <span
-                      className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${
-                        item.status === 'claimable'
-                          ? 'bg-emerald-500/10 text-emerald-600'
-                          : item.status === 'claimed'
-                          ? 'bg-blue-500/10 text-blue-600'
-                          : 'bg-amber-500/10 text-amber-600'
-                      }`}
-                    >
-                      {item.status.toUpperCase()}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+          <div className="p-4 rounded-xl bg-[var(--wallet-inset)] border border-[var(--wallet-border)] text-xs text-[var(--wallet-muted)] leading-relaxed">
+            Comment rewards reside in a separate capped allocation within the 30M scheduled creator budget and remain disabled by default until activated by governance.
+          </div>
         </div>
       )}
 
-      {/* ─── TAB 7: PROTOCOL ECONOMICS & RUNWAY ────────────────────────────── */}
+      {/* ─── TAB 7: ECONOMICS ─────────────────────────────────────────────── */}
       {activeTab === 'economics' && (
-        <div className="pt-2">
+        <div className="pt-1">
           <RewardEconomicsPanel />
         </div>
       )}
-    </div>
+    </section>
   );
 }

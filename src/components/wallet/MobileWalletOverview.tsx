@@ -158,10 +158,14 @@ export function MobileWalletOverview({
   historyError = null,
 }: Props) {
   const hasAddress = Boolean(state.address);
+  const isConnectedAmoy = hasAddress && state.isCorrectNetwork && state.status === 'connected';
   const canPower = hasAddress && state.isCorrectNetwork && state.contractsDeployed;
   const address = state.address
     ? `${state.address.slice(0, 6)}…${state.address.slice(-4)}`
     : '';
+
+  const pnrBalanceDisplay =
+    state.balancePnr !== null ? state.balancePnr : isConnectedAmoy ? 'Unavailable' : '—';
 
   const assets = [
     {
@@ -169,6 +173,7 @@ export function MobileWalletOverview({
       name: 'Liquid PNR',
       value: state.balancePnr,
       caption: 'Transferable utility token',
+      zeroCaption: 'No PNR yet — tap Trade to buy PNR',
       icon: <Coins size={17} />,
     },
     {
@@ -176,6 +181,7 @@ export function MobileWalletOverview({
       name: 'PENORA Power',
       value: state.balancePp,
       caption: 'Staked curation influence',
+      zeroCaption: 'No staked PP — tap Power Up to stake',
       icon: <Zap size={17} />,
     },
     {
@@ -183,6 +189,7 @@ export function MobileWalletOverview({
       name: 'MockUSDT',
       value: state.balanceUsdt,
       caption: state.isUsdtConfigured ? 'Testnet stablecoin' : 'Token setup pending',
+      zeroCaption: '0 USDT — needed to buy PNR on Exchange',
       icon: <span>$</span>,
     },
     {
@@ -190,6 +197,7 @@ export function MobileWalletOverview({
       name: 'Test POL Gas',
       value: state.balancePol,
       caption: 'Polygon Amoy network fuel',
+      zeroCaption: '0 POL — required for Amoy gas fees',
       icon: <Coins size={17} />,
     },
   ];
@@ -208,14 +216,21 @@ export function MobileWalletOverview({
           </span>
         </div>
         <div className="wallet-phone-amount">
-          <strong>{state.balancePnr ?? '—'}</strong>
+          <strong>{pnrBalanceDisplay}</strong>
           <span>PNR</span>
         </div>
         <p>
-          {hasAddress
+          {isConnectedAmoy && state.balancePnr === null
+            ? 'Balance unavailable — tap Refresh to retry'
+            : hasAddress
             ? 'Liquid test tokens · No monetary value'
             : 'Connect your wallet to view balances'}
         </p>
+        {!hasAddress && state.error && (
+          <p role="alert" className="wallet-phone-error">
+            {state.error}
+          </p>
+        )}
         {hasAddress ? (
           <div className="wallet-phone-address">
             <button
@@ -293,21 +308,36 @@ export function MobileWalletOverview({
           <h2>Your assets</h2>
           <span>TESTNET</span>
         </div>
-        {assets.map(item => (
-          <div key={item.symbol} className="wallet-phone-asset">
-            <div className={`wallet-phone-token token-${item.symbol.toLowerCase()}`}>
-              {item.icon}
+        {assets.map(item => {
+          const isZero =
+            isConnectedAmoy &&
+            item.value !== null &&
+            !Number.isNaN(Number(item.value)) &&
+            Number(item.value) === 0;
+          const isUnavailable = isConnectedAmoy && item.value === null;
+          const displayVal =
+            item.value !== null ? item.value : isUnavailable ? 'Unavailable' : '—';
+          const captionText = isUnavailable
+            ? 'Unavailable — tap Refresh to retry'
+            : isZero
+            ? item.zeroCaption
+            : item.caption;
+          return (
+            <div key={item.symbol} className="wallet-phone-asset">
+              <div className={`wallet-phone-token token-${item.symbol.toLowerCase()}`}>
+                {item.icon}
+              </div>
+              <div>
+                <h3>{item.name}</h3>
+                <p>{captionText}</p>
+              </div>
+              <div className="wallet-phone-asset-value">
+                <strong>{displayVal}</strong>
+                <span>{item.symbol}</span>
+              </div>
             </div>
-            <div>
-              <h3>{item.name}</h3>
-              <p>{item.caption}</p>
-            </div>
-            <div className="wallet-phone-asset-value">
-              <strong>{item.value ?? '—'}</strong>
-              <span>{item.symbol}</span>
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </section>
 
       {/* E. Recent Activity (Up to 3 transactions + View all) */}

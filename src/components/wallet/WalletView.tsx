@@ -1,5 +1,5 @@
 // src/components/wallet/WalletView.tsx
-// PENORA Blockchain — Clean, Modular Non-Custodial Wallet (Phase 20 UX Redesign)
+// PENORA Blockchain — Clean, Modular Non-Custodial Wallet (Phase 20 & 21 UX Polish)
 import '../../styles/wallet.css';
 import '../../styles/wallet-mobile.css';
 import React, { useState, useEffect, useRef } from 'react';
@@ -14,6 +14,7 @@ import {
 } from './MobileWalletOverview';
 import { WalletHeader } from './WalletHeader';
 import { WalletNavigation } from './WalletNavigation';
+import { WalletOnboardingBanner } from './WalletOnboardingBanner';
 import { WalletBalanceCard } from './WalletBalanceCard';
 import { WalletQuickActions } from './WalletQuickActions';
 import { WalletAssetList } from './WalletAssetList';
@@ -37,6 +38,10 @@ import { parseTokenAmount } from '../../lib/wallet/amount';
 import { localPowerTransactions } from '../../lib/wallet/powerTransactions';
 import { fetchPowerHistory } from '../../lib/wallet/history';
 import { POLYGON_AMOY_CONFIG } from '../../lib/wallet/chain';
+import {
+  createTxLifecycleState,
+  type WalletTxLifecycleState,
+} from '../../lib/wallet/txLifecycle';
 import type { WalletState, WalletTransaction, UsdtGasEstimate } from '../../lib/wallet/types';
 
 export const WalletView: React.FC = () => {
@@ -45,6 +50,11 @@ export const WalletView: React.FC = () => {
   const [activeTab, setActiveTab] = useState<WalletTab>('overview');
   const [asset, setAsset] = useState<'USDT' | 'PNR'>('PNR');
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
+  const [onboardingDismissed, setOnboardingDismissed] = useState<boolean>(false);
+  const [isProviderInstalled, setIsProviderInstalled] = useState<boolean>(true);
+  const [txLifecycle, setTxLifecycle] = useState<WalletTxLifecycleState>(() =>
+    createTxLifecycleState('idle')
+  );
 
   const gasRequest = useRef(0);
   const powerRequest = useRef(0);
@@ -66,6 +76,8 @@ export const WalletView: React.FC = () => {
           ? 'dark'
           : 'light'
       );
+      setOnboardingDismissed(localStorage.getItem('penora_wallet_onboarding_dismissed') === '1');
+      setIsProviderInstalled(penoraWalletService.isMetaMaskAvailable());
     } catch {}
   }, []);
 
@@ -74,6 +86,20 @@ export const WalletView: React.FC = () => {
     setTheme(next);
     try {
       localStorage.setItem('penora_wallet_theme', next);
+    } catch {}
+  };
+
+  const handleDismissOnboarding = () => {
+    setOnboardingDismissed(true);
+    try {
+      localStorage.setItem('penora_wallet_onboarding_dismissed', '1');
+    } catch {}
+  };
+
+  const handleReopenOnboarding = () => {
+    setOnboardingDismissed(false);
+    try {
+      localStorage.removeItem('penora_wallet_onboarding_dismissed');
     } catch {}
   };
 
@@ -155,6 +181,7 @@ export const WalletView: React.FC = () => {
       }
       const version = ++powerRequest.current;
       setWalletState(ws);
+      setIsProviderInstalled(penoraWalletService.isMetaMaskAvailable());
       if (ws.address && ws.isCorrectNetwork) {
         penoraPowerService.fetchPowerState(ws.address).then(ps => {
           if (version !== powerRequest.current) return;
@@ -260,6 +287,7 @@ export const WalletView: React.FC = () => {
     setSendRecipient('');
     setCreatorRecipient(null);
     setSendAmount('');
+    setTxLifecycle(createTxLifecycleState('idle'));
   }, [walletState.address, walletState.chainId, asset]);
 
   const handleCopy = async (text: string) => {
@@ -340,6 +368,11 @@ export const WalletView: React.FC = () => {
     if (reviewingTransfer || sendLoading) return;
     const context = actionContext.current;
     setSendError(null);
+    setTxLifecycle(
+      createTxLifecycleState('preparing', {
+        description: 'Validating recipient, available balance, and Polygon Amoy gas estimate…',
+      })
+    );
     setReviewingTransfer(true);
     try {
       if (!sendRecipient || !isAddress(sendRecipient)) {
@@ -371,10 +404,15 @@ export const WalletView: React.FC = () => {
       const balanceRaw = tokenBalance === '0' ? 0n : parseTokenAmount(tokenBalance, tokenDecimals);
       if (raw > balanceRaw) throw new Error('Requested amount exceeds available balance.');
       if (!(await handleEstimateGas(sendRecipient, sendAmount))) return;
-      if (context === actionContext.current) setShowSendConfirmModal(true);
+      if (context === actionContext.current) {
+        setTxLifecycle(createTxLifecycleState('idle'));
+        setShowSendConfirmModal(true);
+      }
     } catch (err: any) {
       if (context === actionContext.current) {
-        setSendError(err.message || 'Transfer review failed.');
+        const message = err.message || 'Transfer review failed.';
+        setSendError(message);
+        setTxLifecycle(createTxLifecycleState('failed', { error: message }));
       }
     } finally {
       setReviewingTransfer(false);
@@ -386,6 +424,11 @@ export const WalletView: React.FC = () => {
     setSendError(null);
     setSendSuccessReceipt(null);
     setSendLoading(true);
+    setTxLifecycle(
+      createTxLifecycleState('awaiting_approval', {
+        description: `Approve the ${asset} transfer signature in MetaMask…`,
+      })
+    );
 
     try {
       const reviewedAddress = walletState.address;
@@ -415,11 +458,30 @@ export const WalletView: React.FC = () => {
         return;
       }
       if (result.status === 'failed') {
-        setSendError(`Transfer reverted. Transaction: ${result.hash}`);
+        const message = `Transfer reverted. Transaction: ${result.hash}`;
+        setSendError(message);
+        setTxLifecycle(
+          createTxLifecycleState('failed', {
+            error: message,
+            hash: result.hash,
+          })
+        );
         setShowSendConfirmModal(false);
         await refreshAllBalances();
         return;
       }
+      setTxLifecycle(
+        result.status === 'confirmed'
+          ? createTxLifecycleState('confirmed', {
+              description: `Sent ${result.amount} ${asset} on Polygon Amoy.`,
+              hash: result.hash,
+            })
+          : createTxLifecycleState('unknown', {
+              description:
+                'Transaction submitted; receipt confirmation is pending on Polygon Amoy.',
+              hash: result.hash,
+            })
+      );
       setSendSuccessReceipt({
         hash: result.hash,
         explorerUrl: result.explorerUrl,
@@ -434,7 +496,11 @@ export const WalletView: React.FC = () => {
       setShowSendConfirmModal(false);
       refreshAllBalances();
     } catch (err: any) {
-      if (context === actionContext.current) setSendError(err?.message || 'Transfer failed');
+      if (context === actionContext.current) {
+        const message = err?.message || 'Transfer failed';
+        setSendError(message);
+        setTxLifecycle(createTxLifecycleState('failed', { error: message }));
+      }
     } finally {
       setSendLoading(false);
     }
@@ -445,6 +511,12 @@ export const WalletView: React.FC = () => {
     setActionSuccess(null);
     setPendingPowerHash(null);
     setActionLoading(true);
+    setTxLifecycle(
+      createTxLifecycleState('awaiting_approval', {
+        description:
+          'Approve PNR spending allowance (if required) and confirm Power Up in your wallet…',
+      })
+    );
     const context = actionContext.current;
     try {
       const tx = await penoraPowerService.executePowerUp(
@@ -452,7 +524,14 @@ export const WalletView: React.FC = () => {
         walletState.address ?? undefined
       );
       if (context !== actionContext.current) return;
-      setActionSuccess(`Power Up confirmed: ${tx.slice(0, 10)}...`);
+      const msg = `Power Up confirmed: ${tx.slice(0, 10)}...`;
+      setActionSuccess(msg);
+      setTxLifecycle(
+        createTxLifecycleState('confirmed', {
+          description: msg,
+          hash: tx,
+        })
+      );
       setPowerUpAmount('');
       setTimeout(() => {
         if (context === actionContext.current) setShowPowerUpModal(false);
@@ -461,11 +540,20 @@ export const WalletView: React.FC = () => {
     } catch (err: any) {
       if (context === actionContext.current && err instanceof PowerTransactionPendingError) {
         setPendingPowerHash(err.hash);
+        setTxLifecycle(
+          createTxLifecycleState('unknown', {
+            description:
+              'Power Up submitted; awaiting on-chain receipt verification on Polygon Amoy.',
+            hash: err.hash,
+          })
+        );
         setShowPowerUpModal(false);
         setShowPowerDownModal(false);
         refreshAllBalances();
       } else if (context === actionContext.current) {
-        setActionError(err?.message || 'Failed to execute Power Up');
+        const message = err?.message || 'Failed to execute Power Up';
+        setActionError(message);
+        setTxLifecycle(createTxLifecycleState('failed', { error: message }));
       }
     } finally {
       setActionLoading(false);
@@ -477,6 +565,11 @@ export const WalletView: React.FC = () => {
     setActionSuccess(null);
     setPendingPowerHash(null);
     setActionLoading(true);
+    setTxLifecycle(
+      createTxLifecycleState('awaiting_approval', {
+        description: 'Confirm the 13-week Power Down schedule in your wallet…',
+      })
+    );
     const context = actionContext.current;
     try {
       const tx = await penoraPowerService.executeStartPowerDown(
@@ -484,7 +577,14 @@ export const WalletView: React.FC = () => {
         walletState.address ?? undefined
       );
       if (context !== actionContext.current) return;
-      setActionSuccess(`13-week Power Down schedule started: ${tx.slice(0, 10)}...`);
+      const msg = `13-week Power Down schedule started: ${tx.slice(0, 10)}...`;
+      setActionSuccess(msg);
+      setTxLifecycle(
+        createTxLifecycleState('confirmed', {
+          description: msg,
+          hash: tx,
+        })
+      );
       setPowerDownAmount('');
       setTimeout(() => {
         if (context === actionContext.current) setShowPowerDownModal(false);
@@ -493,11 +593,20 @@ export const WalletView: React.FC = () => {
     } catch (err: any) {
       if (context === actionContext.current && err instanceof PowerTransactionPendingError) {
         setPendingPowerHash(err.hash);
+        setTxLifecycle(
+          createTxLifecycleState('unknown', {
+            description:
+              'Power Down submitted; awaiting on-chain receipt verification on Polygon Amoy.',
+            hash: err.hash,
+          })
+        );
         setShowPowerUpModal(false);
         setShowPowerDownModal(false);
         refreshAllBalances();
       } else if (context === actionContext.current) {
-        setActionError(err?.message || 'Failed to start Power Down');
+        const message = err?.message || 'Failed to start Power Down';
+        setActionError(message);
+        setTxLifecycle(createTxLifecycleState('failed', { error: message }));
       }
     } finally {
       setActionLoading(false);
@@ -509,22 +618,42 @@ export const WalletView: React.FC = () => {
     setActionSuccess(null);
     setPendingPowerHash(null);
     setActionLoading(true);
+    setTxLifecycle(
+      createTxLifecycleState('awaiting_approval', {
+        description: 'Confirm the matured installment claim in your wallet…',
+      })
+    );
     const context = actionContext.current;
     try {
       const tx = await penoraPowerService.executeClaimInstallments(
         walletState.address ?? undefined
       );
       if (context !== actionContext.current) return;
-      setActionSuccess(`Matured installment claimed: ${tx.slice(0, 10)}...`);
+      const msg = `Matured installment claimed: ${tx.slice(0, 10)}...`;
+      setActionSuccess(msg);
+      setTxLifecycle(
+        createTxLifecycleState('confirmed', {
+          description: msg,
+          hash: tx,
+        })
+      );
       refreshAllBalances();
     } catch (err: any) {
       if (context === actionContext.current && err instanceof PowerTransactionPendingError) {
         setPendingPowerHash(err.hash);
+        setTxLifecycle(
+          createTxLifecycleState('unknown', {
+            description: 'Installment claim submitted; awaiting receipt verification.',
+            hash: err.hash,
+          })
+        );
         setShowPowerUpModal(false);
         setShowPowerDownModal(false);
         refreshAllBalances();
       } else if (context === actionContext.current) {
-        setActionError(err?.message || 'Failed to claim installments');
+        const message = err?.message || 'Failed to claim installments';
+        setActionError(message);
+        setTxLifecycle(createTxLifecycleState('failed', { error: message }));
       }
     } finally {
       setActionLoading(false);
@@ -536,22 +665,42 @@ export const WalletView: React.FC = () => {
     setActionSuccess(null);
     setPendingPowerHash(null);
     setActionLoading(true);
+    setTxLifecycle(
+      createTxLifecycleState('awaiting_approval', {
+        description: 'Confirm Power Down schedule cancellation in your wallet…',
+      })
+    );
     const context = actionContext.current;
     try {
       const tx = await penoraPowerService.executeCancelPowerDown(
         walletState.address ?? undefined
       );
       if (context !== actionContext.current) return;
-      setActionSuccess(`Power Down cancelled; unvested power restored: ${tx.slice(0, 10)}...`);
+      const msg = `Power Down cancelled; unvested power restored: ${tx.slice(0, 10)}...`;
+      setActionSuccess(msg);
+      setTxLifecycle(
+        createTxLifecycleState('confirmed', {
+          description: msg,
+          hash: tx,
+        })
+      );
       refreshAllBalances();
     } catch (err: any) {
       if (context === actionContext.current && err instanceof PowerTransactionPendingError) {
         setPendingPowerHash(err.hash);
+        setTxLifecycle(
+          createTxLifecycleState('unknown', {
+            description: 'Cancellation submitted; awaiting receipt verification.',
+            hash: err.hash,
+          })
+        );
         setShowPowerUpModal(false);
         setShowPowerDownModal(false);
         refreshAllBalances();
       } else if (context === actionContext.current) {
-        setActionError(err?.message || 'Failed to cancel Power Down');
+        const message = err?.message || 'Failed to cancel Power Down';
+        setActionError(message);
+        setTxLifecycle(createTxLifecycleState('failed', { error: message }));
       }
     } finally {
       setActionLoading(false);
@@ -654,8 +803,14 @@ export const WalletView: React.FC = () => {
               }}
               onRefresh={refreshAllBalances}
               copied={copiedAddress}
-              onPowerUp={() => setShowPowerUpModal(true)}
-              onPowerDown={() => setShowPowerDownModal(true)}
+              onPowerUp={() => {
+                setTxLifecycle(createTxLifecycleState('idle'));
+                setShowPowerUpModal(true);
+              }}
+              onPowerDown={() => {
+                setTxLifecycle(createTxLifecycleState('idle'));
+                setShowPowerDownModal(true);
+              }}
               transactions={historyTransactions}
               historyLoading={historyLoading}
               historyError={historyError}
@@ -668,6 +823,7 @@ export const WalletView: React.FC = () => {
                 <WalletBalanceCard
                   state={walletState}
                   copied={copiedAddress}
+                  isProviderInstalled={isProviderInstalled}
                   onConnect={() => {
                     void penoraWalletService.connect();
                   }}
@@ -678,12 +834,15 @@ export const WalletView: React.FC = () => {
                     if (walletState.address) void handleCopy(walletState.address);
                   }}
                   onRefresh={refreshAllBalances}
-                  onPowerUp={() => setShowPowerUpModal(true)}
+                  onPowerUp={() => {
+                    setTxLifecycle(createTxLifecycleState('idle'));
+                    setShowPowerUpModal(true);
+                  }}
                 />
 
                 <WalletQuickActions onNavigate={setActiveTab} />
 
-                <WalletAssetList state={walletState} />
+                <WalletAssetList state={walletState} onNavigate={setActiveTab} />
 
                 <WalletActivityPreview
                   transactions={historyTransactions}
@@ -691,6 +850,10 @@ export const WalletView: React.FC = () => {
                   error={historyError}
                   hasAddress={Boolean(walletState.address)}
                   onViewAll={() => setActiveTab('history')}
+                  onStartSend={() => setActiveTab('send')}
+                  onConnect={() => {
+                    void penoraWalletService.connect();
+                  }}
                 />
               </div>
 
@@ -699,6 +862,7 @@ export const WalletView: React.FC = () => {
                 <WalletConnectionPanel
                   state={walletState}
                   copied={copiedAddress}
+                  isProviderInstalled={isProviderInstalled}
                   onConnect={() => {
                     void penoraWalletService.connect();
                   }}
@@ -711,12 +875,33 @@ export const WalletView: React.FC = () => {
                   onCopyAddress={() => {
                     if (walletState.address) void handleCopy(walletState.address);
                   }}
-                  onPowerUp={() => setShowPowerUpModal(true)}
-                  onPowerDown={() => setShowPowerDownModal(true)}
+                  onPowerUp={() => {
+                    setTxLifecycle(createTxLifecycleState('idle'));
+                    setShowPowerUpModal(true);
+                  }}
+                  onPowerDown={() => {
+                    setTxLifecycle(createTxLifecycleState('idle'));
+                    setShowPowerDownModal(true);
+                  }}
                   onNavigate={setActiveTab}
                 />
               </div>
             </div>
+
+            {/* Dismissible First-Time Onboarding & Token Help Banner */}
+            <WalletOnboardingBanner
+              state={walletState}
+              dismissed={onboardingDismissed}
+              onDismiss={handleDismissOnboarding}
+              onReopen={handleReopenOnboarding}
+              onConnect={() => {
+                void penoraWalletService.connect();
+              }}
+              onSwitchNetwork={() => {
+                void penoraWalletService.switchOrAddAmoyNetwork();
+              }}
+              onNavigate={setActiveTab}
+            />
           </>
         )}
 
@@ -751,8 +936,14 @@ export const WalletView: React.FC = () => {
           <WalletPowerView
             state={walletState}
             actionLoading={actionLoading}
-            onPowerUp={() => setShowPowerUpModal(true)}
-            onPowerDown={() => setShowPowerDownModal(true)}
+            onPowerUp={() => {
+              setTxLifecycle(createTxLifecycleState('idle'));
+              setShowPowerUpModal(true);
+            }}
+            onPowerDown={() => {
+              setTxLifecycle(createTxLifecycleState('idle'));
+              setShowPowerDownModal(true);
+            }}
             onClaimInstallments={handleClaimInstallments}
             onCancelPowerDown={handleCancelPowerDown}
             onRefreshWallet={refreshAllBalances}
@@ -874,6 +1065,7 @@ export const WalletView: React.FC = () => {
         gasEstimate={gasEstimate}
         sendLoading={sendLoading}
         sendError={sendError}
+        txLifecycle={txLifecycle}
         onConfirm={() => {
           void handleExecuteSend();
         }}
@@ -889,6 +1081,7 @@ export const WalletView: React.FC = () => {
         actionLoading={actionLoading}
         actionError={actionError}
         actionSuccess={actionSuccess}
+        txLifecycle={txLifecycle}
         onConfirm={() => {
           void handleExecutePowerUp();
         }}
@@ -904,6 +1097,7 @@ export const WalletView: React.FC = () => {
         actionLoading={actionLoading}
         actionError={actionError}
         actionSuccess={actionSuccess}
+        txLifecycle={txLifecycle}
         onConfirm={() => {
           void handleExecutePowerDown();
         }}

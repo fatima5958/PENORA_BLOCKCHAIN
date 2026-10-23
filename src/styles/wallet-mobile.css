@@ -1,5 +1,6 @@
 /* src/styles/wallet-mobile.css
  * PENORA Blockchain — Mobile-First Wallet Layout (< 768px)
+ * Refined Premium Typography: Inter (body, balance, labels, assets, buttons) + Sora (headings)
  */
 
 .wallet-phone-heading,
@@ -11,6 +12,7 @@
 @media (max-width: 767px) {
   .penora-wallet .wallet-content {
     padding: 16px 14px 40px;
+    font-family: var(--wallet-font-body, 'Inter', sans-serif);
   }
   .penora-wallet .wallet-content > * {
     min-width: 0;
@@ -23,7 +25,7 @@
     display: none;
   }
 
-  /* A. Compact Header */
+  /* A. Compact Header: Sora 22px weight 600 */
   .penora-wallet .wallet-phone-heading {
     display: grid;
     grid-template-columns: 1fr auto;
@@ -32,9 +34,10 @@
   }
   .penora-wallet .wallet-phone-eyebrow {
     display: block;
-    font-size: 10px;
-    font-weight: 700;
-    letter-spacing: 0.08em;
+    font-family: var(--wallet-font-body, 'Inter', sans-serif);
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
     text-transform: uppercase;
     color: #007c8b;
   }
@@ -43,10 +46,11 @@
   }
   .penora-wallet .wallet-phone-heading h1 {
     margin: 2px 0 0;
-    font-size: 20px;
-    font-weight: 700;
+    font-family: var(--wallet-font-heading, 'Sora', sans-serif);
+    font-size: 22px;
+    font-weight: 600;
     line-height: 1.25;
-    letter-spacing: -0.025em;
+    letter-spacing: -0.01em;
     color: var(--wallet-text);
   }
   .penora-wallet .wallet-phone-heading > button {
@@ -66,8 +70,11 @@
     gap: 6px;
     margin: 2px 0 0;
     color: var(--wallet-muted);
-    font-size: 11px;
+    font-family: var(--wallet-font-body, 'Inter', sans-serif);
+    font-size: 12px;
+    font-weight: 400;
     line-height: 1.4;
+    letter-spacing: normal;
   }
   .penora-wallet .wallet-phone-notice > span {
     flex: 0 0 6px;
@@ -101,11 +108,18 @@
     background: transparent;
     border: 0;
     color: var(--wallet-muted);
-    font-size: 11px;
+    font-family: var(--wallet-font-body, 'Inter', sans-serif);
+    font-size: 13px;
     font-weight: 600;
     line-height: 1.2;
-    letter-spacing: -0.01em;
+    letter-spacing: normal;
     white-space: nowrap;
+  }
+  @media (max-width: 359px) {
+    .penora-wallet .wallet-phone-navigation > nav > button {
+      font-size: 11.5px;
+      padding: 6px 1px;
+    }
   }
   .penora-wallet .wallet-phone-navigation > nav > button[aria-current],
   .penora-wallet .wallet-phone-navigation > nav > .is-selected {
@@ -138,8 +152,10 @@
     padding: 10px 12px;
     min-height: 44px;
     text-align: left;
-    font-size: 12px;
+    font-family: var(--wallet-font-body, 'Inter', sans-serif);
+    font-size: 14px;
     font-weight: 600;
+    letter-spacing: normal;
     color: var(--wallet-text);
     background: var(--wallet-surface);
   }
@@ -151,7 +167,7 @@
     gap: 16px;
   }
 
-  /* B. Main Balance Card */
+  /* B. Main Balance Card: Inter 30–34px weight 600 tabular numbers */
   .penora-wallet .wallet-phone-balance {
     position: relative;
     overflow: hidden;
@@ -167,9 +183,10 @@
     align-items: center;
     justify-content: space-between;
     gap: 8px;
-    font-size: 10px;
-    font-weight: 700;
-    letter-spacing: 0.1em;
+    font-family: var(--wallet-font-body, 'Inter', sans-serif);
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0.04em;
     color: #cbd5e1;
   }
   .penora-wallet .wallet-phone-network {
@@ -180,9 +197,10 @@
     border: 1px solid rgba(0, 229, 244, 0.28);
     border-radius: 20px;
     background: rgba(255, 255, 255, 0.08);
-    font-size: 9px;
-    font-weight: 700;
-    letter-spacing: 0.06em;
+    font-family: var(--wallet-font-body, 'Inter', sans-serif);
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
     color: #00e5f4;
   }
   .penora-wallet .wallet-phone-network i {
@@ -200,23 +218,40 @@
   .penora-wallet .wallet-phone-amount strong {
     min-width: 0;
     overflow-wrap: anywhere;
-    font-size: clamp(26px, 7.5vw, 34px);
+    font-family: var(--wallet-font-body, 'Inter', sans-serif);
+    font-size: clamp(30px, 7.5vw, 34px);
     line-height: 1.15;
-    font-weight: 700;
-    letter-spacing: -0.03em;
+    font-weight: 600;
+    letter-spacing: -0.01em;
     font-variant-numeric: tabular-nums;
   }
   .penora-wallet .wallet-phone-amount > span {
     flex-shrink: 0;
-    font-size: 13px;
-    font-weight: 700;
+    font-family: var(--wallet-font-body, 'Inter', sans-serif);
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: normal;
     color: #00e5f4;
   }
   .penora-wallet .wallet-phone-balance > p {
     margin: 6px 0 14px;
-    font-size: 11px;
+    font-family: var(--wallet-font-body, 'Inter', sans-serif);
+    font-size: 14px;
     line-height: 1.45;
+    font-weight: 400;
+    letter-spacing: normal;
     color: #cbd5e1;
+  }
+  .penora-wallet .wallet-phone-balance > p.wallet-phone-error {
+    margin: 6px 0 10px;
+    padding: 8px 10px;
+    border-radius: 10px;
+    background: rgba(239, 68, 68, 0.16);
+    border: 1px solid rgba(248, 113, 113, 0.35);
+    font-family: var(--wallet-font-body, 'Inter', sans-serif);
+    font-size: 13px;
+    font-weight: 400;
+    color: #fecaca;
   }
   .penora-wallet .wallet-phone-connect {
     display: flex;
@@ -231,8 +266,10 @@
     color: #0a2540;
     border: 0;
     border-radius: 12px;
-    font-size: 12px;
-    font-weight: 700;
+    font-family: var(--wallet-font-body, 'Inter', sans-serif);
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: normal;
   }
   .penora-wallet .wallet-phone-connect > svg:last-child {
     margin-left: auto;
@@ -252,7 +289,8 @@
     gap: 6px;
     min-height: 44px;
     color: #e2e8f0;
-    font-size: 11px;
+    font-size: 12px;
+    font-weight: 500;
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
     background: transparent;
     border: 0;
@@ -262,15 +300,17 @@
     margin-left: auto;
   }
   .penora-wallet .wallet-phone-address > span {
-    font-size: 10px;
+    font-family: var(--wallet-font-body, 'Inter', sans-serif);
+    font-size: 12px;
     font-weight: 600;
-    padding: 2px 7px;
+    letter-spacing: normal;
+    padding: 3px 8px;
     border-radius: 6px;
     background: rgba(16, 185, 129, 0.18);
     color: #6ee7b7;
   }
 
-  /* C. Four Quick Actions */
+  /* C. Four Quick Actions: Inter 14px weight 600 */
   .penora-wallet .wallet-phone-actions {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -288,8 +328,10 @@
     border: 1px solid var(--wallet-border);
     background: var(--wallet-surface);
     color: var(--wallet-text);
-    font-size: 11px;
+    font-family: var(--wallet-font-body, 'Inter', sans-serif);
+    font-size: 14px;
     font-weight: 600;
+    letter-spacing: normal;
   }
   .penora-wallet .wallet-phone-actions button > span {
     display: grid;
@@ -305,7 +347,7 @@
     color: #00e5f4;
   }
 
-  /* D. Your Assets & E. Recent Activity Cards */
+  /* D. Your Assets & E. Recent Activity Cards: Section Titles Sora 16-18px (17px) weight 600 */
   .penora-wallet .wallet-phone-assets,
   .penora-wallet .wallet-phone-activity {
     padding: 16px;
@@ -322,15 +364,18 @@
   }
   .penora-wallet .wallet-phone-section-title h2 {
     margin: 0;
-    font-size: 14px;
-    font-weight: 700;
+    font-family: var(--wallet-font-heading, 'Sora', sans-serif);
+    font-size: 17px;
+    font-weight: 600;
     letter-spacing: -0.01em;
+    line-height: 1.3;
     color: var(--wallet-text);
   }
   .penora-wallet .wallet-phone-section-title > span {
-    font-size: 9px;
-    font-weight: 700;
-    letter-spacing: 0.1em;
+    font-family: var(--wallet-font-body, 'Inter', sans-serif);
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
     color: var(--wallet-muted);
   }
   .penora-wallet .wallet-phone-viewall {
@@ -341,8 +386,10 @@
     padding: 0 4px;
     border: 0;
     background: transparent;
-    font-size: 11px;
+    font-family: var(--wallet-font-body, 'Inter', sans-serif);
+    font-size: 13px;
     font-weight: 600;
+    letter-spacing: normal;
     color: #007c8b;
   }
   .penora-wallet[data-wallet-theme='dark'] .wallet-phone-viewall {
@@ -368,8 +415,9 @@
     border-radius: 10px;
     background: rgba(0, 124, 139, 0.12);
     color: #007c8b;
+    font-family: var(--wallet-font-body, 'Inter', sans-serif);
     font-size: 16px;
-    font-weight: 700;
+    font-weight: 600;
   }
   .penora-wallet[data-wallet-theme='dark'] .wallet-phone-token {
     background: rgba(0, 229, 244, 0.14);
@@ -392,13 +440,19 @@
   }
   .penora-wallet .wallet-phone-asset h3 {
     margin: 0;
-    font-size: 13px;
-    font-weight: 600;
+    font-family: var(--wallet-font-body, 'Inter', sans-serif);
+    font-size: 15px;
+    font-weight: 500;
+    letter-spacing: normal;
     color: var(--wallet-text);
   }
   .penora-wallet .wallet-phone-asset p {
     margin: 2px 0 0;
-    font-size: 11px;
+    font-family: var(--wallet-font-body, 'Inter', sans-serif);
+    font-size: 12.5px;
+    font-weight: 400;
+    line-height: 1.4;
+    letter-spacing: normal;
     color: var(--wallet-muted);
   }
   .penora-wallet .wallet-phone-asset-value {
@@ -413,23 +467,32 @@
   .penora-wallet .wallet-phone-asset-value strong {
     max-width: 100%;
     overflow-wrap: anywhere;
-    font-size: 14px;
-    font-weight: 700;
+    font-family: var(--wallet-font-body, 'Inter', sans-serif);
+    font-size: 15px;
+    font-weight: 600;
     font-variant-numeric: tabular-nums;
+    letter-spacing: normal;
     color: var(--wallet-text);
   }
   .penora-wallet .wallet-phone-asset-value > span {
-    font-size: 10px;
+    font-family: var(--wallet-font-body, 'Inter', sans-serif);
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: normal;
     color: var(--wallet-muted);
   }
 
-  /* Recent Activity Rows */
+  /* Recent Activity Rows: Inter 14px weight 400/500/600 */
   .penora-wallet .wallet-phone-empty {
     margin: 4px 0 0;
-    padding: 12px;
+    padding: 14px;
     border-radius: 12px;
     background: var(--wallet-inset);
-    font-size: 11px;
+    font-family: var(--wallet-font-body, 'Inter', sans-serif);
+    font-size: 14px;
+    font-weight: 400;
+    line-height: 1.45;
+    letter-spacing: normal;
     color: var(--wallet-muted);
     text-align: center;
   }
@@ -454,19 +517,28 @@
     align-items: center;
     gap: 6px;
     flex-wrap: wrap;
-    font-size: 12px;
+    font-family: var(--wallet-font-body, 'Inter', sans-serif);
+    font-size: 14px;
+    font-weight: 500;
+    letter-spacing: normal;
+  }
+  .penora-wallet .wallet-phone-tx-title strong {
+    font-family: var(--wallet-font-body, 'Inter', sans-serif);
+    font-weight: 600;
   }
   .penora-wallet .wallet-phone-tx p {
     margin: 2px 0 0;
-    font-size: 10px;
+    font-size: 12px;
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
     color: var(--wallet-muted);
   }
   .penora-wallet .tx-badge {
-    font-size: 9px;
-    font-weight: 700;
+    font-family: var(--wallet-font-body, 'Inter', sans-serif);
+    font-size: 11px;
+    font-weight: 600;
     text-transform: uppercase;
-    padding: 1px 5px;
+    letter-spacing: normal;
+    padding: 2px 6px;
     border-radius: 4px;
   }
   .penora-wallet .tx-confirmed {
@@ -485,11 +557,13 @@
     display: flex;
     align-items: center;
     gap: 6px;
-    font-size: 12px;
+    font-family: var(--wallet-font-body, 'Inter', sans-serif);
+    font-size: 14px;
+    font-weight: 600;
     font-variant-numeric: tabular-nums;
   }
 
-  /* F. Compact Power Actions */
+  /* F. Compact Power Actions: Title Sora 17px weight 600, Buttons Inter 14px weight 600 */
   .penora-wallet .wallet-phone-power {
     padding: 16px;
     border: 1px solid var(--wallet-border);
@@ -517,12 +591,19 @@
   }
   .penora-wallet .wallet-phone-power h2 {
     margin: 0;
-    font-size: 13px;
-    font-weight: 700;
+    font-family: var(--wallet-font-heading, 'Sora', sans-serif);
+    font-size: 17px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    line-height: 1.3;
   }
   .penora-wallet .wallet-phone-power p {
     margin: 2px 0 0;
-    font-size: 11px;
+    font-family: var(--wallet-font-body, 'Inter', sans-serif);
+    font-size: 13px;
+    font-weight: 400;
+    line-height: 1.4;
+    letter-spacing: normal;
     color: var(--wallet-muted);
   }
   .penora-wallet .wallet-phone-power-actions {
@@ -542,11 +623,18 @@
     border-radius: 10px;
     background: var(--wallet-inset);
     color: var(--wallet-text);
-    font-size: 11px;
+    font-family: var(--wallet-font-body, 'Inter', sans-serif);
+    font-size: 14px;
     font-weight: 600;
+    letter-spacing: normal;
   }
   .penora-wallet .wallet-phone-power .wallet-phone-power-help {
     margin-top: 8px;
+    font-family: var(--wallet-font-body, 'Inter', sans-serif);
+    font-size: 12.5px;
+    font-weight: 400;
+    letter-spacing: normal;
+    color: var(--wallet-muted);
   }
   .penora-wallet .wallet-phone-details {
     display: flex;
@@ -559,8 +647,10 @@
     border: 1px solid var(--wallet-border);
     background: var(--wallet-surface);
     color: var(--wallet-text);
-    font-size: 12px;
+    font-family: var(--wallet-font-body, 'Inter', sans-serif);
+    font-size: 14px;
     font-weight: 600;
+    letter-spacing: normal;
     text-align: left;
   }
 }

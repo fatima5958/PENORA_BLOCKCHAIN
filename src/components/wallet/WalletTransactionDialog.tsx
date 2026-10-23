@@ -9,10 +9,83 @@ import {
   CheckCircle2,
   RefreshCw,
   Lock,
+  ExternalLink,
+  Clock,
 } from 'lucide-react';
 import { isSpendableAmount, previewPowerDown } from '../../lib/wallet/amount';
+import {
+  createTxLifecycleState,
+  type WalletTxLifecycleState,
+} from '../../lib/wallet/txLifecycle';
 import type { CreatorRecipient } from '../../lib/wallet/creatorRecipient';
 import type { WalletState, UsdtGasEstimate } from '../../lib/wallet/types';
+
+export function TransactionLifecycleStatusBanner({
+  lifecycle,
+}: {
+  lifecycle: WalletTxLifecycleState;
+}) {
+  if (lifecycle.status === 'idle') return null;
+
+  const isFailed = lifecycle.status === 'failed';
+  const isConfirmed = lifecycle.status === 'confirmed';
+  const isUnknown = lifecycle.status === 'unknown';
+
+  const toneClass = isFailed
+    ? 'bg-red-500/12 border-red-500/25 text-red-700 dark:text-red-300'
+    : isConfirmed
+    ? 'bg-emerald-500/12 border-emerald-500/25 text-emerald-800 dark:text-emerald-200'
+    : isUnknown
+    ? 'bg-amber-500/12 border-amber-500/25 text-amber-900 dark:text-amber-200'
+    : 'bg-[#007C8B]/10 border-[#007C8B]/25 text-[var(--wallet-text)]';
+
+  return (
+    <div
+      role={isFailed ? 'alert' : 'status'}
+      className={`p-3 rounded-xl border text-xs space-y-1.5 ${toneClass}`}
+    >
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 font-bold">
+          {isFailed ? (
+            <AlertCircle className="h-4 w-4 shrink-0" />
+          ) : isConfirmed ? (
+            <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+          ) : isUnknown ? (
+            <Clock className="h-4 w-4 shrink-0 text-amber-500" />
+          ) : (
+            <RefreshCw className="h-3.5 w-3.5 shrink-0 animate-spin text-[#007C8B] dark:text-[#00E5F4]" />
+          )}
+          <span>{lifecycle.label}</span>
+        </div>
+
+        <span className="text-[10px] font-mono uppercase px-1.5 py-0.5 rounded bg-black/5 dark:bg-white/10">
+          {lifecycle.status.replace('_', ' ')}
+        </span>
+      </div>
+
+      <p className="text-[11px] leading-relaxed break-words">{lifecycle.description}</p>
+
+      {lifecycle.hash && (
+        <div className="pt-1 flex items-center justify-between gap-2 text-[11px] font-mono">
+          <span className="truncate">
+            Tx: {lifecycle.hash.slice(0, 10)}…{lifecycle.hash.slice(-8)}
+          </span>
+          {lifecycle.explorerUrl && (
+            <a
+              href={lifecycle.explorerUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 font-sans font-semibold text-[#007C8B] dark:text-[#00E5F4] hover:underline shrink-0"
+            >
+              <span>PolygonScan</span>
+              <ExternalLink className="h-3 w-3" />
+            </a>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export interface SendConfirmDialogProps {
   open: boolean;
@@ -25,6 +98,7 @@ export interface SendConfirmDialogProps {
   gasEstimate: UsdtGasEstimate | null;
   sendLoading: boolean;
   sendError: string | null;
+  txLifecycle?: WalletTxLifecycleState;
   onConfirm: () => void;
 }
 
@@ -39,6 +113,7 @@ export const SendConfirmDialog: React.FC<SendConfirmDialogProps> = ({
   gasEstimate,
   sendLoading,
   sendError,
+  txLifecycle,
   onConfirm,
 }) => {
   useEffect(() => {
@@ -51,6 +126,17 @@ export const SendConfirmDialog: React.FC<SendConfirmDialogProps> = ({
   }, [open, sendLoading, onClose]);
 
   if (!open) return null;
+
+  const effectiveLifecycle: WalletTxLifecycleState =
+    txLifecycle && txLifecycle.status !== 'idle'
+      ? txLifecycle
+      : sendError
+      ? createTxLifecycleState('failed', { error: sendError })
+      : sendLoading
+      ? createTxLifecycleState('awaiting_approval', {
+          description: 'Approve the transfer signature in MetaMask and wait for on-chain receipt…',
+        })
+      : createTxLifecycleState('idle');
 
   return (
     <div
@@ -130,15 +216,7 @@ export const SendConfirmDialog: React.FC<SendConfirmDialogProps> = ({
           </span>
         </div>
 
-        {sendError && (
-          <div
-            role="alert"
-            className="p-3 rounded-xl bg-red-500/12 border border-red-500/25 text-xs text-red-700 dark:text-red-300 flex items-start gap-2"
-          >
-            <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
-            <span>{sendError}</span>
-          </div>
-        )}
+        <TransactionLifecycleStatusBanner lifecycle={effectiveLifecycle} />
 
         <button
           type="button"
@@ -149,7 +227,7 @@ export const SendConfirmDialog: React.FC<SendConfirmDialogProps> = ({
           {sendLoading ? (
             <>
               <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-              <span>Awaiting Wallet Signature &amp; Receipt…</span>
+              <span>{effectiveLifecycle.label} — Waiting for Receipt…</span>
             </>
           ) : (
             <>
@@ -173,6 +251,7 @@ export interface PowerModalProps {
   actionLoading: boolean;
   actionError: string | null;
   actionSuccess: string | null;
+  txLifecycle?: WalletTxLifecycleState;
   onConfirm: () => void;
 }
 
@@ -186,6 +265,7 @@ export const PowerTransactionDialog: React.FC<PowerModalProps> = ({
   actionLoading,
   actionError,
   actionSuccess,
+  txLifecycle,
   onConfirm,
 }) => {
   const isUp = mode === 'up';
@@ -204,6 +284,21 @@ export const PowerTransactionDialog: React.FC<PowerModalProps> = ({
   }, [open, actionLoading, onClose]);
 
   if (!open) return null;
+
+  const effectiveLifecycle: WalletTxLifecycleState =
+    txLifecycle && txLifecycle.status !== 'idle'
+      ? txLifecycle
+      : actionError
+      ? createTxLifecycleState('failed', { error: actionError })
+      : actionSuccess
+      ? createTxLifecycleState('confirmed', { description: actionSuccess })
+      : actionLoading
+      ? createTxLifecycleState('awaiting_approval', {
+          description: isUp
+            ? 'Approve PNR allowance (if required) and confirm Power Up in MetaMask…'
+            : 'Confirm the 13-week Power Down schedule in MetaMask…',
+        })
+      : createTxLifecycleState('idle');
 
   return (
     <div
@@ -282,6 +377,12 @@ export const PowerTransactionDialog: React.FC<PowerModalProps> = ({
             </span>
           </div>
 
+          {isUp && (
+            <p className="text-[11px] text-[var(--wallet-muted)]">
+              Note: Staking PNR requires ERC-20 token approval (if allowance is insufficient) followed by the Power Up transaction.
+            </p>
+          )}
+
           {!isUp && schedulePreview && (
             <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/25 text-[11px] text-amber-900 dark:text-amber-200 space-y-1">
               <div>
@@ -297,25 +398,7 @@ export const PowerTransactionDialog: React.FC<PowerModalProps> = ({
           )}
         </div>
 
-        {actionError && (
-          <div
-            role="alert"
-            className="p-3 rounded-xl bg-red-500/12 border border-red-500/25 text-xs text-red-700 dark:text-red-300 flex items-start gap-2"
-          >
-            <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
-            <span>{actionError}</span>
-          </div>
-        )}
-
-        {actionSuccess && (
-          <div
-            role="status"
-            className="p-3 rounded-xl bg-emerald-500/12 border border-emerald-500/25 text-xs text-emerald-700 dark:text-emerald-300 flex items-start gap-2"
-          >
-            <CheckCircle2 className="h-4 w-4 shrink-0 mt-0.5" />
-            <span>{actionSuccess}</span>
-          </div>
-        )}
+        <TransactionLifecycleStatusBanner lifecycle={effectiveLifecycle} />
 
         <button
           type="button"

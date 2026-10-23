@@ -20,6 +20,7 @@ import type { WalletTab } from './MobileWalletOverview';
 export interface WalletConnectionPanelProps {
   state: WalletState;
   copied: boolean;
+  isProviderInstalled?: boolean;
   onConnect: () => void;
   onDisconnect: () => void;
   onSwitchNetwork: () => void;
@@ -32,6 +33,7 @@ export interface WalletConnectionPanelProps {
 export const WalletConnectionPanel: React.FC<WalletConnectionPanelProps> = ({
   state,
   copied,
+  isProviderInstalled = true,
   onConnect,
   onDisconnect,
   onSwitchNetwork,
@@ -43,9 +45,14 @@ export const WalletConnectionPanel: React.FC<WalletConnectionPanelProps> = ({
   const shortAddress = state.address
     ? `${state.address.slice(0, 6)}…${state.address.slice(-4)}`
     : null;
+  const isConnectedAmoy = Boolean(
+    state.address && state.isCorrectNetwork && state.status === 'connected'
+  );
   const canPower = Boolean(state.address && state.isCorrectNetwork && state.contractsDeployed);
   const manaPercent =
     state.votingManaPercent !== null ? Math.min(100, Math.max(0, state.votingManaPercent)) : 0;
+  const isNoWalletDetected =
+    !isProviderInstalled || Boolean(state.error?.toLowerCase().includes('not detected'));
 
   return (
     <aside className="wallet-connection-panel space-y-4" aria-label="Wallet status and curation power">
@@ -115,10 +122,14 @@ export const WalletConnectionPanel: React.FC<WalletConnectionPanelProps> = ({
                   {state.isCorrectNetwork ? 'Amoy (80002)' : `Chain ${state.chainId ?? '?'}`}
                 </span>
               </div>
-              <div className="p-2.5 rounded-xl bg-[var(--wallet-inset)] border border-[var(--wallet-border)]">
+              <div className="p-2.5 rounded-xl bg-[var(--wallet-inset)] border border-[var(--wallet-border)] min-w-0">
                 <span className="text-[10px] text-[var(--wallet-muted)] block">Gas Balance</span>
-                <span className="font-mono font-semibold text-[var(--wallet-text)] tabular-nums">
-                  {state.balancePol ? `${state.balancePol} POL` : '— POL'}
+                <span className="font-mono font-semibold text-[var(--wallet-text)] tabular-nums whitespace-nowrap">
+                  {state.balancePol !== null
+                    ? `${state.balancePol} POL`
+                    : isConnectedAmoy
+                    ? 'Unavailable'
+                    : '— POL'}
                 </span>
               </div>
             </div>
@@ -162,7 +173,9 @@ export const WalletConnectionPanel: React.FC<WalletConnectionPanelProps> = ({
         ) : (
           <div className="space-y-3">
             <p className="text-xs text-[var(--wallet-muted)] leading-relaxed">
-              Connect MetaMask on Polygon Amoy to inspect token balances, send PNR or MockUSDT, and manage staked PENORA Power.
+              {isNoWalletDetected
+                ? 'No browser wallet extension detected. Install MetaMask or open PENORA in a Web3-enabled browser to connect on Polygon Amoy.'
+                : 'Connect MetaMask on Polygon Amoy to inspect token balances, send PNR or MockUSDT, and manage staked PENORA Power.'}
             </p>
             {state.error && (
               <div className="p-2.5 rounded-xl bg-red-500/10 border border-red-500/25 text-xs text-red-700 dark:text-red-300 flex items-center gap-2">
@@ -170,24 +183,37 @@ export const WalletConnectionPanel: React.FC<WalletConnectionPanelProps> = ({
                 <span>{state.error}</span>
               </div>
             )}
-            <button
-              type="button"
-              onClick={onConnect}
-              disabled={state.status === 'connecting'}
-              className="w-full min-h-[42px] py-2.5 px-4 rounded-xl bg-[#007C8B] hover:bg-[#006673] text-white font-semibold text-xs flex items-center justify-center gap-2 transition-colors"
-            >
-              {state.status === 'connecting' ? (
-                <>
-                  <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                  <span>Connecting…</span>
-                </>
-              ) : (
-                <>
-                  <Wallet className="h-3.5 w-3.5" />
-                  <span>Connect Web3 Wallet</span>
-                </>
+            <div className="space-y-2">
+              <button
+                type="button"
+                onClick={onConnect}
+                disabled={state.status === 'connecting'}
+                className="w-full min-h-[42px] py-2.5 px-4 rounded-xl bg-[#007C8B] hover:bg-[#006673] text-white font-semibold text-xs flex items-center justify-center gap-2 transition-colors"
+              >
+                {state.status === 'connecting' ? (
+                  <>
+                    <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                    <span>Connecting…</span>
+                  </>
+                ) : (
+                  <>
+                    <Wallet className="h-3.5 w-3.5" />
+                    <span>Connect Web3 Wallet</span>
+                  </>
+                )}
+              </button>
+              {isNoWalletDetected && (
+                <a
+                  href="https://metamask.io/download/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full min-h-[38px] py-2 px-3 rounded-xl bg-[var(--wallet-inset)] hover:border-[#007C8B]/40 border border-[var(--wallet-border)] text-xs font-semibold text-[var(--wallet-text)] inline-flex items-center justify-center gap-1.5 transition-colors"
+                >
+                  <span>Install MetaMask Extension</span>
+                  <ExternalLink className="h-3.5 w-3.5 text-[#007C8B] dark:text-[#00E5F4]" />
+                </a>
               )}
-            </button>
+            </div>
           </div>
         )}
       </div>
@@ -212,7 +238,11 @@ export const WalletConnectionPanel: React.FC<WalletConnectionPanelProps> = ({
         <div className="p-3 rounded-xl bg-[var(--wallet-inset)] border border-[var(--wallet-border)] flex items-center justify-between">
           <span className="text-xs text-[var(--wallet-muted)]">Staked Power</span>
           <strong className="font-mono text-sm font-bold text-[var(--wallet-text)] tabular-nums">
-            {state.balancePp ? `${state.balancePp} PP` : '— PP'}
+            {state.balancePp !== null
+              ? `${state.balancePp} PP`
+              : isConnectedAmoy
+              ? 'Unavailable'
+              : '— PP'}
           </strong>
         </div>
 
@@ -221,7 +251,11 @@ export const WalletConnectionPanel: React.FC<WalletConnectionPanelProps> = ({
           <div className="flex items-center justify-between text-xs">
             <span className="text-[var(--wallet-muted)]">Voting Mana</span>
             <span className="font-mono font-bold text-[#007C8B] dark:text-[#00E5F4]">
-              {state.votingManaPercent !== null ? `${state.votingManaPercent.toFixed(1)}%` : '—'}
+              {state.votingManaPercent !== null
+                ? `${state.votingManaPercent.toFixed(1)}%`
+                : isConnectedAmoy
+                ? 'Unavailable'
+                : '—'}
             </span>
           </div>
           <div className="w-full h-2 rounded-full bg-[var(--wallet-inset)] overflow-hidden">
