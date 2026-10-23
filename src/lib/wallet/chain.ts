@@ -4,12 +4,14 @@ import { defineChain } from 'viem';
 import type { WalletNetwork } from './types';
 
 // Current high-performance public Amoy endpoints.
-export const AMOY_RPC_URL = import.meta.env.PUBLIC_AMOY_RPC_URL || 'https://polygon-amoy.drpc.org';
-export const AMOY_FALLBACK_RPCS = [
-  'https://polygon-amoy.drpc.org',
+export const AMOY_RPC_URL = import.meta.env.PUBLIC_AMOY_RPC_URL?.trim() || 'https://polygon-amoy.drpc.org';
+// Use the configured endpoint first and only maintained Amoy fallbacks.
+// Keep the same list for public reads and MetaMask network setup.
+export const AMOY_FALLBACK_RPCS = [...new Set([
+  AMOY_RPC_URL,
   'https://polygon-amoy-bor-rpc.publicnode.com',
-  'https://rpc-amoy.polygon.technology',
-];
+  'https://polygon-amoy.drpc.org',
+])];
 
 export const polygonAmoy = defineChain({
   id: 80002,

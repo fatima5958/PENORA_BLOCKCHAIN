@@ -29,7 +29,14 @@ export const WalletQuickActions: React.FC<WalletQuickActionsProps> = ({ onNaviga
           <button
             key={action.id}
             type="button"
-            onClick={() => onNavigate(action.id)}
+            onClick={() => {
+              // The primary Trade shortcut opens the complete Exchange desk and P2P tabs.
+              if (action.id === 'trade_pnr') {
+                window.location.assign('/exchange/');
+              } else {
+                onNavigate(action.id);
+              }
+            }}
             className="min-h-[64px] sm:min-h-[56px] px-2 py-2.5 rounded-2xl bg-[var(--wallet-surface)] border border-[var(--wallet-border)] hover:border-[#007C8B]/45 active:scale-[0.98] transition-all flex flex-col sm:flex-row items-center justify-center gap-1.5 sm:gap-2 text-[var(--wallet-text)] shadow-2xs"
           >
             <span className="w-9 h-9 sm:w-8 sm:h-8 rounded-xl bg-[#007C8B]/10 dark:bg-[#00E5F4]/12 text-[#007C8B] dark:text-[#00E5F4] flex items-center justify-center shrink-0">

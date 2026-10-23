@@ -158,6 +158,9 @@ export function ExchangeView() {
   const [tab, setTab] = useState<'activity' | 'details'>('activity'),
     [refreshing, setRefreshing] = useState(false);
   const [tradingMode, setTradingMode] = useState<'desk' | 'p2p'>('desk');
+  const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
+  const latestMarket = useRef<MarketSnapshot | null>(null);
+  const marketRequest = useRef(0);
 
   // Owner administration state
   const [admin, setAdmin] = useState<ExchangeAdminState | null>(null);
@@ -195,17 +198,32 @@ export function ExchangeView() {
   }, [review]);
 
   const refresh = async () => {
+    const requestId = ++marketRequest.current;
     setRefreshing(true);
     try {
       const result = await readMarket();
-      if (active.current) setMarket(result);
+      if (!active.current || requestId !== marketRequest.current) return;
+      const previous = latestMarket.current;
+      if (previous && (previous.rate !== result.rate || previous.paused !== result.paused)) {
+        // Never leave a reviewed quote open after an external owner rate/pause change.
+        setQuote(null);
+        setReview(null);
+        setMessage('Exchange price or availability changed on-chain. Request a fresh quote.');
+      }
+      latestMarket.current = result;
+      setMarket(result);
+      setLastSyncedAt(new Date().toLocaleTimeString());
     } catch (error) {
-      if (active.current) {
+      if (active.current && requestId === marketRequest.current) {
+        latestMarket.current = null;
         setMarket(null);
+        setQuote(null);
+        setReview(null);
+        setLastSyncedAt(null);
         setMessage(error instanceof Error ? error.message : 'Market data unavailable.');
       }
     } finally {
-      if (active.current) setRefreshing(false);
+      if (active.current && requestId === marketRequest.current) setRefreshing(false);
     }
   };
 
@@ -220,10 +238,26 @@ export function ExchangeView() {
   };
 
   useEffect(() => {
-    if (configured) {
+    if (!configured) return;
+    void refresh();
+    void refreshAdmin();
+
+    // The owner sets the rate on-chain. Refresh public quotes/inventory without
+    // requiring a page reload; paused background tabs make no RPC requests.
+    const syncVisibleMarket = () => {
+      if (document.visibilityState === 'hidden') return;
       void refresh();
       void refreshAdmin();
-    }
+    };
+    const timer = window.setInterval(syncVisibleMarket, 20_000);
+    window.addEventListener('focus', syncVisibleMarket);
+    document.addEventListener('visibilitychange', syncVisibleMarket);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener('focus', syncVisibleMarket);
+      document.removeEventListener('visibilitychange', syncVisibleMarket);
+      marketRequest.current++;
+    };
   }, [configured, wallet.address]);
 
   const action = async (task: () => Promise<void>) => {
@@ -433,7 +467,8 @@ export function ExchangeView() {
               </div>
               <div className="ex-spot">
                 <strong>{market ? `${compact(market.rate)} PNR` : '—'}</strong>
-                <span>{market && market.rate > 0n ? `Per 1 test USDT · 1 PNR = ${(1 / Number(formatUnits(market.rate, 18))).toFixed(2)} MockUSDT` : market ? 'Per 1 test USDT · owner-set' : 'Price awaiting activation'}</span>
+                <span>{market && market.rate > 0n ? `Per 1 test USDT · 1 PNR = ${(1 / Number(formatUnits(market.rate, 18))).toFixed(4)} MockUSDT` : market ? 'Per 1 test USDT · owner-set' : 'Price awaiting activation'}</span>
+                {market && lastSyncedAt && <span className="ex-rate-synced">On-chain rate · Synced {lastSyncedAt}</span>}
               </div>
               <div className="ex-market-stat">
                 <span>Available liquidity</span>
