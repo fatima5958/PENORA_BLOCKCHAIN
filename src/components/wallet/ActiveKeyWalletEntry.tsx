@@ -3,6 +3,7 @@
  * Feature gated OFF in production until on-chain and security QA pass.
  */
 import React, { useEffect, useState } from 'react';
+import { type Address } from 'viem';
 import { penoraKeyAuth, type PenoraUser } from '../../lib/auth/penoraKeyAuth';
 import { authBroker } from '../../lib/auth/authBroker';
 import { deriveKeyInfoFromWif, extractWifKey } from '../../lib/crypto/penoraKeys';
@@ -11,7 +12,10 @@ import {
   ActiveKeyAmoyProvider, deriveAmoyAccountFromActiveKey,
   getActiveKeyWalletProvider, lockActiveKeyWallet, setActiveKeyWalletProvider,
 } from '../../lib/wallet/activeKeyAmoyProvider';
-import { getGasSponsorshipStatus } from '../../lib/wallet/gasSponsorshipService';
+import {
+  getGasSponsorshipStatus,
+  deriveDeterministicSmartAccountAddress,
+} from '../../lib/wallet/gasSponsorshipService';
 
 export const activeKeyWalletEnabled = import.meta.env.PUBLIC_ACTIVE_KEY_WALLET_ENABLED === 'true';
 
@@ -25,6 +29,7 @@ export function ActiveKeyWalletEntry({ compact = false }: { compact?: boolean })
   const [activeKey, setActiveKey] = useState('');
   const [busy, setBusy] = useState(false);
   const [address, setAddress] = useState<string | null>(null);
+  const [smartAccount, setSmartAccount] = useState<string | null>(null);
   const [unlockedUsername, setUnlockedUsername] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -36,6 +41,7 @@ export function ActiveKeyWalletEntry({ compact = false }: { compact?: boolean })
       lockActiveKeyWallet();
       penoraWalletService.disconnect();
       setAddress(null);
+      setSmartAccount(null);
       setUnlockedUsername(null);
     }
   }), [unlockedUsername]);
@@ -75,6 +81,12 @@ export function ActiveKeyWalletEntry({ compact = false }: { compact?: boolean })
       }
       setUnlockedUsername(name);
       setAddress(signer.address);
+      try {
+        const aa = deriveDeterministicSmartAccountAddress(signer.address as Address);
+        setSmartAccount(aa);
+      } catch {
+        setSmartAccount(null);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not unlock PENORA Wallet.');
     } finally {
@@ -88,6 +100,7 @@ export function ActiveKeyWalletEntry({ compact = false }: { compact?: boolean })
       penoraWalletService.disconnect();
       lockActiveKeyWallet();
       setAddress(null);
+      setSmartAccount(null);
       setUnlockedUsername(null);
       await penoraWalletService.connect();
     } catch {
@@ -105,6 +118,7 @@ export function ActiveKeyWalletEntry({ compact = false }: { compact?: boolean })
       penoraWalletService.disconnect();
       setUnlockedUsername(null);
       setAddress(null);
+      setSmartAccount(null);
       setError('Wallet automatically locked after 10 minutes without activity.');
     };
     const schedule = () => {
@@ -119,12 +133,14 @@ export function ActiveKeyWalletEntry({ compact = false }: { compact?: boolean })
       if (!getActiveKeyWalletProvider()) {
         setUnlockedUsername(null);
         setAddress(null);
+        setSmartAccount(null);
       }
     };
     const unsubscribe = penoraWalletService.subscribe(state => {
       if (state.status === 'disconnected' || state.address?.toLowerCase() !== address.toLowerCase()) {
         setUnlockedUsername(null);
         setAddress(null);
+        setSmartAccount(null);
       }
     });
     schedule();
@@ -148,6 +164,7 @@ export function ActiveKeyWalletEntry({ compact = false }: { compact?: boolean })
     setActiveKey('');
     setUnlockedUsername(null);
     setAddress(null);
+    setSmartAccount(null);
     setError(null);
   };
 
@@ -162,21 +179,36 @@ export function ActiveKeyWalletEntry({ compact = false }: { compact?: boolean })
             Use your existing downloaded PENORA Private Active Key. No MetaMask or extra key download required.
           </p>
         </div>
-        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-[#00E5F4]/10 text-[#00E5F4] border border-[#00E5F4]/20">
-          Polygon Amoy (80002)
-        </span>
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-[#00E5F4]/10 text-[#00E5F4] border border-[#00E5F4]/20">
+            Polygon Amoy (80002)
+          </span>
+          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+            Bounded Allowances Enforced
+          </span>
+        </div>
       </div>
 
       {address ? (
         <div className="space-y-2">
-          <div className="flex flex-wrap items-center justify-between gap-2 p-3 rounded-lg bg-[var(--wallet-inset)] border border-[var(--wallet-border)]">
-            <div>
-              <p className="text-[11px] opacity-70">Derived EOA Address ({unlockedUsername ? `@${unlockedUsername}` : 'Active Key'})</p>
-              <p className="font-mono text-xs break-all font-medium text-[var(--wallet-text)]">{address}</p>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 rounded-lg bg-[var(--wallet-inset)] border border-[var(--wallet-border)]">
+            <div className="space-y-1">
+              <div>
+                <p className="text-[11px] opacity-70">Derived EOA Signer ({unlockedUsername ? `@${unlockedUsername}` : 'Active Key'})</p>
+                <p className="font-mono text-xs break-all font-medium text-[var(--wallet-text)]">{address}</p>
+              </div>
+              {smartAccount && (
+                <div className="pt-1 border-t border-[var(--wallet-border)]/50">
+                  <p className="text-[10px] opacity-65">ERC-4337 Smart Account Address (AA / Gasless Target)</p>
+                  <p className="font-mono text-[11px] break-all opacity-85">{smartAccount}</p>
+                </div>
+              )}
             </div>
-            <button type="button" onClick={lock} className="rounded-lg bg-[#007C8B] hover:bg-[#006673] transition-colors text-white text-xs font-medium px-3.5 py-2">
-              Lock Wallet
-            </button>
+            <div className="flex items-center gap-2 self-start sm:self-center">
+              <button type="button" onClick={lock} className="rounded-lg bg-[#007C8B] hover:bg-[#006673] transition-colors text-white text-xs font-medium px-3.5 py-2 whitespace-nowrap">
+                Lock Wallet
+              </button>
+            </div>
           </div>
           <p className="text-[11px] opacity-65 flex items-center gap-1.5">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
@@ -219,7 +251,7 @@ export function ActiveKeyWalletEntry({ compact = false }: { compact?: boolean })
         )}
         <span className="opacity-70 text-[11px]">
           {sponsorshipStatus.status === 'active'
-            ? 'Gas Sponsorship: Active (ERC-4337 Amoy)'
+            ? `Gas Sponsorship: Active (${sponsorshipStatus.provider.toUpperCase()} Amoy)`
             : 'Gas Sponsorship: Pending Amoy Paymaster deployment · Native Test POL required'}
         </span>
       </div>

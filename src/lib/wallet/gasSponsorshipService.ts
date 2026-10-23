@@ -10,6 +10,8 @@ import {
   concat,
   keccak256,
   encodePacked,
+  encodeAbiParameters,
+  parseAbiParameters,
 } from 'viem';
 import { PENORA_CONTRACT_ADDRESSES, isConfiguredAddress } from './contracts';
 import { PENORA_TARGET_CHAIN_ID } from './chain';
@@ -29,6 +31,10 @@ export const DEFAULT_AMOY_SPONSORSHIP_QUOTA: SponsorshipQuota = {
   maxFeePerGasWei: 50_000_000_000n, // 50 Gwei cap on Amoy
   maxSponsorshipValueUsd: 1.0,
 };
+
+export const MAX_SAFE_PNR_ALLOWANCE = 100_000_000n * 10n ** 18n; // 100M PNR (Total Fixed Supply)
+export const MAX_SAFE_USDT_ALLOWANCE = 10_000_000n * 10n ** 6n; // 10M USDT (10M $ bound)
+export const UNLIMITED_ALLOWANCE_SENTINEL = BigInt('0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff');
 
 export interface SponsorshipPolicyCheckResult {
   eligible: boolean;
@@ -50,6 +56,27 @@ export interface UserOperationV06 {
   paymasterAndData: Hex;
   signature: Hex;
 }
+
+export interface UserOpReceipt {
+  userOpHash: Hex;
+  entryPoint: Address;
+  sender: Address;
+  nonce: bigint;
+  paymaster?: Address;
+  actualGasCost: bigint;
+  actualGasUsed: bigint;
+  success: boolean;
+  receipt: {
+    transactionHash: Hex;
+    blockNumber: bigint;
+    status: 'success' | 'reverted';
+  };
+}
+
+// Canonical ERC-4337 EntryPoint v0.6 address on Polygon Amoy
+export const CANONICAL_ENTRY_POINT_V06: Address = '0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789';
+// Canonical SimpleAccountFactory on Polygon Amoy
+export const CANONICAL_SIMPLE_ACCOUNT_FACTORY: Address = '0x9406Cc6185a34B98050053954705574c8C1BE90B';
 
 // Approved PENORA contract function signatures and 4-byte selectors
 export const APPROVED_PENORA_SELECTORS: Record<string, string> = {
@@ -104,20 +131,45 @@ export function resetSponsorshipLedger(): void {
 }
 
 /**
+ * Checks whether an approve call specifies an unsafe unlimited allowance.
+ * Rejects uint256.max and any amount greater than the contract's total supply.
+ */
+export function isSafeBoundedAllowance(to: Address, dataHex: string): { isSafe: boolean; amount?: bigint; reason?: string } {
+  if (!dataHex.startsWith('0x095ea7b3') || dataHex.length < 138) {
+    return { isSafe: true }; // Not an approval call
+  }
+  try {
+    const amountHex = '0x' + dataHex.slice(74, 138);
+    const amount = BigInt(amountHex);
+    if (amount === UNLIMITED_ALLOWANCE_SENTINEL) {
+      return { isSafe: false, amount, reason: 'Unlimited token allowances (type(uint256).max) are strictly prohibited for wallet security.' };
+    }
+    const maxSafe = to.toLowerCase() === PENORA_CONTRACT_ADDRESSES.USDT_TOKEN.toLowerCase()
+      ? MAX_SAFE_USDT_ALLOWANCE
+      : MAX_SAFE_PNR_ALLOWANCE;
+    if (amount > maxSafe) {
+      return { isSafe: false, amount, reason: `Requested allowance (${amount.toString()}) exceeds safe limit (${maxSafe.toString()}).` };
+    }
+    return { isSafe: true, amount };
+  } catch {
+    return { isSafe: false, reason: 'Malformed approval calldata parameter.' };
+  }
+}
+
+/**
  * Derives a deterministic ERC-4337 Smart Account address (SimpleAccount CREATE2)
  * from the owner's secp256k1 derived EOA address on Polygon Amoy.
  * Factory address and initialization code hash follow standard ERC-4337 v0.6 / v0.7.
  */
 export function deriveDeterministicSmartAccountAddress(
   ownerAddress: Address,
-  salt = 0n
+  salt = 0n,
+  factoryAddress: Address = CANONICAL_SIMPLE_ACCOUNT_FACTORY
 ): Address {
   if (!isAddress(ownerAddress)) {
     throw new Error('Valid owner address required for smart account derivation.');
   }
 
-  // Canonical Amoy SimpleAccountFactory (v0.6)
-  const factoryAddress: Address = '0x9406Cc6185a34B98050053954705574c8C1BE90B';
   const saltHex = ('0x' + salt.toString(16).padStart(64, '0')) as Hex;
 
   // SimpleAccount initialization bytecode hash
@@ -136,6 +188,53 @@ export function deriveDeterministicSmartAccountAddress(
   );
 
   return ('0x' + create2Hash.slice(26)) as Address;
+}
+
+/**
+ * Builds the ERC-4337 v0.6 initCode for deploying a SimpleAccount on first transaction.
+ */
+export function buildSimpleAccountInitCode(
+  ownerAddress: Address,
+  salt = 0n,
+  factoryAddress: Address = CANONICAL_SIMPLE_ACCOUNT_FACTORY
+): Hex {
+  // createAccount(address owner, uint256 salt) selector: 0x5fbfb9cf
+  const createAccountCalldata = encodePacked(
+    ['bytes4', 'address', 'uint256'],
+    ['0x5fbfb9cf', ownerAddress, salt]
+  );
+  return concat([factoryAddress, createAccountCalldata]);
+}
+
+/**
+ * Computes canonical ERC-4337 v0.6 UserOperation hash for signing.
+ */
+export function computeUserOpHash(
+  userOp: UserOperationV06,
+  entryPoint: Address = CANONICAL_ENTRY_POINT_V06,
+  chainId = PENORA_TARGET_CHAIN_ID
+): Hex {
+  const packedUserOp = encodeAbiParameters(
+    parseAbiParameters('address, uint256, bytes32, bytes32, uint256, uint256, uint256, uint256, uint256, bytes32'),
+    [
+      userOp.sender,
+      userOp.nonce,
+      keccak256(userOp.initCode),
+      keccak256(userOp.callData),
+      userOp.callGasLimit,
+      userOp.verificationGasLimit,
+      userOp.preVerificationGas,
+      userOp.maxFeePerGas,
+      userOp.maxPriorityFeePerGas,
+      keccak256(userOp.paymasterAndData),
+    ]
+  );
+  const userOpHash = keccak256(packedUserOp);
+  const enc = encodeAbiParameters(
+    parseAbiParameters('bytes32, address, uint256'),
+    [userOpHash, entryPoint, BigInt(chainId)]
+  );
+  return keccak256(enc);
 }
 
 /**
@@ -209,7 +308,17 @@ export function evaluateTransactionSponsorship({
     };
   }
 
-  // 3. Native POL Value Cap (Must be 0)
+  // 3. Allowance Safety Check: Reject Unbounded / Unlimited Allowances
+  const allowanceCheck = isSafeBoundedAllowance(to, dataHex);
+  if (!allowanceCheck.isSafe) {
+    return {
+      eligible: false,
+      reason: allowanceCheck.reason || 'Unbounded token allowance rejected.',
+      quotaRemainingToday: 0,
+    };
+  }
+
+  // 4. Native POL Value Cap (Must be 0)
   try {
     const val = BigInt(value || '0');
     if (val > 0n) {
@@ -223,7 +332,7 @@ export function evaluateTransactionSponsorship({
     return { eligible: false, reason: 'Invalid transaction value parameter.', quotaRemainingToday: 0 };
   }
 
-  // 4. Gas Limits and Fee Caps
+  // 5. Gas Limits and Fee Caps
   if (gasLimit && gasLimit > quota.maxGasLimitPerTx) {
     return {
       eligible: false,
@@ -240,7 +349,7 @@ export function evaluateTransactionSponsorship({
     };
   }
 
-  // 5. Rate Limiting (Hourly & Daily Quotas per PENORA user)
+  // 6. Rate Limiting (Hourly & Daily Quotas per PENORA user)
   const now = Date.now();
   const oneHourAgo = now - 60 * 60 * 1000;
   const oneDayAgo = now - 24 * 60 * 60 * 1000;
@@ -299,7 +408,7 @@ export function recordSponsorshipGrant(username: string): void {
 
 export interface GasSponsorshipInfrastructureStatus {
   isConfigured: boolean;
-  provider: 'paymaster' | 'bundler' | 'none';
+  provider: 'pimlico' | 'thirdweb' | 'alchemy' | 'biconomy' | 'none';
   bundlerEndpoint?: string;
   paymasterEndpoint?: string;
   status: 'active' | 'unconfigured' | 'blocked';
@@ -331,9 +440,14 @@ export function getGasSponsorshipStatus(): GasSponsorshipInfrastructureStatus {
     };
   }
 
+  let provider: GasSponsorshipInfrastructureStatus['provider'] = 'pimlico';
+  if (bundlerUrl.includes('thirdweb')) provider = 'thirdweb';
+  else if (bundlerUrl.includes('alchemy')) provider = 'alchemy';
+  else if (bundlerUrl.includes('biconomy')) provider = 'biconomy';
+
   return {
     isConfigured: true,
-    provider: 'paymaster',
+    provider,
     bundlerEndpoint: bundlerUrl,
     paymasterEndpoint: paymasterUrl,
     status: 'active',
