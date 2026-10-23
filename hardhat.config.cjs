@@ -20,7 +20,7 @@ module.exports = {
       chainId: process.env.PENORA_WALLET_E2E === '1' ? 80002 : 31337,
     },
     polygonAmoy: {
-      url: "https://rpc-amoy.polygon.technology",
+      url: process.env.AMOY_RPC_URL || "https://polygon-amoy.drpc.org",
       chainId: 80002,
       accounts: process.env.AMOY_DEPLOYER_PRIVATE_KEY ? [process.env.AMOY_DEPLOYER_PRIVATE_KEY] : [],
     },

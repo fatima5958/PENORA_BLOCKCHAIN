@@ -222,9 +222,14 @@ async function main() {
   console.log(`\nDeployment manifest saved to ${manifestPath}`);
 }
 
-main()
-  .then(() => process.exit(0))
-  .catch((error) => {
-    console.error('Deployment error:', error);
-    process.exit(1);
-  });
+// Explicit market-only mode avoids redeploying unrelated protocol contracts.
+if (process.env.PENORA_MARKET_ONLY === '1') {
+  require('./deploy-market-amoy.cjs');
+} else {
+  main()
+    .then(() => process.exit(0))
+    .catch((error) => {
+      console.error('Deployment error:', error);
+      process.exit(1);
+    });
+}
