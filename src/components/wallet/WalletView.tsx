@@ -1,9 +1,11 @@
 import { WalletSection } from './WalletSection';
+import { MobileWalletHeader, MobileWalletNavigation, MobileWalletOverview, type WalletTab } from './MobileWalletOverview';
 import { CreatorRecipientPicker } from './CreatorRecipientPicker';
 import { resolveCreatorRecipient, type CreatorRecipient } from '../../lib/wallet/creatorRecipient';
 // src/components/wallet/WalletView.tsx
 // PENORA Blockchain — Option 4 Hybrid Wallet (Phase 3: Real USDT Deposits, Withdrawals & Transfers)
 import '../../styles/wallet.css';
+import '../../styles/wallet-mobile.css';
 import { RewardWalletLink } from './RewardWalletLink';
 import { CreatorEarningsCard } from './CreatorEarningsCard';
 import { PowerDelegationCard } from './PowerDelegationCard';
@@ -60,7 +62,7 @@ export const WalletView: React.FC = () => {
   const [keyUser, setKeyUser] = useState<PenoraUser | null>(null);
   const [supabaseUser, setSupabaseUser] = useState<SupabaseUser | null>(null);
   const [copiedAddress, setCopiedAddress] = useState(false);
-  const [activeTab, setActiveTab] = useState<'overview' | 'deposit' | 'send' | 'receive' | 'history' | 'power_system' | 'delegation' | 'earnings' | 'trade_pnr'>('overview');
+  const [activeTab, setActiveTab] = useState<WalletTab>('overview');
 
   const [asset, setAsset] = useState<'USDT' | 'PNR'>('USDT');
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
@@ -508,6 +510,7 @@ export const WalletView: React.FC = () => {
       />
 
       <div className="wallet-content max-w-[1200px] mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8 relative z-10 space-y-4 sm:space-y-6">
+        <MobileWalletHeader theme={theme} onToggleTheme={() => { const next = theme === 'light' ? 'dark' : 'light'; setTheme(next); try { localStorage.setItem('penora_wallet_theme', next); } catch {} }} />
         {/* ─── 1. TOP HEADER / TITLE BAR ────────────────────────────────────── */}
         <div className="wallet-page-heading flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-[#007C8B]/10">
           <div>
@@ -586,6 +589,7 @@ export const WalletView: React.FC = () => {
         )}
 
         {/* ─── NAVIGATION TABS ──────────────────────────────────────────────── */}
+        <MobileWalletNavigation activeTab={activeTab} onNavigate={setActiveTab} />
         <div className="wallet-tabs flex items-center gap-1.5 sm:gap-2 bg-[var(--wallet-surface)] backdrop-blur-md p-1.5 rounded-2xl border border-[#007C8B]/15 overflow-x-auto no-scrollbar scroll-smooth">
           <button
             type="button"
@@ -730,8 +734,14 @@ export const WalletView: React.FC = () => {
         )}
 
         {/* ─── TAB 1: OVERVIEW ──────────────────────────────────────────────── */}
-        {activeTab === 'overview' && (
-          <div className="space-y-6">
+        {activeTab === 'overview' && <MobileWalletOverview state={walletState} onNavigate={setActiveTab}
+          onConnect={() => { void penoraWalletService.connect(); }}
+          onSwitchNetwork={() => { void penoraWalletService.switchOrAddAmoyNetwork(); }}
+          onCopyAddress={() => { if (walletState.address) handleCopy(walletState.address); }}
+          onRefresh={refreshAllBalances} copied={copiedAddress}
+          onPowerUp={() => setShowPowerUpModal(true)} onPowerDown={() => setShowPowerDownModal(true)} />}
+        {(activeTab === 'overview' || activeTab === 'details') && (
+          <div className={`space-y-6 ${activeTab === 'overview' ? 'wallet-full-overview' : 'wallet-details-view'}`}>
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
               {/* Main Celestial Card: Liquid PNR & PENORA Power & USDT (~7 cols) */}
               <div className="wallet-assets-card lg:col-span-7 bg-gradient-to-br from-[#0A2540] via-[#0E3456] to-[#06182C] text-white rounded-3xl p-6 sm:p-8 relative overflow-hidden shadow-xl border border-white/10 space-y-6">
