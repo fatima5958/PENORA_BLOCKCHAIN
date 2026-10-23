@@ -551,72 +551,39 @@ export const WalletView: React.FC = () => {
         </div>
 
         {/* ─── PROMINENT TESTNET WARNING BANNER ───────────────────────────────── */}
-        <div className="wallet-testnet-notice flex items-start sm:items-center gap-3 px-4 py-3 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-900 dark:text-amber-200 text-xs shadow-xs">
-          <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0 mt-0.5 sm:mt-0" />
-          <div className="leading-relaxed">
-            <span className="sm:hidden"><strong>Testnet only · no real money.</strong> Use Amoy test tokens. Never send mainnet assets.</span><span className="hidden sm:inline"><strong className="font-bold tracking-wide uppercase">TESTNET ENVIRONMENT — NO REAL VALUE:</strong> Operating strictly on Polygon Amoy Testnet (Chain ID 80002). All balances (Test PNR, Test USDT, POL) and contract interactions are for protocol testing only and carry zero monetary value. Never send real mainnet assets to these addresses.</span>
+        <div className="wallet-testnet-notice flex items-center justify-between gap-3 px-3.5 py-2 sm:px-4 sm:py-2.5 rounded-xl bg-amber-500/10 border border-amber-500/25 text-amber-900 dark:text-amber-200 text-xs shadow-2xs">
+          <div className="flex items-center gap-2 min-w-0">
+            <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0" />
+            <span className="font-medium">
+              <strong>Polygon Amoy Testnet (Chain ID 80002)</strong> · All test tokens carry zero monetary value.
+            </span>
           </div>
+          <span className="hidden sm:inline-block shrink-0 text-[10px] font-mono uppercase px-2 py-0.5 rounded-md bg-amber-500/15 text-amber-800 dark:text-amber-300 font-bold">
+            Testnet Only
+          </span>
         </div>
 
         {!showPowerUpModal && !showPowerDownModal && actionSuccess && (
-          <div role="status" className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-sm text-emerald-800 flex items-start gap-2">
+          <div role="status" className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-800 flex items-start gap-2">
             <CheckCircle2 className="h-4 w-4 shrink-0 mt-0.5" />
             <span className="break-all">{actionSuccess}</span>
           </div>
         )}
         {!showPowerUpModal && !showPowerDownModal && actionError && (
-          <div role="alert" className="p-4 rounded-2xl bg-red-50 border border-red-200 text-sm text-red-700 flex items-start gap-2">
+          <div role="alert" className="p-3.5 rounded-xl bg-red-50 border border-red-200 text-xs text-red-700 flex items-start gap-2">
             <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
             <span className="break-all">{actionError}</span>
           </div>
         )}
-
-        {(activeTab === 'send' || activeTab === 'deposit') && (
-          <div className="flex flex-wrap items-center gap-3 rounded-2xl bg-[var(--wallet-surface)] p-4 border border-[#007C8B]/15">
-            <label htmlFor="wallet-asset" className="font-semibold text-sm">Choose token</label>
-            <select id="wallet-asset" value={asset} disabled={sendLoading || reviewingTransfer} onChange={e => setAsset(e.target.value as 'USDT' | 'PNR')}
-              className="bg-[var(--wallet-inset)] border border-[#007C8B]/20 rounded-xl px-4 py-2 text-sm">
-              <option value="USDT">USDT · test token</option><option value="PNR">PNR · Penora</option>
-            </select>
-            {!tokenConfigured && <span className="text-sm text-[var(--wallet-muted)]">{asset} deposits and transfers open after contract deployment.</span>}
+        {pendingPowerHash && (
+          <div role="status" className="p-3 rounded-xl bg-amber-50 text-amber-900 text-xs flex items-center justify-between gap-2">
+            <span>Power transaction submitted; confirmation is pending. Check history before retrying.</span>
+            <a className="underline font-semibold shrink-0" href={`${POLYGON_AMOY_CONFIG.blockExplorers[0]}/tx/${pendingPowerHash}`} target="_blank" rel="noopener noreferrer">View tx</a>
           </div>
         )}
-
-
-        {activeTab === 'overview' && (
-          <section className="wallet-mobile-hero" aria-label="Wallet summary">
-            <div className="wallet-mobile-hero-top">
-              <span><ShieldCheck size={14} aria-hidden="true" /> YOUR CREATIVE CAPITAL</span>
-              <button type="button" onClick={refreshAllBalances} disabled={!walletState.address || !walletState.isCorrectNetwork} aria-label="Refresh wallet balances"><RefreshCw size={17} aria-hidden="true" /></button>
-            </div>
-            <p className="wallet-mobile-balance-label">Available Test PNR</p>
-            <div className="wallet-mobile-balance"><strong>{walletState.balancePnr ?? '—'}</strong><span>PNR</span></div>
-            <div className="wallet-mobile-address">
-              {walletState.address ? (
-                <button type="button" onClick={() => handleCopy(walletState.address!)} aria-label="Copy wallet address">
-                  <Wallet size={13} aria-hidden="true" /><span>{shortAddress}</span>{copiedAddress ? <Check size={13} /> : <Copy size={13} />}
-                </button>
-              ) : (
-                <button type="button" onClick={() => penoraWalletService.connect()} disabled={walletState.status === 'connecting'}>
-                  <Wallet size={14} aria-hidden="true" />{walletState.status === 'connecting' ? 'Connecting…' : 'Connect your wallet'}<ArrowUpRight size={14} aria-hidden="true" />
-                </button>
-              )}
-              <span className="wallet-mobile-status">{walletState.status === 'connected' ? 'Connected' : walletState.status === 'wrong_network' ? 'Wrong network' : 'Not connected'}</span>
-            </div>
-            <div className="wallet-mobile-actions">
-              <button type="button" onClick={() => setActiveTab('send')}><span><Send size={19} aria-hidden="true" /></span>Send</button>
-              <button type="button" onClick={() => setActiveTab('receive')}><span><QrCode size={20} aria-hidden="true" /></span>Receive</button>
-              <button type="button" disabled={!walletState.address || !walletState.isCorrectNetwork || !walletState.contractsDeployed} onClick={() => setShowPowerUpModal(true)}><span><Zap size={20} aria-hidden="true" /></span>Power Up</button>
-              <a href="/exchange/"><span><ArrowUpRight size={21} aria-hidden="true" /></span>Exchange</a>
-            </div>
-          </section>
+        {walletState.address && walletState.error && (
+          <div role="alert" className="p-3 rounded-xl bg-amber-50 text-amber-900 text-xs">{walletState.error}</div>
         )}
-
-        <WalletSection title="Receive from creators"><div className="wallet-reward-link"><RewardWalletLink address={walletState.isCorrectNetwork ? walletState.address : null} /></div></WalletSection>
-
-        <a href="/exchange/" className="wallet-exchange-card flex items-center justify-between rounded-2xl border border-[#a8edbd]/30 bg-[#122129] px-5 py-4 text-white hover:bg-[#193039] transition-colors">
-          <div><span className="text-[10px] tracking-[.18em] text-[#a8edbd] font-semibold">PENORA EXCHANGE</span><p className="mt-1 text-sm">Buy PNR with USDT</p></div><span className="text-xl text-[#a8edbd]" aria-hidden="true">↗</span>
-        </a>
 
         {/* ─── NAVIGATION TABS ──────────────────────────────────────────────── */}
         <div className="wallet-tabs flex items-center gap-1.5 sm:gap-2 bg-[var(--wallet-surface)] backdrop-blur-md p-1.5 rounded-2xl border border-[#007C8B]/15 overflow-x-auto no-scrollbar scroll-smooth">
@@ -624,10 +591,10 @@ export const WalletView: React.FC = () => {
             type="button"
             onClick={() => setActiveTab('overview')}
             aria-pressed={activeTab === 'overview'}
-            className={`shrink-0 px-3.5 sm:px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
+            className={`shrink-0 px-3 sm:px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
               activeTab === 'overview'
                 ? 'bg-gradient-to-r from-[#007C8B] via-[#00B3C4] to-[#00E5F4] text-white shadow-2xs'
-                : 'text-[var(--wallet-muted)] hover:text-[var(--wallet-text)] hover:bg-[var(--wallet-surface)]'
+                : 'text-[var(--wallet-muted)] hover:text-[var(--wallet-text)] hover:bg-[var(--wallet-inset)]'
             }`}
           >
             <Coins className="h-3.5 w-3.5" />
@@ -636,11 +603,55 @@ export const WalletView: React.FC = () => {
 
           <button
             type="button"
+            onClick={() => setActiveTab('send')}
+            aria-label="Send / Withdraw"
+            aria-pressed={activeTab === 'send'}
+            className={`shrink-0 px-3 sm:px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
+              activeTab === 'send'
+                ? 'bg-gradient-to-r from-[#007C8B] via-[#00B3C4] to-[#00E5F4] text-white shadow-2xs'
+                : 'text-[var(--wallet-muted)] hover:text-[var(--wallet-text)] hover:bg-[var(--wallet-inset)]'
+            }`}
+          >
+            <Send className="h-3.5 w-3.5" />
+            <span>Send / Withdraw</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('receive')}
+            aria-pressed={activeTab === 'receive'}
+            className={`shrink-0 px-3 sm:px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
+              activeTab === 'receive'
+                ? 'bg-gradient-to-r from-[#007C8B] via-[#00B3C4] to-[#00E5F4] text-white shadow-2xs'
+                : 'text-[var(--wallet-muted)] hover:text-[var(--wallet-text)] hover:bg-[var(--wallet-inset)]'
+            }`}
+          >
+            <QrCode className="h-3.5 w-3.5" />
+            <span>Receive</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('deposit')}
+            aria-pressed={activeTab === 'deposit'}
+            className={`shrink-0 px-3 sm:px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
+              activeTab === 'deposit'
+                ? 'bg-gradient-to-r from-[#007C8B] via-[#00B3C4] to-[#00E5F4] text-white shadow-2xs'
+                : 'text-[var(--wallet-muted)] hover:text-[var(--wallet-text)] hover:bg-[var(--wallet-inset)]'
+            }`}
+          >
+            <Download className="h-3.5 w-3.5" />
+            <span>Deposit</span>
+          </button>
+
+          <button
+            type="button"
             onClick={() => setActiveTab('earnings')}
-            className={`shrink-0 px-3.5 sm:px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
+            aria-pressed={activeTab === 'earnings'}
+            className={`shrink-0 px-3 sm:px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
               activeTab === 'earnings'
                 ? 'bg-gradient-to-r from-[#007C8B] via-[#00B3C4] to-[#00E5F4] text-white shadow-2xs'
-                : 'text-[var(--wallet-muted)] hover:text-[var(--wallet-text)] hover:bg-[var(--wallet-surface)]'
+                : 'text-[var(--wallet-muted)] hover:text-[var(--wallet-text)] hover:bg-[var(--wallet-inset)]'
             }`}
           >
             <Award className="h-3.5 w-3.5 text-[#00E5F4]" />
@@ -650,10 +661,11 @@ export const WalletView: React.FC = () => {
           <button
             type="button"
             onClick={() => setActiveTab('power_system')}
-            className={`shrink-0 px-3.5 sm:px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
+            aria-pressed={activeTab === 'power_system'}
+            className={`shrink-0 px-3 sm:px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
               activeTab === 'power_system'
                 ? 'bg-gradient-to-r from-[#007C8B] via-[#00B3C4] to-[#00E5F4] text-white shadow-2xs'
-                : 'text-[var(--wallet-muted)] hover:text-[var(--wallet-text)] hover:bg-[var(--wallet-surface)]'
+                : 'text-[var(--wallet-muted)] hover:text-[var(--wallet-text)] hover:bg-[var(--wallet-inset)]'
             }`}
           >
             <Zap className="h-3.5 w-3.5 text-amber-500" />
@@ -663,10 +675,11 @@ export const WalletView: React.FC = () => {
           <button
             type="button"
             onClick={() => setActiveTab('delegation')}
-            className={`shrink-0 px-3.5 sm:px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
+            aria-pressed={activeTab === 'delegation'}
+            className={`shrink-0 px-3 sm:px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
               activeTab === 'delegation'
                 ? 'bg-gradient-to-r from-[#007C8B] via-[#00B3C4] to-[#00E5F4] text-white shadow-2xs'
-                : 'text-[var(--wallet-muted)] hover:text-[var(--wallet-text)] hover:bg-[var(--wallet-surface)]'
+                : 'text-[var(--wallet-muted)] hover:text-[var(--wallet-text)] hover:bg-[var(--wallet-inset)]'
             }`}
           >
             <ArrowRightLeft className="h-3.5 w-3.5 text-[#00E5F4]" />
@@ -675,24 +688,12 @@ export const WalletView: React.FC = () => {
 
           <button
             type="button"
-            onClick={() => setActiveTab('history')}
-            className={`shrink-0 px-3.5 sm:px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
-              activeTab === 'history'
-                ? 'bg-gradient-to-r from-[#007C8B] via-[#00B3C4] to-[#00E5F4] text-white shadow-2xs'
-                : 'text-[var(--wallet-muted)] hover:text-[var(--wallet-text)] hover:bg-[var(--wallet-surface)]'
-            }`}
-          >
-            <Clock className="h-3.5 w-3.5" />
-            <span>Activity</span>
-          </button>
-
-          <button
-            type="button"
             onClick={() => setActiveTab('trade_pnr')}
-            className={`shrink-0 px-3.5 sm:px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
+            aria-pressed={activeTab === 'trade_pnr'}
+            className={`shrink-0 px-3 sm:px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
               activeTab === 'trade_pnr'
                 ? 'bg-gradient-to-r from-[#007C8B] via-[#00B3C4] to-[#00E5F4] text-white shadow-2xs'
-                : 'text-[var(--wallet-muted)] hover:text-[var(--wallet-text)] hover:bg-[var(--wallet-surface)]'
+                : 'text-[var(--wallet-muted)] hover:text-[var(--wallet-text)] hover:bg-[var(--wallet-inset)]'
             }`}
           >
             <Coins className="h-3.5 w-3.5 text-emerald-400" />
@@ -701,53 +702,31 @@ export const WalletView: React.FC = () => {
 
           <button
             type="button"
-            onClick={() => setActiveTab('deposit')}
-            aria-pressed={activeTab === 'deposit'}
-            className={`shrink-0 px-3.5 sm:px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
-              activeTab === 'deposit'
+            onClick={() => setActiveTab('history')}
+            aria-label="Transaction History"
+            aria-pressed={activeTab === 'history'}
+            className={`shrink-0 px-3 sm:px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
+              activeTab === 'history'
                 ? 'bg-gradient-to-r from-[#007C8B] via-[#00B3C4] to-[#00E5F4] text-white shadow-2xs'
-                : 'text-[var(--wallet-muted)] hover:text-[var(--wallet-text)] hover:bg-[var(--wallet-surface)]'
+                : 'text-[var(--wallet-muted)] hover:text-[var(--wallet-text)] hover:bg-[var(--wallet-inset)]'
             }`}
           >
-            <Download className="h-3.5 w-3.5" />
-            <span>Deposit</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('send')}
-            aria-pressed={activeTab === 'send'}
-            className={`shrink-0 px-3.5 sm:px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
-              activeTab === 'send'
-                ? 'bg-gradient-to-r from-[#007C8B] via-[#00B3C4] to-[#00E5F4] text-white shadow-2xs'
-                : 'text-[var(--wallet-muted)] hover:text-[var(--wallet-text)] hover:bg-[var(--wallet-surface)]'
-            }`}
-          >
-            <Send className="h-3.5 w-3.5" />
-            <span>Send</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('receive')}
-            aria-pressed={activeTab === 'receive'}
-            className={`shrink-0 px-3.5 sm:px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
-              activeTab === 'receive'
-                ? 'bg-gradient-to-r from-[#007C8B] via-[#00B3C4] to-[#00E5F4] text-white shadow-2xs'
-                : 'text-[var(--wallet-muted)] hover:text-[var(--wallet-text)] hover:bg-[var(--wallet-surface)]'
-            }`}
-          >
-            <QrCode className="h-3.5 w-3.5" />
-            <span>Receive</span>
+            <Clock className="h-3.5 w-3.5" />
+            <span>Transaction History</span>
           </button>
         </div>
 
-        {pendingPowerHash && <div role="status" className="p-3 rounded-xl bg-amber-50 text-amber-900 text-sm">
-          Power transaction submitted; confirmation is pending. Check history before retrying.{' '}
-          <a className="underline" href={`${POLYGON_AMOY_CONFIG.blockExplorers[0]}/tx/${pendingPowerHash}`} target="_blank" rel="noopener noreferrer">View transaction</a>
-        </div>}
-        {walletState.address && walletState.error && (
-          <div role="alert" className="p-3 rounded-xl bg-amber-50 text-amber-900 text-sm">{walletState.error}</div>
+        {(activeTab === 'send' || activeTab === 'deposit') && (
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-[var(--wallet-surface)] p-3.5 sm:p-4 border border-[#007C8B]/15">
+            <div className="flex items-center gap-2.5">
+              <label htmlFor="wallet-asset" className="font-semibold text-xs sm:text-sm text-[var(--wallet-text)]">Active Token</label>
+              <select id="wallet-asset" value={asset} disabled={sendLoading || reviewingTransfer} onChange={e => setAsset(e.target.value as 'USDT' | 'PNR')}
+                className="bg-[var(--wallet-inset)] border border-[#007C8B]/20 rounded-xl px-3 py-1.5 text-xs sm:text-sm font-semibold text-[var(--wallet-text)]">
+                <option value="USDT">USDT · Test Tether (6 Decimals)</option><option value="PNR">PNR · Penora Token (18 Decimals)</option>
+              </select>
+            </div>
+            {!tokenConfigured && <span className="text-xs text-[var(--wallet-muted)]">{asset} deposits and transfers open after contract deployment.</span>}
+          </div>
         )}
 
         {/* ─── TAB 1: OVERVIEW ──────────────────────────────────────────────── */}
@@ -1334,6 +1313,21 @@ export const WalletView: React.FC = () => {
               votingManaPercent={walletState.votingManaPercent}
             />
             <CreatorEconomyGuide />
+            {/* Creator Reward Wallet Linking */}
+            <WalletSection title="Receive from Creators">
+              <div className="wallet-reward-link">
+                <RewardWalletLink address={walletState.isCorrectNetwork ? walletState.address : null} />
+              </div>
+            </WalletSection>
+
+            {/* Penora Exchange Quick Card */}
+            <a href="/exchange/" className="wallet-exchange-card flex items-center justify-between rounded-2xl border border-[#a8edbd]/30 bg-[#122129] px-5 py-4 text-white hover:bg-[#193039] transition-colors shadow-xs">
+              <div>
+                <span className="text-[10px] tracking-[.18em] text-[#a8edbd] font-semibold">PENORA EXCHANGE</span>
+                <p className="mt-1 text-sm font-medium">Buy PNR with USDT on Amoy Testnet</p>
+              </div>
+              <span className="text-xl text-[#a8edbd]" aria-hidden="true">↗</span>
+            </a>
             </WalletSection>
           </div>
         )}
