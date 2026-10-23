@@ -13,6 +13,7 @@ import { createWalletClient, http, isAddress, type Address, type Hex } from 'vie
 import { privateKeyToAccount, type PrivateKeyAccount } from 'viem/accounts';
 import { extractWifKey, deriveKeyInfoFromWif } from '../crypto/penoraKeys';
 import { AMOY_RPC_URL, polygonAmoy, PENORA_TARGET_CHAIN_ID } from './chain';
+import { PENORA_CONTRACT_ADDRESSES, isConfiguredAddress } from './contracts';
 
 const text = (str: string) => new TextEncoder().encode(str);
 const SECP256K1_ORDER = BigInt('0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141');
@@ -63,14 +64,29 @@ type EvmTx = {
  * Each on-chain transaction requires explicit review in addition to the
  * existing PENORA modal. Never forward unknown signing RPC methods.
  */
+/** Only allow approved PENORA Amoy contract calls; no arbitrary POL transfers. */
+export function isPermittedActiveKeyAmoyCall(to: string, data?: string, value?: string): boolean {
+  if (!isAddress(to) || !data || !/^0x[0-9a-fA-F]{8}(?:[0-9a-fA-F]{2})*$/.test(data)) return false;
+  try { if (BigInt(value || '0') !== 0n) return false; } catch { return false; }
+  const a = PENORA_CONTRACT_ADDRESSES;
+  return [
+    a.PNR_TOKEN, a.USDT_TOKEN, a.POWER_ESCROW, a.VOTING_INFLUENCE,
+    a.REWARD_DISTRIBUTOR, a.EXCHANGE, a.P2P_ESCROW,
+  ].some(contract => isConfiguredAddress(contract) && contract.toLowerCase() === to.toLowerCase());
+}
+
 export class ActiveKeyAmoyProvider {
   public readonly address: Address;
   private readonly client: ReturnType<typeof createWalletClient>;
+  private revoked = false;
+  public revoke(): void { this.revoked = true; }
+  private assertUnlocked(): void { if (this.revoked) throw new Error('PENORA wallet is locked. Unlock with your Active Key again.'); }
   constructor(private readonly account: PrivateKeyAccount) {
     this.address = account.address;
     this.client = createWalletClient({ account, chain: polygonAmoy, transport: http(AMOY_RPC_URL) });
   }
   public async request({ method, params }: RpcCall): Promise<unknown> {
+    this.assertUnlocked();
     switch (method) {
       case 'eth_chainId': return '0x13882';
       case 'net_version': return String(PENORA_TARGET_CHAIN_ID);
@@ -91,7 +107,9 @@ export class ActiveKeyAmoyProvider {
         if (tx.chainId !== undefined && Number(tx.chainId) !== PENORA_TARGET_CHAIN_ID) {
           throw new Error('Transactions are restricted to Polygon Amoy testnet.');
         }
-        if (tx.data && !/^0x(?:[0-9a-fA-F]{2})*$/.test(tx.data)) throw new Error('Invalid contract call data.');
+        if (!isPermittedActiveKeyAmoyCall(tx.to || '', tx.data, tx.value)) {
+          throw new Error('Active Key wallet only supports configured PENORA Amoy contract calls with zero native POL value.');
+        }
         if (typeof window === 'undefined' || typeof window.confirm !== 'function') {
           throw new Error('A visible user confirmation is required before signing.');
         }
@@ -104,6 +122,10 @@ export class ActiveKeyAmoyProvider {
           'Test POL gas is required. This prototype does NOT sponsor gas.\n\nApprove and sign?'
         );
         if (!approved) throw Object.assign(new Error('Transaction rejected by user.'), { code: 4001 });
+        this.assertUnlocked();
+        const rpcChain = await this.client.getChainId();
+        this.assertUnlocked();
+        if (rpcChain !== PENORA_TARGET_CHAIN_ID) throw new Error('RPC network mismatch: Polygon Amoy required.');
         return await this.client.sendTransaction({
           account: this.account,
           chain: polygonAmoy,
@@ -124,5 +146,11 @@ export class ActiveKeyAmoyProvider {
 
 let activeProvider: ActiveKeyAmoyProvider | null = null;
 export function getActiveKeyWalletProvider(): ActiveKeyAmoyProvider | null { return activeProvider; }
-export function setActiveKeyWalletProvider(provider: ActiveKeyAmoyProvider): void { activeProvider = provider; }
-export function lockActiveKeyWallet(): void { activeProvider = null; }
+export function setActiveKeyWalletProvider(provider: ActiveKeyAmoyProvider): void {
+  if (activeProvider && activeProvider !== provider) activeProvider.revoke();
+  activeProvider = provider;
+}
+export function lockActiveKeyWallet(): void {
+  if (activeProvider) activeProvider.revoke();
+  activeProvider = null;
+}

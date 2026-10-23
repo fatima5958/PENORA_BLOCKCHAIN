@@ -29,3 +29,10 @@ Based on both latest main branches at commit f36ca6e: wallet button audit, respo
 - [ ] Exchange and P2P deployed, funded and verified
 - [ ] Real gas sponsorship integrated; 0 Test POL transfer tested
 - [ ] Key rotation/recovery tested before mainnet
+
+## Hardened signing and session handling
+- Revoke the previous provider instance on logout/account switch; captured stale provider references refuse any RPC, including signing.
+- Restrict built-in EOA transactions to configured PENORA Amoy contracts and nonpayable contract calldata; arbitrary native POL transfers and unknown destinations are blocked.
+- Check the actual RPC chain before each approved broadcast; mismatched chain fails closed.
+- Auto-lock after 10 minutes idle or page navigation; local browser memory zeroization cannot be guaranteed. Test-key-only prototype.
+- **Still not gasless.** Sponsored ERC-4337 smart accounts, account recovery and third-party cryptographic review are prerequisites for a real users' release.

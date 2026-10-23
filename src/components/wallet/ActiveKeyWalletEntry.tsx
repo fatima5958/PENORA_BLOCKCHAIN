@@ -92,6 +92,53 @@ export function ActiveKeyWalletEntry({ compact = false }: { compact?: boolean })
     }
   };
 
+  // Auto-lock on idle/page navigation so sensitive in-memory signing state
+  // cannot remain unlocked indefinitely. Never persist the Active Key.
+  useEffect(() => {
+    if (!address) return;
+    let idle: ReturnType<typeof setTimeout>;
+    const onIdle = () => {
+      lockActiveKeyWallet();
+      penoraWalletService.disconnect();
+      setUnlockedUsername(null);
+      setAddress(null);
+      setError('Wallet automatically locked after 10 minutes without activity.');
+    };
+    const schedule = () => {
+      clearTimeout(idle);
+      idle = setTimeout(onIdle, 10 * 60 * 1000);
+    };
+    const leave = () => {
+      lockActiveKeyWallet();
+      penoraWalletService.disconnect();
+    };
+    const onReturn = () => {
+      if (!getActiveKeyWalletProvider()) {
+        setUnlockedUsername(null);
+        setAddress(null);
+      }
+    };
+    const unsubscribe = penoraWalletService.subscribe(state => {
+      if (state.status === 'disconnected' || state.address?.toLowerCase() !== address.toLowerCase()) {
+        setUnlockedUsername(null);
+        setAddress(null);
+      }
+    });
+    schedule();
+    window.addEventListener('pointerdown', schedule, { passive: true });
+    window.addEventListener('keydown', schedule);
+    window.addEventListener('pagehide', leave);
+    window.addEventListener('pageshow', onReturn);
+    return () => {
+      clearTimeout(idle);
+      unsubscribe();
+      window.removeEventListener('pointerdown', schedule);
+      window.removeEventListener('keydown', schedule);
+      window.removeEventListener('pagehide', leave);
+      window.removeEventListener('pageshow', onReturn);
+    };
+  }, [address]);
+
   const lock = () => {
     penoraWalletService.disconnect();
     lockActiveKeyWallet();
@@ -145,7 +192,8 @@ export function ActiveKeyWalletEntry({ compact = false }: { compact?: boolean })
       <p className="text-[11px] opacity-70">
         Preview only · Active Key controls this derived wallet. Never share your key.
         Test POL is required for transactions; gasless sponsorship is NOT active.
-        Locking clears the signer from app memory.
+        Auto-locks after 10 minutes idle or on page navigation. Active Key
+        rotation changes the EVM address; real-value funds are not supported here.
       </p>
       {error && <p role="alert" className="text-xs text-red-500">{error}</p>}
     </section>
