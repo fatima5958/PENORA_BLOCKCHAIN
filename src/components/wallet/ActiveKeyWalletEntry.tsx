@@ -11,6 +11,7 @@ import {
   ActiveKeyAmoyProvider, deriveAmoyAccountFromActiveKey,
   getActiveKeyWalletProvider, lockActiveKeyWallet, setActiveKeyWalletProvider,
 } from '../../lib/wallet/activeKeyAmoyProvider';
+import { getGasSponsorshipStatus } from '../../lib/wallet/gasSponsorshipService';
 
 export const activeKeyWalletEnabled = import.meta.env.PUBLIC_ACTIVE_KEY_WALLET_ENABLED === 'true';
 
@@ -26,6 +27,8 @@ export function ActiveKeyWalletEntry({ compact = false }: { compact?: boolean })
   const [address, setAddress] = useState<string | null>(null);
   const [unlockedUsername, setUnlockedUsername] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const sponsorshipStatus = getGasSponsorshipStatus();
 
   useEffect(() => penoraKeyAuth.subscribe(next => {
     setUser(next);
@@ -152,50 +155,82 @@ export function ActiveKeyWalletEntry({ compact = false }: { compact?: boolean })
     <section id="penora-active-key-wallet" aria-label="PENORA Active Key wallet"
       className={compact ? 'rounded-xl border border-[#00E5F4]/20 bg-[#122129] text-white p-3 mb-4 space-y-3'
         : 'rounded-2xl border border-[var(--wallet-border)] bg-[var(--wallet-surface)] p-4 sm:p-5 space-y-3'}>
-      <div>
-        <h2 className="font-display text-sm font-semibold">PENORA Built-in Wallet · Active Key</h2>
-        <p className="text-xs opacity-75 mt-1">
-          Use your existing downloaded PENORA Private Active Key. No MetaMask or extra key download.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <h2 className="font-display text-sm font-semibold text-[var(--wallet-text)]">PENORA Built-in Wallet · Active Key</h2>
+          <p className="text-xs opacity-75 mt-0.5">
+            Use your existing downloaded PENORA Private Active Key. No MetaMask or extra key download required.
+          </p>
+        </div>
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-[#00E5F4]/10 text-[#00E5F4] border border-[#00E5F4]/20">
+          Polygon Amoy (80002)
+        </span>
       </div>
+
       {address ? (
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <p className="font-mono text-xs break-all">Unlocked Amoy address: {address}</p>
-          <button type="button" onClick={lock} className="rounded-lg bg-[#007C8B] text-white text-xs px-3 py-2">Lock wallet</button>
+        <div className="space-y-2">
+          <div className="flex flex-wrap items-center justify-between gap-2 p-3 rounded-lg bg-[var(--wallet-inset)] border border-[var(--wallet-border)]">
+            <div>
+              <p className="text-[11px] opacity-70">Derived EOA Address ({unlockedUsername ? `@${unlockedUsername}` : 'Active Key'})</p>
+              <p className="font-mono text-xs break-all font-medium text-[var(--wallet-text)]">{address}</p>
+            </div>
+            <button type="button" onClick={lock} className="rounded-lg bg-[#007C8B] hover:bg-[#006673] transition-colors text-white text-xs font-medium px-3.5 py-2">
+              Lock Wallet
+            </button>
+          </div>
+          <p className="text-[11px] opacity-65 flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+            Session unlocked in browser memory · Automatically locks after 10m idle or on tab close.
+          </p>
         </div>
       ) : (
         <form onSubmit={event => void unlock(event)} className="flex flex-col sm:flex-row gap-2">
-          {!user && <label className="text-xs flex-1">
-            <span className="block mb-1">PENORA username</span>
-            <input value={username} onChange={e => setUsername(e.target.value)}
-              autoComplete="username" required className="border border-[var(--wallet-border)] bg-[var(--wallet-inset)] text-[var(--wallet-text)] rounded-lg w-full px-3 py-2" />
-          </label>}
+          {!user && (
+            <label className="text-xs flex-1">
+              <span className="block mb-1 font-medium">PENORA username</span>
+              <input value={username} onChange={e => setUsername(e.target.value)}
+                autoComplete="username" required
+                placeholder="alice"
+                className="border border-[var(--wallet-border)] bg-[var(--wallet-inset)] text-[var(--wallet-text)] rounded-lg w-full px-3 py-2 text-xs focus:outline-none focus:border-[#00E5F4]" />
+            </label>
+          )}
           <label className="text-xs flex-[2]">
-            <span className="block mb-1">Private Active Key (from your PENORA Keys PDF)</span>
+            <span className="block mb-1 font-medium">Private Active Key (from your PENORA Keys PDF)</span>
             <input type="password" value={activeKey} onChange={e => setActiveKey(e.target.value)}
               autoComplete="off" spellCheck={false} required
-              className="border border-[var(--wallet-border)] bg-[var(--wallet-inset)] text-[var(--wallet-text)] rounded-lg w-full px-3 py-2"
+              className="border border-[var(--wallet-border)] bg-[var(--wallet-inset)] text-[var(--wallet-text)] rounded-lg w-full px-3 py-2 text-xs font-mono focus:outline-none focus:border-[#00E5F4]"
               placeholder="5..." />
           </label>
-          <button type="submit" disabled={busy || !activeKey.trim()}
-            className="rounded-lg bg-[#007C8B] text-white px-4 py-2 text-xs font-semibold disabled:opacity-40">
-            {busy ? 'Verifying…' : 'Unlock Wallet'}
-          </button>
+          <div className="flex items-end">
+            <button type="submit" disabled={busy || !activeKey.trim()}
+              className="rounded-lg bg-[#007C8B] hover:bg-[#006673] transition-colors text-white px-4 py-2 text-xs font-semibold disabled:opacity-40 whitespace-nowrap h-[34px]">
+              {busy ? 'Verifying…' : 'Unlock Wallet'}
+            </button>
+          </div>
         </form>
       )}
-      {!address && (
-        <button type="button" onClick={() => void connectBrowserWallet()}
-          className="text-xs underline underline-offset-2 opacity-80">
-          Use MetaMask / browser wallet instead (optional)
-        </button>
-      )}
-      <p className="text-[11px] opacity-70">
-        Preview only · Active Key controls this derived wallet. Never share your key.
-        Test POL is required for transactions; gasless sponsorship is NOT active.
-        Auto-locks after 10 minutes idle or on page navigation. Active Key
-        rotation changes the EVM address; real-value funds are not supported here.
+
+      <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-[var(--wallet-border)]/50 text-[11px]">
+        {!address && (
+          <button type="button" onClick={() => void connectBrowserWallet()}
+            className="text-[11px] underline underline-offset-2 opacity-80 hover:opacity-100 transition-opacity">
+            Use MetaMask / browser wallet instead (optional)
+          </button>
+        )}
+        <span className="opacity-70 text-[11px]">
+          {sponsorshipStatus.status === 'active'
+            ? 'Gas Sponsorship: Active (ERC-4337 Amoy)'
+            : 'Gas Sponsorship: Pending Amoy Paymaster deployment · Native Test POL required'}
+        </span>
+      </div>
+
+      <p className="text-[11px] opacity-70 leading-relaxed">
+        Preview only · Deterministically derived in browser memory from your signup Active Key.
+        Never persisted in localStorage, cookies or backend databases.
+        Rotating your Active Key changes the derived address; transfer balances prior to rotation.
       </p>
-      {error && <p role="alert" className="text-xs text-red-500">{error}</p>}
+
+      {error && <p role="alert" className="text-xs text-red-400 font-medium">{error}</p>}
     </section>
   );
 }

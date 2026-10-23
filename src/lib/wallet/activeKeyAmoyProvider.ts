@@ -14,6 +14,7 @@ import { privateKeyToAccount, type PrivateKeyAccount } from 'viem/accounts';
 import { extractWifKey, deriveKeyInfoFromWif } from '../crypto/penoraKeys';
 import { AMOY_RPC_URL, polygonAmoy, PENORA_TARGET_CHAIN_ID } from './chain';
 import { PENORA_CONTRACT_ADDRESSES, isConfiguredAddress } from './contracts';
+import { APPROVED_PENORA_SELECTORS } from './gasSponsorshipService';
 
 const text = (str: string) => new TextEncoder().encode(str);
 const SECP256K1_ORDER = BigInt('0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141');
@@ -64,10 +65,12 @@ type EvmTx = {
  * Each on-chain transaction requires explicit review in addition to the
  * existing PENORA modal. Never forward unknown signing RPC methods.
  */
-/** Only allow approved PENORA Amoy contract calls; no arbitrary POL transfers. */
+/** Only allow approved PENORA Amoy contract calls with recognized function selectors; no arbitrary POL transfers. */
 export function isPermittedActiveKeyAmoyCall(to: string, data?: string, value?: string): boolean {
   if (!isAddress(to) || !data || !/^0x[0-9a-fA-F]{8}(?:[0-9a-fA-F]{2})*$/.test(data)) return false;
   try { if (BigInt(value || '0') !== 0n) return false; } catch { return false; }
+  const selector = data.slice(0, 10).toLowerCase();
+  if (!APPROVED_PENORA_SELECTORS[selector]) return false;
   const a = PENORA_CONTRACT_ADDRESSES;
   return [
     a.PNR_TOKEN, a.USDT_TOKEN, a.POWER_ESCROW, a.VOTING_INFLUENCE,
