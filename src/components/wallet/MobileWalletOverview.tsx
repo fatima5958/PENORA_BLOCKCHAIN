@@ -321,7 +321,17 @@ export function MobileWalletOverview({
           <button
             key={action.id}
             type="button"
-            onClick={() => onNavigate(action.id as WalletTab)}
+            onClick={() => {
+              if (action.id === 'trade_pnr') {
+                if (typeof window !== 'undefined') {
+                  window.location.assign('/exchange/');
+                } else {
+                  onNavigate('trade_pnr');
+                }
+              } else {
+                onNavigate(action.id as WalletTab);
+              }
+            }}
           >
             <span>
               <action.icon size={20} strokeWidth={1.8} />
