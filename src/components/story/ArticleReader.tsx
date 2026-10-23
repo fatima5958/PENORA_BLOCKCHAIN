@@ -47,6 +47,7 @@ import { isCreatorMuted, muteCreator, unmuteCreator, blockCreator, submitReport 
 import { recordArticleView } from '../../lib/api/analytics';
 
 import { SpatialAuthModalV4 } from '../design-v4/SpatialAuthModalV4';
+import { VotingStrengthModal } from './VotingStrengthModal';
 import { PenoraLogo } from '../brand/PenoraLogo';
 import { penoraKeyAuth, type PenoraUser } from '../../lib/auth/penoraKeyAuth';
 import type { CommentRecord, PostRecord } from '../../lib/api/types';
@@ -88,6 +89,8 @@ export const ArticleReader: React.FC<ArticleReaderProps> = ({ article: initialAr
   const [articleError, setArticleError] = useState<string | null>(null);
 
   // Voting, Bookmarks, and Follow
+  const [votingModalOpen, setVotingModalOpen] = useState(false);
+  const [votingDirection, setVotingDirection] = useState<1 | -1>(1);
   const [voteStats, setVoteStats] = useState<PostVoteStats>({
     upvotes: 0,
     downvotes: 0,
@@ -317,7 +320,12 @@ export const ArticleReader: React.FC<ArticleReaderProps> = ({ article: initialAr
       setAuthModalOpen(true);
       return;
     }
-    await submitPostVote(article.id, voterId, direction, voteStats, setVoteStats);
+    if (voteStats.userVote === direction) {
+      await submitPostVote(article.id, voterId, direction, voteStats, setVoteStats);
+      return;
+    }
+    setVotingDirection(direction);
+    setVotingModalOpen(true);
   };
 
   const handleBookmark = async () => {
@@ -1095,6 +1103,20 @@ export const ArticleReader: React.FC<ArticleReaderProps> = ({ article: initialAr
         onClose={() => setAuthModalOpen(false)}
         initialMode="login"
         presentation="centered-modal"
+      />
+
+      <VotingStrengthModal
+        isOpen={votingModalOpen}
+        onClose={() => setVotingModalOpen(false)}
+        articleId={article.id}
+        articleTitle={article.title}
+        direction={votingDirection}
+        onConfirmSocialVote={async (_weight) => {
+          const voterId = keyUser?.id || user?.id;
+          if (voterId) {
+            await submitPostVote(article.id, voterId, votingDirection, voteStats, setVoteStats);
+          }
+        }}
       />
 
         </div>
@@ -1892,6 +1914,20 @@ export const ArticleReader: React.FC<ArticleReaderProps> = ({ article: initialAr
         onClose={() => setAuthModalOpen(false)}
         initialMode="login"
         presentation="centered-modal"
+      />
+
+      <VotingStrengthModal
+        isOpen={votingModalOpen}
+        onClose={() => setVotingModalOpen(false)}
+        articleId={article.id}
+        articleTitle={article.title}
+        direction={votingDirection}
+        onConfirmSocialVote={async (_weight) => {
+          const voterId = keyUser?.id || user?.id;
+          if (voterId) {
+            await submitPostVote(article.id, voterId, votingDirection, voteStats, setVoteStats);
+          }
+        }}
       />
 
       </div>

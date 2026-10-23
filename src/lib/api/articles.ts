@@ -108,6 +108,8 @@ export async function createPost(post: {
   cover_image_url?: string | null;
   tags?: string[];
   published?: boolean;
+  payout_preference?: 'liquid' | 'power_up' | 'declined';
+  beneficiaries?: Array<{ account: string; weight_bps: number }>;
 }): Promise<SingleArticleResult> {
   if (!isUuid(post.author_id)) {
     return { data: null, error: 'Invalid author ID format: author_id must be a valid account UUID.' };
@@ -116,7 +118,7 @@ export async function createPost(post: {
   let slug = baseSlug;
   try {
     for (let attempt = 0; attempt < 3; attempt++) {
-      const { data, error } = await supabase.from('posts').insert({
+      const payload: any = {
         author_id: post.author_id,
         title: post.title,
         slug,
@@ -125,10 +127,21 @@ export async function createPost(post: {
         cover_image_url: post.cover_image_url || null,
         tags: post.tags || [],
         published: post.published ?? false,
-      }).select().maybeSingle();
+      };
+      if (post.payout_preference) payload.payout_preference = post.payout_preference;
+      if (post.beneficiaries) payload.beneficiaries = post.beneficiaries;
+
+      const { data, error } = await supabase.from('posts').insert(payload).select().maybeSingle();
       if (error?.code === '23505' && error.message.toLowerCase().includes('slug')) {
         slug = `${baseSlug}-${crypto.randomUUID().slice(0, 8)}`;
         continue;
+      }
+      // If error is missing column in Supabase schema, retry with basic payload
+      if (error && (error.message.includes('payout_preference') || error.message.includes('beneficiaries'))) {
+        delete payload.payout_preference;
+        delete payload.beneficiaries;
+        const retryRes = await supabase.from('posts').insert(payload).select().maybeSingle();
+        if (retryRes.data) return { data: retryRes.data as PostRecord, error: null };
       }
       if (error) return { data: null, error: error.message, isPendingMigration: checkIsPendingMigration(error) };
       if (!data) return { data: null, error: 'The database did not confirm this blog was saved. Your browser draft is still available.' };
@@ -142,7 +155,7 @@ export async function createPost(post: {
 
 export async function updatePost(
   id: string,
-  updates: Partial<Pick<PostRecord, 'title' | 'slug' | 'excerpt' | 'content' | 'cover_image_url' | 'tags' | 'published'>>
+  updates: Partial<Pick<PostRecord, 'title' | 'slug' | 'excerpt' | 'content' | 'cover_image_url' | 'tags' | 'published' | 'payout_preference' | 'beneficiaries'>>
 ): Promise<SingleArticleResult> {
   try {
     const { data, error } = await supabase

@@ -21,6 +21,10 @@ import {
   Upload,
   ImageIcon,
   Trash2,
+  Coins,
+  Zap,
+  Users,
+  Plus,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 import { createPost, updatePost, getArticleBySlug, getUserArticles, deletePost } from '../../lib/api/articles';
@@ -59,6 +63,11 @@ export const ArticleEditorView: React.FC = () => {
   const [publishError, setPublishError] = useState<string | null>(null);
 
   // Editing existing post vs writing fresh
+  const [payoutPreference, setPayoutPreference] = useState<'liquid' | 'power_up' | 'declined'>('liquid');
+  const [beneficiaries, setBeneficiaries] = useState<Array<{ account: string; weightPercent: number }>>([]);
+  const [newBeneficiaryAddress, setNewBeneficiaryAddress] = useState('');
+  const [newBeneficiaryPct, setNewBeneficiaryPct] = useState(10);
+  const [beneficiaryError, setBeneficiaryError] = useState<string | null>(null);
   const [editingPostId, setEditingPostId] = useState<string | null>(null);
   const [editingSlug, setEditingSlug] = useState<string | null>(null);
   const [editingPublished, setEditingPublished] = useState(false);
@@ -326,6 +335,32 @@ export const ArticleEditorView: React.FC = () => {
     } finally { mutationInFlight.current = false; setIsSavingDraft(false); }
   };
 
+  const handleAddBeneficiary = () => {
+    setBeneficiaryError(null);
+    const addr = newBeneficiaryAddress.trim();
+    if (!addr || !/^0x[0-9a-fA-F]{40}$/.test(addr)) {
+      setBeneficiaryError('Please enter a valid 42-character EVM address (0x...).');
+      return;
+    }
+    if (beneficiaries.some(b => b.account.toLowerCase() === addr.toLowerCase())) {
+      setBeneficiaryError('Beneficiary address already added.');
+      return;
+    }
+    const currentTotal = beneficiaries.reduce((s, b) => s + b.weightPercent, 0);
+    if (currentTotal + newBeneficiaryPct > 100) {
+      setBeneficiaryError(`Total beneficiary shares (${currentTotal + newBeneficiaryPct}%) cannot exceed 100% of author share.`);
+      return;
+    }
+    setBeneficiaries(prev => [...prev, { account: addr, weightPercent: newBeneficiaryPct }]);
+    setNewBeneficiaryAddress('');
+    setHasLocalEdits(true);
+  };
+
+  const handleRemoveBeneficiary = (index: number) => {
+    setBeneficiaries(prev => prev.filter((_, i) => i !== index));
+    setHasLocalEdits(true);
+  };
+
   const handleSaveDraft = async () => {
     if (mutationInFlight.current || !editorReady || unsavedDraftAvailable || ownershipError) return;
     setPublishError(null);
@@ -354,6 +389,7 @@ export const ArticleEditorView: React.FC = () => {
     setIsSavingDraft(true);
     const slug = editingSlug || articleSlug(title || 'Untitled Draft');
     const tags = normalizeTags(tagsInput);
+    const beneficiaryData = beneficiaries.map(b => ({ account: b.account, weight_bps: Math.round(b.weightPercent * 100) }));
 
     try {
       let res;
@@ -365,6 +401,8 @@ export const ArticleEditorView: React.FC = () => {
           cover_image_url: coverImageUrl.trim() || null,
           tags,
           published: false,
+          payout_preference: payoutPreference,
+          beneficiaries: beneficiaryData,
         });
       } else {
         res = await createPost({
@@ -377,6 +415,8 @@ export const ArticleEditorView: React.FC = () => {
           cover_image_url: coverImageUrl.trim() || null,
           tags,
           published: false,
+          payout_preference: payoutPreference,
+          beneficiaries: beneficiaryData,
         });
         if (res.data?.id) {
           setEditingPostId(res.data.id);
@@ -441,6 +481,7 @@ export const ArticleEditorView: React.FC = () => {
 
     const slug = editingSlug || articleSlug(title);
     const tags = normalizeTags(tagsInput);
+    const beneficiaryData = beneficiaries.map(b => ({ account: b.account, weight_bps: Math.round(b.weightPercent * 100) }));
 
     try {
       let res;
@@ -452,6 +493,8 @@ export const ArticleEditorView: React.FC = () => {
           cover_image_url: coverImageUrl.trim() || null,
           tags,
           published: true,
+          payout_preference: payoutPreference,
+          beneficiaries: beneficiaryData,
         });
       } else {
         res = await createPost({
@@ -464,6 +507,8 @@ export const ArticleEditorView: React.FC = () => {
           cover_image_url: coverImageUrl.trim() || null,
           tags,
           published: true,
+          payout_preference: payoutPreference,
+          beneficiaries: beneficiaryData,
         });
       }
 
@@ -772,6 +817,149 @@ export const ArticleEditorView: React.FC = () => {
                   placeholder="protocol, design, web3"
                   className="pn-input text-xs h-10"
                 />
+              </div>
+            </div>
+
+            {/* Steemit-Style Post Payout Preferences & Beneficiaries */}
+            <div className="p-4 rounded-2xl bg-[#F8FAFC] border border-[#0A2540]/8 space-y-4">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold uppercase tracking-wider text-[#0A2540] flex items-center gap-1.5">
+                  <Coins className="h-4 w-4 text-[#007C8B]" />
+                  <span>Steemit Payout Preferences (7-Day Reward Settlement)</span>
+                </span>
+                <span className="text-[11px] text-[#007C8B] font-medium">70% Author / 20% Curator</span>
+              </div>
+
+              {/* Payout Options: Liquid PNR | 100% Power Up | Decline Rewards */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+                <button
+                  type="button"
+                  onClick={() => { setHasLocalEdits(true); setPayoutPreference('liquid'); }}
+                  className={`p-3 rounded-xl border text-left space-y-1 transition-all ${
+                    payoutPreference === 'liquid'
+                      ? 'border-[#007C8B] bg-[#EEFBFC] text-[#006573] shadow-xs'
+                      : 'border-black/10 bg-white hover:border-[#007C8B]/40 text-[#4A5B70]'
+                  }`}
+                >
+                  <div className="font-bold flex items-center justify-between">
+                    <span>Liquid PNR</span>
+                    {payoutPreference === 'liquid' && <CheckCircle2 className="h-3.5 w-3.5 text-[#007C8B]" />}
+                  </div>
+                  <p className="text-[10px] opacity-80 leading-relaxed">
+                    100% transferable liquid PNR tokens paid directly to your wallet.
+                  </p>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => { setHasLocalEdits(true); setPayoutPreference('power_up'); }}
+                  className={`p-3 rounded-xl border text-left space-y-1 transition-all ${
+                    payoutPreference === 'power_up'
+                      ? 'border-[#007C8B] bg-[#EEFBFC] text-[#006573] shadow-xs'
+                      : 'border-black/10 bg-white hover:border-[#007C8B]/40 text-[#4A5B70]'
+                  }`}
+                >
+                  <div className="font-bold flex items-center justify-between">
+                    <span>100% Power Up</span>
+                    {payoutPreference === 'power_up' && <CheckCircle2 className="h-3.5 w-3.5 text-[#007C8B]" />}
+                  </div>
+                  <p className="text-[10px] opacity-80 leading-relaxed">
+                    Automatically stake author earnings into 1:1 PENORA Power upon payout.
+                  </p>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => { setHasLocalEdits(true); setPayoutPreference('declined'); }}
+                  className={`p-3 rounded-xl border text-left space-y-1 transition-all ${
+                    payoutPreference === 'declined'
+                      ? 'border-[#D93838] bg-[#FFF0F0] text-[#D93838] shadow-xs'
+                      : 'border-black/10 bg-white hover:border-[#D93838]/40 text-[#4A5B70]'
+                  }`}
+                >
+                  <div className="font-bold flex items-center justify-between">
+                    <span>Decline Rewards</span>
+                    {payoutPreference === 'declined' && <CheckCircle2 className="h-3.5 w-3.5 text-[#D93838]" />}
+                  </div>
+                  <p className="text-[10px] opacity-80 leading-relaxed">
+                    Author payout remains in reserve. Curators still earn their 20% share.
+                  </p>
+                </button>
+              </div>
+
+              {/* Beneficiary Revenue Sharing */}
+              <div className="pt-2 border-t border-[#0A2540]/8 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-[#0A2540] flex items-center gap-1.5">
+                    <Users className="h-3.5 w-3.5 text-[#007C8B]" />
+                    <span>Reward Beneficiaries (Optional Collaborator Splits)</span>
+                  </span>
+                  <span className="text-[11px] text-[#4A5B70]">
+                    Author Retains: {100 - beneficiaries.reduce((s, b) => s + b.weightPercent, 0)}% of author pool
+                  </span>
+                </div>
+
+                {beneficiaries.length > 0 && (
+                  <div className="space-y-1.5">
+                    {beneficiaries.map((b, idx) => (
+                      <div
+                        key={b.account}
+                        className="flex items-center justify-between gap-2 p-2 rounded-lg bg-white border border-black/5 text-xs font-mono"
+                      >
+                        <span className="truncate">{b.account.slice(0, 10)}...{b.account.slice(-8)}</span>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className="font-bold text-[#007C8B]">{b.weightPercent}%</span>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveBeneficiary(idx)}
+                            className="p-1 text-slate-400 hover:text-red-500"
+                            title="Remove beneficiary"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div className="flex items-center gap-2 pt-1 flex-wrap sm:flex-nowrap">
+                  <input
+                    type="text"
+                    placeholder="Collaborator EVM Address (0x...)"
+                    value={newBeneficiaryAddress}
+                    onChange={(e) => setNewBeneficiaryAddress(e.target.value.trim())}
+                    className="pn-input text-xs h-9 flex-1 font-mono"
+                  />
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <select
+                      value={newBeneficiaryPct}
+                      onChange={(e) => setNewBeneficiaryPct(parseInt(e.target.value, 10))}
+                      className="pn-input text-xs h-9 px-2 font-mono font-semibold"
+                    >
+                      {[5, 10, 15, 20, 25, 30, 50, 75, 100].map((pct) => (
+                        <option key={pct} value={pct}>
+                          {pct}%
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={handleAddBeneficiary}
+                      className="pn-btn pn-btn-secondary pn-btn-sm h-9 px-3 text-xs flex items-center gap-1"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      <span>Add</span>
+                    </button>
+                  </div>
+                </div>
+
+                {beneficiaryError && (
+                  <p className="text-[11px] text-[#D93838] flex items-center gap-1 pt-1">
+                    <AlertCircle className="h-3 w-3 shrink-0" />
+                    <span>{beneficiaryError}</span>
+                  </p>
+                )}
               </div>
             </div>
 

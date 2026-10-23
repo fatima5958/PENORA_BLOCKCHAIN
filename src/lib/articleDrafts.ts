@@ -6,6 +6,8 @@ export interface ArticleDraftFields {
   coverImageUrl: string;
   excerpt: string;
   content: string;
+  payoutPreference?: 'liquid' | 'power_up' | 'declined';
+  beneficiaries?: Array<{ account: string; weightBps: number }>;
 }
 
 export interface ArticleDraft extends ArticleDraftFields {
@@ -50,6 +52,8 @@ export function readArticleDraft(storage = browserStorage()): ArticleDraft | nul
       updatedAt: typeof values.updatedAt === 'string' ? values.updatedAt : '',
       postId: typeof values.postId === 'string' ? values.postId : null,
       slug: typeof values.slug === 'string' ? values.slug : null,
+      ...(typeof values.payoutPreference === 'string' ? { payoutPreference: values.payoutPreference as any } : {}),
+      ...(Array.isArray(values.beneficiaries) ? { beneficiaries: values.beneficiaries } : {}),
       ...(typeof values.authorId === 'string' ? { authorId: values.authorId } : {}),
     };
     return hasDraftContent(draft) ? draft : null;

@@ -27,6 +27,8 @@ export interface PostRecord {
   published: boolean;
   published_at?: string | null;
   payout_at?: string | null;
+  payout_preference?: 'liquid' | 'power_up' | 'declined';
+  beneficiaries?: Array<{ account: string; weight_bps: number }>;
   created_at: string;
   updated_at: string;
   author?: ProfileRecord;

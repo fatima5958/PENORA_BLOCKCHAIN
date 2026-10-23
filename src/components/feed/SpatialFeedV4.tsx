@@ -37,6 +37,7 @@ import { toggleBookmark } from '../../lib/api/bookmarks';
 import { followUser, unfollowUser } from '../../lib/api/follows';
 import { getCommunities, isCommunityMember, joinCommunity, leaveCommunity } from '../../lib/api/communities';
 import { SpatialAuthModalV4 } from '../design-v4/SpatialAuthModalV4';
+import { VotingStrengthModal } from '../story/VotingStrengthModal';
 import { PenoraEmblem, PenoraLogo } from '../brand/PenoraLogo';
 import { penoraKeyAuth, type PenoraUser } from '../../lib/auth/penoraKeyAuth';
 import { useLiveProfile } from '../../lib/hooks/useLiveProfile';
@@ -83,6 +84,7 @@ const CATEGORIES = [
 
 export const SpatialFeedV4: React.FC = () => {
   const { voteError, submitPostVote } = usePostVoting();
+  const [votingModalTarget, setVotingModalTarget] = useState<{ articleId: string; title: string; direction: 1 | -1 } | null>(null);
   const [user, setUser] = useState<SupabaseUser | null>(null);
   const [keyUser, setKeyUser] = useState<PenoraUser | null>(null);
   const [articles, setArticles] = useState<FeedArticleItem[]>([]);
@@ -277,7 +279,17 @@ export const SpatialFeedV4: React.FC = () => {
       userVote: null,
     };
 
-    await submitPostVote(articleId, voterId, direction, current, stats => setVoteStatsMap(prev => ({ ...prev, [articleId]: stats })));
+    if (current.userVote === direction) {
+      await submitPostVote(articleId, voterId, direction, current, stats => setVoteStatsMap(prev => ({ ...prev, [articleId]: stats })));
+      return;
+    }
+
+    const articleItem = articles.find(a => a.id === articleId);
+    setVotingModalTarget({
+      articleId,
+      title: articleItem?.title || 'Curate post with weighted influence',
+      direction,
+    });
   };
 
   // Handle bookmark
@@ -806,6 +818,34 @@ export const SpatialFeedV4: React.FC = () => {
         initialMode={authMode}
         presentation="centered-modal"
       />
+
+      {votingModalTarget && (
+        <VotingStrengthModal
+          isOpen={Boolean(votingModalTarget)}
+          onClose={() => setVotingModalTarget(null)}
+          articleId={votingModalTarget.articleId}
+          articleTitle={votingModalTarget.title}
+          direction={votingModalTarget.direction}
+          onConfirmSocialVote={async (_weight) => {
+            const voterId = keyUser?.id || user?.id;
+            if (voterId && votingModalTarget) {
+              const current: PostVoteStats = voteStatsMap[votingModalTarget.articleId] ?? {
+                upvotes: 0,
+                downvotes: 0,
+                score: 0,
+                userVote: null,
+              };
+              await submitPostVote(
+                votingModalTarget.articleId,
+                voterId,
+                votingModalTarget.direction,
+                current,
+                stats => setVoteStatsMap(prev => ({ ...prev, [votingModalTarget.articleId]: stats }))
+              );
+            }
+          }}
+        />
+      )}
     </div>
   );
 };

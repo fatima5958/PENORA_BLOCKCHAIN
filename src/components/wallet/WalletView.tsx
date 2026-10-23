@@ -3,12 +3,16 @@
 import '../../styles/wallet.css';
 import { RewardWalletLink } from './RewardWalletLink';
 import { CreatorEarningsCard } from './CreatorEarningsCard';
+import { PowerDelegationCard } from './PowerDelegationCard';
+import { CreatorEconomyGuide } from './CreatorEconomyGuide';
+import { P2PMarketplaceView } from '../exchange/P2PMarketplaceView';
 import React, { useState, useEffect, useRef } from 'react';
 import QRCode from 'qrcode';
 import {
   Wallet,
   ArrowUpRight,
   ArrowDownLeft,
+  ArrowRightLeft,
   Key,
   Coins,
   ShieldCheck,
@@ -53,7 +57,7 @@ export const WalletView: React.FC = () => {
   const [keyUser, setKeyUser] = useState<PenoraUser | null>(null);
   const [supabaseUser, setSupabaseUser] = useState<SupabaseUser | null>(null);
   const [copiedAddress, setCopiedAddress] = useState(false);
-  const [activeTab, setActiveTab] = useState<'overview' | 'deposit' | 'send' | 'receive' | 'history' | 'power_system' | 'earnings'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'deposit' | 'send' | 'receive' | 'history' | 'power_system' | 'delegation' | 'earnings' | 'trade_pnr'>('overview');
 
   const [asset, setAsset] = useState<'USDT' | 'PNR'>('USDT');
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
@@ -580,6 +584,71 @@ export const WalletView: React.FC = () => {
 
           <button
             type="button"
+            onClick={() => setActiveTab('earnings')}
+            className={`shrink-0 px-3.5 sm:px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
+              activeTab === 'earnings'
+                ? 'bg-gradient-to-r from-[#007C8B] via-[#00B3C4] to-[#00E5F4] text-white shadow-2xs'
+                : 'text-[var(--wallet-muted)] hover:text-[var(--wallet-text)] hover:bg-[var(--wallet-surface)]'
+            }`}
+          >
+            <Award className="h-3.5 w-3.5 text-[#00E5F4]" />
+            <span>Earnings</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('power_system')}
+            className={`shrink-0 px-3.5 sm:px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
+              activeTab === 'power_system'
+                ? 'bg-gradient-to-r from-[#007C8B] via-[#00B3C4] to-[#00E5F4] text-white shadow-2xs'
+                : 'text-[var(--wallet-muted)] hover:text-[var(--wallet-text)] hover:bg-[var(--wallet-surface)]'
+            }`}
+          >
+            <Zap className="h-3.5 w-3.5 text-amber-500" />
+            <span>PNR Power</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('delegation')}
+            className={`shrink-0 px-3.5 sm:px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
+              activeTab === 'delegation'
+                ? 'bg-gradient-to-r from-[#007C8B] via-[#00B3C4] to-[#00E5F4] text-white shadow-2xs'
+                : 'text-[var(--wallet-muted)] hover:text-[var(--wallet-text)] hover:bg-[var(--wallet-surface)]'
+            }`}
+          >
+            <ArrowRightLeft className="h-3.5 w-3.5 text-[#00E5F4]" />
+            <span>Delegation</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('history')}
+            className={`shrink-0 px-3.5 sm:px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
+              activeTab === 'history'
+                ? 'bg-gradient-to-r from-[#007C8B] via-[#00B3C4] to-[#00E5F4] text-white shadow-2xs'
+                : 'text-[var(--wallet-muted)] hover:text-[var(--wallet-text)] hover:bg-[var(--wallet-surface)]'
+            }`}
+          >
+            <Clock className="h-3.5 w-3.5" />
+            <span>Activity</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('trade_pnr')}
+            className={`shrink-0 px-3.5 sm:px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
+              activeTab === 'trade_pnr'
+                ? 'bg-gradient-to-r from-[#007C8B] via-[#00B3C4] to-[#00E5F4] text-white shadow-2xs'
+                : 'text-[var(--wallet-muted)] hover:text-[var(--wallet-text)] hover:bg-[var(--wallet-surface)]'
+            }`}
+          >
+            <Coins className="h-3.5 w-3.5 text-emerald-400" />
+            <span>Trade PNR</span>
+          </button>
+
+          <button
+            type="button"
             onClick={() => setActiveTab('deposit')}
             className={`shrink-0 px-3.5 sm:px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
               activeTab === 'deposit'
@@ -601,7 +670,7 @@ export const WalletView: React.FC = () => {
             }`}
           >
             <Send className="h-3.5 w-3.5" />
-            <span>Send / Withdraw</span>
+            <span>Send</span>
           </button>
 
           <button
@@ -615,45 +684,6 @@ export const WalletView: React.FC = () => {
           >
             <QrCode className="h-3.5 w-3.5" />
             <span>Receive</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('history')}
-            className={`shrink-0 px-3.5 sm:px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
-              activeTab === 'history'
-                ? 'bg-gradient-to-r from-[#007C8B] via-[#00B3C4] to-[#00E5F4] text-white shadow-2xs'
-                : 'text-[var(--wallet-muted)] hover:text-[var(--wallet-text)] hover:bg-[var(--wallet-surface)]'
-            }`}
-          >
-            <Clock className="h-3.5 w-3.5" />
-            <span>Transaction History</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('earnings')}
-            className={`shrink-0 px-3.5 sm:px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
-              activeTab === 'earnings'
-                ? 'bg-gradient-to-r from-[#007C8B] via-[#00B3C4] to-[#00E5F4] text-white shadow-2xs'
-                : 'text-[var(--wallet-muted)] hover:text-[var(--wallet-text)] hover:bg-[var(--wallet-surface)]'
-            }`}
-          >
-            <Award className="h-3.5 w-3.5 text-[#00E5F4]" />
-            <span>Creator Rewards</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('power_system')}
-            className={`shrink-0 px-3.5 sm:px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
-              activeTab === 'power_system'
-                ? 'bg-gradient-to-r from-[#007C8B] via-[#00B3C4] to-[#00E5F4] text-white shadow-2xs'
-                : 'text-[var(--wallet-muted)] hover:text-[var(--wallet-text)] hover:bg-[var(--wallet-surface)]'
-            }`}
-          >
-            <Zap className="h-3.5 w-3.5 text-amber-500" />
-            <span>Power System</span>
           </button>
         </div>
 
@@ -782,29 +812,30 @@ export const WalletView: React.FC = () => {
                   </div>
 
                   {/* Primary Actions Grid */}
-                  <div className="pt-2 grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                  <div className="pt-2 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
                     <button
                       type="button"
                       onClick={() => setActiveTab('deposit')}
-                      className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl bg-gradient-to-r from-[#007C8B] via-[#00B3C4] to-[#00E5F4] hover:opacity-95 text-white font-semibold text-xs shadow-sm transition-all"
+                      className="flex items-center justify-center gap-1.5 py-2.5 px-2.5 rounded-xl bg-gradient-to-r from-[#007C8B] via-[#00B3C4] to-[#00E5F4] hover:opacity-95 text-white font-semibold text-xs shadow-sm transition-all"
                     >
                       <Download className="h-3.5 w-3.5" />
-                      <span>Deposit Tokens</span>
+                      <span>Deposit</span>
                     </button>
 
                     <button
                       type="button"
                       onClick={() => setActiveTab('send')}
-                      className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl bg-white/10 hover:bg-white/15 text-white font-semibold text-xs border border-white/10 transition-all"
+                      className="flex items-center justify-center gap-1.5 py-2.5 px-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-white font-semibold text-xs border border-white/10 transition-all"
                     >
                       <Send className="h-3.5 w-3.5 text-cyan-300" />
-                      <span>Send Tokens</span>
+                      <span>Send</span>
                     </button>
 
                     <button
                       type="button"
-                      disabled={!walletState.address || !walletState.isCorrectNetwork || !walletState.contractsDeployed} onClick={() => setShowPowerUpModal(true)}
-                      className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl bg-white/10 hover:bg-white/15 text-white font-semibold text-xs border border-white/10 transition-all"
+                      disabled={!walletState.address || !walletState.isCorrectNetwork || !walletState.contractsDeployed}
+                      onClick={() => setShowPowerUpModal(true)}
+                      className="flex items-center justify-center gap-1.5 py-2.5 px-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-white font-semibold text-xs border border-white/10 transition-all disabled:opacity-50"
                     >
                       <Zap className="h-3.5 w-3.5 text-[#00E5F4]" />
                       <span>Power Up</span>
@@ -812,11 +843,30 @@ export const WalletView: React.FC = () => {
 
                     <button
                       type="button"
-                      disabled={!walletState.address || !walletState.isCorrectNetwork || !walletState.contractsDeployed} onClick={() => setShowPowerDownModal(true)}
-                      className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl bg-white/10 hover:bg-white/15 text-white font-semibold text-xs border border-white/10 transition-all"
+                      disabled={!walletState.address || !walletState.isCorrectNetwork || !walletState.contractsDeployed}
+                      onClick={() => setShowPowerDownModal(true)}
+                      className="flex items-center justify-center gap-1.5 py-2.5 px-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-white font-semibold text-xs border border-white/10 transition-all disabled:opacity-50"
                     >
                       <TrendingDown className="h-3.5 w-3.5 text-amber-300" />
                       <span>Power Down</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('delegation')}
+                      className="flex items-center justify-center gap-1.5 py-2.5 px-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-white font-semibold text-xs border border-white/10 transition-all"
+                    >
+                      <ArrowRightLeft className="h-3.5 w-3.5 text-indigo-300" />
+                      <span>Delegate</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('trade_pnr')}
+                      className="flex items-center justify-center gap-1.5 py-2.5 px-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-500 hover:opacity-95 text-white font-semibold text-xs shadow-sm transition-all"
+                    >
+                      <Coins className="h-3.5 w-3.5" />
+                      <span>Trade PNR</span>
                     </button>
                   </div>
                 </div>
@@ -1225,6 +1275,7 @@ export const WalletView: React.FC = () => {
               balancePp={walletState.balancePp}
               votingManaPercent={walletState.votingManaPercent}
             />
+            <CreatorEconomyGuide />
           </div>
         )}
 
@@ -1237,6 +1288,7 @@ export const WalletView: React.FC = () => {
               balancePp={walletState.balancePp}
               votingManaPercent={walletState.votingManaPercent}
             />
+            <CreatorEconomyGuide />
           </div>
         )}
 
@@ -1823,6 +1875,19 @@ export const WalletView: React.FC = () => {
                 </p>
               </div>
             </div>
+          </div>
+        )}
+
+        {activeTab === 'delegation' && (
+          <PowerDelegationCard
+            userAddress={walletState.address}
+            onRefreshWallet={refreshAllBalances}
+          />
+        )}
+
+        {activeTab === 'trade_pnr' && (
+          <div className="space-y-6">
+            <P2PMarketplaceView onBackToDesk={() => setActiveTab('overview')} />
           </div>
         )}
       </div>

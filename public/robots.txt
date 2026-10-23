@@ -1,0 +1,24 @@
+# PENORA Beta Robots Configuration
+User-agent: *
+Allow: /
+Allow: /feed
+Allow: /story/
+Allow: /communities
+Allow: /community/
+Allow: /profile/
+Allow: /brand
+Allow: /explore
+Allow: /roadmap
+
+# Disallow private user states, editor drafts, and wallet management
+Disallow: /api/
+Disallow: /editor
+Disallow: /wallet
+Disallow: /install
+Disallow: /profile/me
+Disallow: /design-lab
+Disallow: /design-v3
+Disallow: /design-v4
+Disallow: /design-v5
+
+Sitemap: https://penorablockchain.vercel.app/sitemap.xml
