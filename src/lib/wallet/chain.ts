@@ -8,6 +8,7 @@ export const AMOY_RPC_URL = import.meta.env.PUBLIC_AMOY_RPC_URL || 'https://poly
 export const AMOY_FALLBACK_RPCS = [
   'https://polygon-amoy.drpc.org',
   'https://polygon-amoy-bor-rpc.publicnode.com',
+  'https://rpc-amoy.polygon.technology',
 ];
 
 export const polygonAmoy = defineChain({

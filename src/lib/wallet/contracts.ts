@@ -3,6 +3,11 @@ import { isAddress, zeroAddress } from 'viem';
 // src/lib/wallet/contracts.ts
 // PENORA Blockchain — Smart Contract Addresses & Complete ABIs for Polygon Amoy Testnet (Chain ID 80002)
 
+export const DEFAULT_AMOY_CONTRACTS: Record<string, string> = {
+  PNR_TOKEN: '0xBdD9D45524617d20111879ff914E1E2B708D59A6',
+  USDT_TOKEN: '0x88E538DB3FD3980Ba510aDd2671587Daf40F1050',
+};
+
 function getContractAddress(envKey: string, storageKey: string): string {
   if (typeof window !== 'undefined' && window.localStorage) {
     try {
@@ -15,7 +20,14 @@ function getContractAddress(envKey: string, storageKey: string): string {
   const envVal =
     (typeof import.meta !== 'undefined' && (import.meta as any).env?.[envKey]) ||
     (typeof process !== 'undefined' && process.env?.[envKey]);
-  return envVal || '0x0000000000000000000000000000000000000000';
+  if (envVal && isAddress(envVal) && envVal.toLowerCase() !== zeroAddress) {
+    return envVal;
+  }
+  const fallback = DEFAULT_AMOY_CONTRACTS[storageKey];
+  if (fallback && isAddress(fallback) && fallback.toLowerCase() !== zeroAddress) {
+    return fallback;
+  }
+  return '0x0000000000000000000000000000000000000000';
 }
 
 export const PENORA_CONTRACT_ADDRESSES = {
