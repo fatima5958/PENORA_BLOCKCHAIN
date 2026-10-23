@@ -1,5 +1,5 @@
 // src/lib/rewards/articleRewards.ts
-// Steemit-Style Creator Rewards, Payout Preferences, Beneficiaries, and Comment Rewards
+// PENORA Creator Rewards, Payout Preferences, Beneficiaries, and Comment Rewards
 // Network: Polygon Amoy Testnet (80002)
 
 import { isAddress, zeroAddress } from 'viem';

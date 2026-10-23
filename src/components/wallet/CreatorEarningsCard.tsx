@@ -1,5 +1,5 @@
 // src/components/wallet/CreatorEarningsCard.tsx
-// PENORA Steemit-Style Creator Economy Earnings Dashboard (Phase 14)
+// PENORA Creator Economy Earnings Dashboard (Phase 14)
 // Tabs: Overview | Article Rewards | Curation | Comments | Beneficiaries | History | Economics
 
 import React, { useState, useEffect } from 'react';
@@ -261,7 +261,7 @@ export function CreatorEarningsCard({
           </div>
           <div>
             <h3 className="font-serif text-base font-bold text-[var(--wallet-text)]">
-              Steemit-Style Creator Economy
+              PENORA Creator Economy
             </h3>
             <p className="text-xs text-[var(--wallet-muted)]">
               70% Author / 20% Curator split, 7-day maturation, beneficiaries &amp; power-up preferences.
@@ -398,7 +398,7 @@ export function CreatorEarningsCard({
             </div>
           </div>
 
-          {/* Steemit Category Breakdown */}
+          {/* PENORA Category Breakdown */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="p-4 rounded-2xl bg-[var(--wallet-inset)] border border-[#007C8B]/15 space-y-2">
               <span className="text-xs font-bold uppercase text-[var(--wallet-muted)] flex items-center gap-1.5">

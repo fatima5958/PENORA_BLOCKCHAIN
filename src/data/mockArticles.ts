@@ -14,7 +14,7 @@ export const MOCK_COMMUNITIES: Community[] = [
     category: 'Technology',
   },
   {
-    id: 'steem-pod',
+    id: 'penora-curation-pod',
     slug: 'creator-commons',
     name: 'Creator Commons & Curation',
     description: 'Decentralized curation guilds, non-cash reputation economics, and publishing ethics.',

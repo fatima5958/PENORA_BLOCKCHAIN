@@ -763,7 +763,7 @@ export const ArticleReader: React.FC<ArticleReaderProps> = ({ article: initialAr
           <ArticleMarkdown content={article.content.join('\n\n')} />
         </div>
 
-        {/* Steemit-Inspired Curation Voting Dock */}
+        {/* PENORA Curation Voting Dock */}
         <div className="mt-10 pt-6 border-t border-[#0A2540]/8 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="pn-vote-group" role="group" aria-label="Article voting">
@@ -1368,10 +1368,10 @@ export const ArticleReader: React.FC<ArticleReaderProps> = ({ article: initialAr
               </button>
             </div>
 
-            {/* ─── QUICK ENGAGEMENT BAR (Authentic Steemit Upvote/Downvote) ─── */}
+            {/* ─── QUICK ENGAGEMENT BAR (Authentic PENORA Upvote/Downvote) ─── */}
             <div className="flex items-center justify-between py-2 text-[#52657C] text-sm">
               <div className="flex items-center gap-3">
-                {/* Steemit Upvote ▲ / Downvote ▼ Group */}
+                {/* PENORA Upvote ▲ / Downvote ▼ Group */}
                 <div className="pn-vote-group" role="group" aria-label="Article voting">
                   <button
                     type="button"

@@ -94,7 +94,7 @@ export interface CreatorGrowthProjection {
 
 /**
  * Projects creator reward sustainability under variable adoption tiers.
- * Models Steemit-style dynamic pool dilution: reward pools distribute fixed
+ * Models PENORA dynamic pool dilution: reward pools distribute fixed
  * budget proportionally to influence, ensuring token sustainability regardless of post volume.
  */
 export function projectCreatorGrowthScenarios(annualBudgetPnr = 6_000_000): CreatorGrowthProjection[] {

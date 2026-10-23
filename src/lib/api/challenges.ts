@@ -32,7 +32,7 @@ const SEED_CHALLENGES: WritingChallengeRecord[] = [
     title: 'Toward a Sovereign Creator Commons',
     slug: 'toward-a-sovereign-creator-commons',
     prompt: 'How do decentralized publishing protocols and verifiable reputation build a sustainable future without surveillance advertising?',
-    guidelines: 'Reflect on community-driven curation, fair monetization, or decentralized social media models like Steemit, Hive, and PENORA.',
+    guidelines: 'Reflect on community-driven curation, fair monetization, and sovereign creator publishing on PENORA.',
     starts_at: '2026-10-18T00:00:00Z',
     ends_at: '2026-11-08T23:59:59Z',
     status: 'active',

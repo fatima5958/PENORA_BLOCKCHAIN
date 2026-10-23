@@ -10,7 +10,7 @@
 
 ## 1. Executive Summary
 
-PENORA's creator profile has been upgraded to **Creator Profile V5 💎**, matching the approved reference design. All components connect directly to Supabase backend services, enforce Steemit-style key authorities and RLS boundaries, and adhere strictly to financial honesty rules (**"Votes are not dollars"**).
+PENORA's creator profile has been upgraded to **Creator Profile V5 💎**, matching the approved reference design. All components connect directly to Supabase backend services, enforce PENORA cryptographic key authorities and RLS boundaries, and adhere strictly to financial honesty rules (**"Votes are not dollars"**).
 
 ---
 

@@ -1,5 +1,5 @@
 // src/components/wallet/PowerDelegationCard.tsx
-// Steemit-Style PENORA Power Delegation Interface
+// PENORA Power Delegation Interface
 // Display: My Total Power, Available Power, Delegated Out, Received Power, Effective Power, Active Delegations, History
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -177,7 +177,7 @@ export const PowerDelegationCard: React.FC<PowerDelegationCardProps> = ({
           </div>
           <div>
             <h3 className="font-serif text-base font-bold text-[var(--wallet-text)]">
-              Steemit-Style PENORA Power Delegation
+              PENORA Power Delegation
             </h3>
             <p className="text-xs text-[var(--wallet-muted)]">
               Loan curation influence to other creators without transferring token custody. 100% revocable.
@@ -262,7 +262,7 @@ export const PowerDelegationCard: React.FC<PowerDelegationCardProps> = ({
       <div className="p-4 rounded-2xl bg-[#EEFBFC]/80 dark:bg-[#007C8B]/10 border border-[#007C8B]/20 text-xs text-[#006573] dark:text-[#00E5F4] leading-relaxed flex items-start gap-2.5">
         <Info className="h-4 w-4 mt-0.5 flex-shrink-0" />
         <div>
-          <strong>Steemit Invariant Protection:</strong> Delegated PENORA Power remains in your escrow contract. The recipient receives temporary voting mana only. Recipients cannot re-delegate received power, and you can revoke delegations at any time to recover full voting influence.
+          <strong>Protocol Invariant Protection:</strong> Delegated PENORA Power remains in your escrow contract. The recipient receives temporary voting mana only. Recipients cannot re-delegate received power, and you can revoke delegations at any time to recover full voting influence.
         </div>
       </div>
 

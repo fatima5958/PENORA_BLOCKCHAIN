@@ -180,7 +180,7 @@ describe('PENORA local challenge security and migration assertions', () => {
   // --------------------------------------------------------------------------
   // 3. Key Hierarchy & Authority Enforcement
   // --------------------------------------------------------------------------
-  describe('3. Steemit Key Authority Hierarchy & Guidance', () => {
+  describe('3. PENORA Key Authority Hierarchy & Guidance', () => {
     it('allows login with Posting Key and grants posting permissions', async () => {
       const res = await penoraKeyAuth.loginWithPrivateKey(userA, keysA.posting.privateKeyWif);
       expect(res.success).toBe(true);

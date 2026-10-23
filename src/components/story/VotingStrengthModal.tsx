@@ -1,5 +1,5 @@
 // src/components/story/VotingStrengthModal.tsx
-// Steemit-Style Weighted Voting Strength Selector & Curation Modal
+// PENORA Weighted Voting Strength Selector & Curation Modal
 // Compact, touch-friendly, adhering to PENORA navy/teal/cyan design tokens
 
 import React, { useState, useEffect } from 'react';
@@ -130,7 +130,7 @@ export const VotingStrengthModal: React.FC<VotingStrengthModalProps> = ({
             </div>
             <div>
               <h3 className="font-serif text-base font-bold flex items-center gap-1.5">
-                Steemit Voting Strength
+                PENORA Voting Strength
                 <span
                   className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
                     direction === 1

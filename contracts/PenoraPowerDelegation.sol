@@ -8,7 +8,7 @@ import "@openzeppelin/contracts/access/Ownable2Step.sol";
 
 /**
  * @title PenoraPowerDelegation
- * @notice Steemit-style PENORA Power (PP) Delegation Smart Contract.
+ * @notice PENORA Power (PP) Delegation Smart Contract.
  * @dev Allows creators to delegate voting influence without transferring underlying token ownership.
  *      - Staker retains 100% custody of underlying staked PNR in PenoraPowerEscrow.
  *      - Recipient receives temporary voting influence only.

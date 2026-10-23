@@ -1,7 +1,7 @@
 // src/lib/auth/penoraKeyAuth.ts
 // ============================================================================
 // PENORA BLOCKCHAIN — CLIENT KEY AUTHENTICATION SERVICE
-// Coordinates client-side key generation, Steemit-style encrypted key backup,
+// Coordinates client-side key generation, encrypted key backup,
 // cryptographic challenge signing, cross-island session persistence, and
 // permission checks.
 // ============================================================================

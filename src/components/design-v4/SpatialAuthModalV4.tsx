@@ -1,6 +1,6 @@
 // src/components/design-v4/SpatialAuthModalV4.tsx
 // ============================================================================
-// PENORA BLOCKCHAIN — STEEMIT-STYLE CRYPTOGRAPHIC AUTH MODAL (V4.3 ICY-GLASS)
+// PENORA BLOCKCHAIN — CRYPTOGRAPHIC AUTH MODAL (V4.3 ICY-GLASS)
 // Perfectly centered, non-clipped Icy-Glass Spatial popup with mandatory
 // 6-digit email verification, local Ed25519 keypair generation,
 // XSalsa20-Poly1305 encrypted offline backup download, and single-key login

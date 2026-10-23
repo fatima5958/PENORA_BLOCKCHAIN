@@ -234,7 +234,7 @@ export const DesignLab: React.FC = () => (
           </div>
           <p className="text-xs text-penora-cocoa-muted leading-relaxed">
             Clean serif headings on white. No shadows, thin 1px borders, generous whitespace.
-            Feels like <em>The Atlantic</em> or Substack. Muted terracotta accent.
+            Feels like a classic high-end literary journal. Muted terracotta accent.
           </p>
         </div>
         <ConceptA />

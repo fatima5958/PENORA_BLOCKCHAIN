@@ -66,7 +66,7 @@ export const MyProfileView: React.FC = () => {
     };
     window.addEventListener('penora:profile-updated', handleProfileUpdated);
 
-    // 1. Listen for Steemit-style key session changes
+    // 1. Listen for PENORA cryptographic key session changes
     const unsubKey = penoraKeyAuth.subscribe(kUser => {
       setKeyUser(kUser);
       loadUserData(null, kUser);

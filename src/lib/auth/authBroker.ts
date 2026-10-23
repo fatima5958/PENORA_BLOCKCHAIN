@@ -2,7 +2,7 @@
 // ============================================================================
 // PENORA BLOCKCHAIN — TRUSTED AUTHENTICATION BROKER
 // Server-side challenge generation, replay attack prevention,
-// Ed25519 signature verification, Steemit key authority enforcement,
+// Ed25519 signature verification, PENORA key authority enforcement,
 // persistent account/session state across islands & routes, and key rotation.
 // ============================================================================
 

@@ -41,13 +41,13 @@ describe('PENORA Publishing & Drafts Execution Suite', () => {
 
     // 3. Edit draft
     loadedDraft.title = 'Updated Curation Protocols V2';
-    loadedDraft.content += ' Additional analysis on Steemit key hierarchies.';
+    loadedDraft.content += ' Additional analysis on PENORA key hierarchies.';
     mockStorage[draftKey] = JSON.stringify(loadedDraft);
 
     // 4. Verify edited state persists
     const reloaded = JSON.parse(mockStorage[draftKey]);
     expect(reloaded.title).toBe('Updated Curation Protocols V2');
-    expect(reloaded.content).toContain('Steemit key hierarchies');
+    expect(reloaded.content).toContain('PENORA key hierarchies');
 
     // 5. Clear on successful publish
     delete mockStorage[draftKey];

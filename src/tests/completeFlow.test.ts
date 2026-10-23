@@ -56,7 +56,7 @@ describe('PENORA Complete User Lifecycle Integration Test', () => {
     expect(verifyRes.proof?.username).toBe(username);
 
     // ------------------------------------------------------------------------
-    // Step 3: Key Generation (Steemit 4-key hierarchy)
+    // Step 3: Key Generation (PENORA 4-key hierarchy)
     // ------------------------------------------------------------------------
     const keySuite1 = penoraKeyAuth.generateKeys();
     expect(keySuite1.owner.publicKeyPen).toMatch(/^PEN/);

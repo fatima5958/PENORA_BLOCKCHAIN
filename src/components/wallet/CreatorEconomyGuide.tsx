@@ -1,5 +1,5 @@
 // src/components/wallet/CreatorEconomyGuide.tsx
-// Educational Guide explaining PENORA's Steemit-Style Creator Economy
+// Educational Guide explaining PENORA's Creator Economy
 // Accessible to beginners while maintaining financial rigor and testnet transparency.
 
 import React, { useState } from 'react';
@@ -154,7 +154,7 @@ export function CreatorEconomyGuide() {
               Creator Economy Guide
             </h2>
             <p className="text-xs text-[var(--wallet-muted)]">
-              Understand how PENORA&apos;s Steemit-style rewards, staking, and P2P trading function.
+              Understand how PENORA&apos;s creator rewards, staking, and P2P trading function.
             </p>
           </div>
         </div>

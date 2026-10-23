@@ -20,7 +20,7 @@ builder._compile(
 );
 const { articleContentId, buildArticleRewardProofs } = builder.exports;
 
-describe('PenoraArticleRewardsV2 — Advanced Steemit Payouts & Power Up Suite', function () {
+describe('PenoraArticleRewardsV2 — Advanced PENORA Payouts & Power Up Suite', function () {
   let token, escrow, rewardsV2, owner, author, collaborator, curator, other;
   let articleId, publishedAt;
   const ONE_WEEK = 7 * 24 * 60 * 60;

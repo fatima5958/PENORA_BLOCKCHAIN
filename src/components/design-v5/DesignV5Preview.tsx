@@ -664,7 +664,7 @@ export const DesignV5Preview: React.FC = () => {
         </div>
       )}
 
-      {/* ─── THREE-COLUMN STEEMIT-INSPIRED EDITORIAL LAYOUT ────────────────── */}
+      {/* ─── THREE-COLUMN PENORA EDITORIAL LAYOUT ────────────────── */}
       <div className="max-w-[1280px] w-full mx-auto px-4 sm:px-6 py-6 sm:py-8 flex-1 grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
         {/* ─── LEFT COLUMN: Clean Unboxed Navigation (2 cols on lg) ──────── */}
         <aside className="hidden lg:block lg:col-span-2 sticky top-24">
@@ -867,7 +867,7 @@ export const DesignV5Preview: React.FC = () => {
                           </span>
                         )}
 
-                        {/* Steemit-inspired Reputation Score Pill */}
+                        {/* PENORA Reputation Score Pill */}
                         <span
                           title="Creator Reputation Score"
                           className="px-1.5 py-0.5 rounded bg-[#EFECE6] text-[#5F554F] font-mono text-[10.5px] font-semibold"

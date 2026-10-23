@@ -1,14 +1,14 @@
 // src/lib/crypto/penoraKeys.ts
 // ============================================================================
-// PENORA BLOCKCHAIN — STEEMIT-STYLE CRYPTOGRAPHIC KEY ENGINE
+// PENORA BLOCKCHAIN — CRYPTOGRAPHIC KEY ENGINE
 // Implements Ed25519 keypair generation, Base58Check formatting,
-// Steemit-style key authorities (Owner, Active, Posting, Memo),
+// PENORA key authorities (Owner, Active, Posting, Memo),
 // and detached challenge signing / verification via TweetNaCl.
 // ============================================================================
 
 import nacl from 'tweetnacl';
 
-// Bitcoin / Steem standard Base58 alphabet (excludes 0, O, I, l to prevent misreading)
+// Standard Base58 alphabet (excludes 0, O, I, l to prevent misreading)
 const ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
 const ALPHABET_MAP: Record<string, number> = {};
 for (let i = 0; i < ALPHABET.length; i++) {
@@ -208,7 +208,7 @@ export function decodeBase58Check(str: string): Uint8Array {
 }
 
 // ----------------------------------------------------------------------------
-// Steemit-Style Key Types & Formatting
+// PENORA Key Types & Formatting
 // ----------------------------------------------------------------------------
 
 export type KeyRole = 'owner' | 'active' | 'posting' | 'memo';
@@ -235,7 +235,7 @@ export interface PublicAuthorities {
 }
 
 /**
- * Format a 32-byte raw public key into the approved Steemit-style "PEN..." representation.
+ * Format a 32-byte raw public key into the approved PENORA "PEN..." representation.
  */
 export function formatPublicKey(rawPublicKey: Uint8Array): string {
   if (rawPublicKey.length !== 32) throw new Error('Public key must be 32 bytes');
@@ -255,7 +255,7 @@ export function parsePublicKey(penPublicKey: string): Uint8Array {
 }
 
 /**
- * Format a 32-byte raw private key seed into Steemit WIF format (starts with '5').
+ * Format a 32-byte raw private key seed into WIF format (starts with '5').
  */
 export function formatPrivateKeyWif(rawSeed: Uint8Array): string {
   if (rawSeed.length !== 32) throw new Error('Private seed must be 32 bytes');
@@ -267,7 +267,7 @@ export function formatPrivateKeyWif(rawSeed: Uint8Array): string {
 }
 
 /**
- * Parse a Steemit WIF private key string (starts with '5') back to a 32-byte seed.
+ * Parse a WIF private key string (starts with '5') back to a 32-byte seed.
  */
 export function parsePrivateKeyWif(wif: string): Uint8Array {
   const payload = decodeBase58Check(wif);
@@ -298,7 +298,7 @@ export function generateKeyPair(role: KeyRole): KeyPair {
 }
 
 /**
- * Generate the complete Steemit-style four-key authority suite.
+ * Generate the complete PENORA four-key authority suite.
  */
 export function generateAccountKeySuite(): AccountKeySuite {
   return {

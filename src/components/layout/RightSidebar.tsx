@@ -57,7 +57,7 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
 
   return (
     <aside className="w-full space-y-6">
-      {/* Widget 1: Welcome Guide (Matching Screenshot 1 & 3 "New to Steemit? Welcome Guide") */}
+      {/* Widget 1: Welcome Guide (Curator & Onboarding Guide) */}
       <div className="rounded-2xl bg-white/85 backdrop-blur-md border border-white/90 p-5 shadow-spatial-sm">
         <div className="flex items-center gap-2 mb-2">
           <Sparkles className="h-4 w-4 text-penora-coral" />

@@ -1,5 +1,5 @@
 // src/tests/advancedCreatorEarnings.test.ts
-// Phase 14: Advanced Steemit-Style Creator Earnings Suite
+// Phase 14: Advanced PENORA Creator Earnings Suite
 // Tests: Post Payout Preferences (Liquid, Power Up, Declined), Beneficiary Splitting, and Comment Rewards Gate
 
 import { describe, it, expect } from 'vitest';

@@ -55,7 +55,7 @@ export const SocialFeedView: React.FC<SocialFeedViewProps> = ({
       {/* 3-Column Desktop Layout (Left Sidebar, Center Social Feed, Right Sidebar) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         
-        {/* LEFT COLUMN: Navigation & Subscriptions (Steemit-style) */}
+        {/* LEFT COLUMN: Navigation & Subscriptions (Editorial curation) */}
         <div className="hidden lg:block lg:col-span-3 sticky top-20">
           <LeftSidebar
             currentTab={activeTab}
@@ -70,7 +70,7 @@ export const SocialFeedView: React.FC<SocialFeedViewProps> = ({
         {/* CENTER COLUMN: Real Social Publishing Feed */}
         <main className="lg:col-span-6 space-y-4">
           
-          {/* Feed Header Bar (Matching Steemit "All posts | Trending dropdown") */}
+          {/* Feed Header Bar */}
           <div className="rounded-2xl bg-white/85 backdrop-blur-md border border-white/90 p-4 shadow-spatial-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="flex items-center gap-2">
               <h1 className="font-serif text-lg font-bold text-penora-cocoa">
@@ -93,7 +93,7 @@ export const SocialFeedView: React.FC<SocialFeedViewProps> = ({
               )}
             </div>
 
-            {/* Sort Controls (Matching Steemit "Trending / New / Hot" dropdown) */}
+            {/* Sort Controls (Trending / New / Hot dropdown) */}
             <div className="flex items-center gap-1.5 p-1 rounded-xl bg-penora-cocoa/5 text-xs font-semibold">
               <button
                 type="button"
@@ -134,7 +134,7 @@ export const SocialFeedView: React.FC<SocialFeedViewProps> = ({
             </div>
           </div>
 
-          {/* Steemit-style preview disclaimer banner */}
+          {/* Curated feed preview disclaimer banner */}
           <div className="p-3 px-4 rounded-xl bg-penora-peach-light/40 border border-penora-peach/30 flex items-center justify-between text-xs text-penora-cocoa">
             <div className="flex items-center gap-2">
               <Info className="h-4 w-4 text-penora-coral flex-shrink-0" />

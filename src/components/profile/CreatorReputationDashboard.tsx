@@ -265,7 +265,7 @@ export const CreatorReputationDashboard: React.FC<CreatorReputationDashboardProp
       <div className="p-5 sm:p-6 rounded-2xl bg-[#F8FBFD] border border-[#0A2540]/8 space-y-3 text-xs text-[#52657C]">
         <div className="flex items-center gap-2 font-bold text-[#0A2540]">
           <Info className="h-4 w-4 text-[#007C8B]" />
-          <span>Steemit/Hive-Inspired Transparent Scoring Protocol</span>
+          <span>PENORA Transparent Scoring Protocol</span>
         </div>
         <p className="leading-relaxed">
           Reputation starts at base score 25. High quality, verified original publications earn +3 points, curation upvotes earn +1 point per 2 votes, and discussion comments earn +1 point. Reaching <strong>Reputation 65</strong> permanently unlocks decentralized guild creation rights. Unwanted spam and verified policy reports apply anti-spam penalties.

@@ -136,7 +136,7 @@ export function RewardEconomicsPanel({
         <div className="flex items-center justify-between">
           <h4 className="font-serif text-sm font-bold text-[var(--wallet-text)] flex items-center gap-2">
             <PieChart className="h-4 w-4 text-[#007C8B]" />
-            <span>Steemit-Style Reward Allocation Ratio</span>
+            <span>PENORA Reward Allocation Ratio</span>
           </h4>
           <span className="text-[11px] font-mono text-[var(--wallet-muted)]">
             Enforced by `PenoraArticleRewards.sol`
@@ -216,7 +216,7 @@ export function RewardEconomicsPanel({
           <div>
             <h4 className="font-serif text-sm font-bold text-[var(--wallet-text)] flex items-center gap-2">
               <Activity className="h-4 w-4 text-[#007C8B]" />
-              <span>Dynamic Pool Dilution Modeling (Steemit-Style)</span>
+              <span>Dynamic Pool Dilution Modeling (PENORA Protocol)</span>
             </h4>
             <p className="text-xs text-[var(--wallet-muted)]">
               Simulated projections based on a fixed 6M PNR/year emission rate divided among active creators.

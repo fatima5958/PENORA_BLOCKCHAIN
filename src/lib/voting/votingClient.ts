@@ -1,5 +1,5 @@
 // src/lib/voting/votingClient.ts
-// Steemit-style Weighted Voting & Influence Client for PENORA
+// Weighted Voting & Influence Client for PENORA
 // Interacts with PenoraVotingInfluence, PenoraPowerEscrow, and PenoraPowerDelegation on Polygon Amoy (80002)
 
 import { parseAbi, encodeFunctionData, keccak256, toHex, type Hex } from 'viem';

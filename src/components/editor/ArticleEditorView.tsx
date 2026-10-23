@@ -820,12 +820,12 @@ export const ArticleEditorView: React.FC = () => {
               </div>
             </div>
 
-            {/* Steemit-Style Post Payout Preferences & Beneficiaries */}
+            {/* PENORA Post Payout Preferences & Beneficiaries */}
             <div className="p-4 rounded-2xl bg-[#F8FAFC] border border-[#0A2540]/8 space-y-4">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold uppercase tracking-wider text-[#0A2540] flex items-center gap-1.5">
                   <Coins className="h-4 w-4 text-[#007C8B]" />
-                  <span>Steemit Payout Preferences (7-Day Reward Settlement)</span>
+                  <span>PENORA Payout Preferences (7-Day Reward Settlement)</span>
                 </span>
                 <span className="text-[11px] text-[#007C8B] font-medium">70% Author / 20% Curator</span>
               </div>

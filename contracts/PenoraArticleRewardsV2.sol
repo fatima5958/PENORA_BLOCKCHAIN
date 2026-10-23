@@ -11,7 +11,7 @@ import "./PenoraPowerEscrow.sol";
 
 /**
  * @title PenoraArticleRewardsV2
- * @notice Steemit-Style Creator Rewards V2 with 100% Power Up Payout Support.
+ * @notice PENORA Creator Rewards V2 with 100% Power Up Payout Support.
  * @dev Supports both Liquid PNR claims and Direct 1:1 PENORA Power Staking (powerUpFor).
  *      Enforces seven-day maturity, Merkle tree root domain isolation, and anti-replay protection.
  */

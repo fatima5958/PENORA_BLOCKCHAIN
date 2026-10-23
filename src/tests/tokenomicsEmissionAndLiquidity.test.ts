@@ -53,7 +53,7 @@ describe('PENORA Tokenomics & Emission Sustainability Suite', () => {
     expect(audit.remainingScheduledBudgetPnr).toBe(20_000);
   });
 
-  it('calculates creator growth scenarios with Steemit dynamic dilution (fixed pool, dilution per post)', () => {
+  it('calculates creator growth scenarios with PENORA dynamic dilution (fixed pool, dilution per post)', () => {
     const scenarios = projectCreatorGrowthScenarios(6_000_000); // 6M PNR / year -> 5 years runway
     expect(scenarios).toHaveLength(4);
 

@@ -1,6 +1,6 @@
 // src/tests/keyAuth.test.ts
 // ============================================================================
-// PENORA BLOCKCHAIN — STEEMIT-STYLE KEY AUTHENTICATION TEST SUITE
+// PENORA BLOCKCHAIN — KEY AUTHENTICATION TEST SUITE
 // Verifies all 13 core security requirements:
 // 1. Valid Posting Key login
 // 2. Valid Active Key login
@@ -33,7 +33,7 @@ import {
 import { penoraKeyAuth } from '../lib/auth/penoraKeyAuth';
 import nacl from 'tweetnacl';
 
-describe('PENORA Steemit-Style Key Authentication Suite', () => {
+describe('PENORA Key Authentication Suite', () => {
   let broker: PenoraAuthBroker;
   const userAKeys = generateAccountKeySuite();
   const userBKeys = generateAccountKeySuite();

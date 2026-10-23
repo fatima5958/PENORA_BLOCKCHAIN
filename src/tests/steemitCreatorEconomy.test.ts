@@ -1,5 +1,5 @@
 // src/tests/steemitCreatorEconomy.test.ts
-// Comprehensive verification suite for PENORA's Steemit-Style Creator Economy
+// Comprehensive verification suite for PENORA Creator Economy
 // Covers: 7-day maturation, 70/20/10 split, anti-self-voting, bot burst prevention, Merkle proofs, and vault solvency.
 
 import { describe, it, expect } from 'vitest';
@@ -21,7 +21,7 @@ import {
   projectCreatorGrowthScenarios,
 } from '../lib/tokenomics/emissionPolicy';
 
-describe('PENORA Steemit-Style Creator Economy Architecture', () => {
+describe('PENORA Creator Economy Architecture', () => {
   const authorAddr = '0x1111111111111111111111111111111111111111';
   const curatorAddr1 = '0x2222222222222222222222222222222222222222';
   const curatorAddr2 = '0x3333333333333333333333333333333333333333';
@@ -52,9 +52,9 @@ describe('PENORA Steemit-Style Creator Economy Architecture', () => {
     });
   });
 
-  // ─── 2. Steemit 70/20/10 Reward Split ──────────────────────────────────────
+  // ─── 2. PENORA 70/20/10 Reward Split ──────────────────────────────────────
   describe('2. Reward Split Precision (70% Author / 20% Curator / 10% Reserve)', () => {
-    it('accurately divides a 1,000 PNR article budget according to Steemit tokenomics', () => {
+    it('accurately divides a 1,000 PNR article budget according to PENORA tokenomics', () => {
       const budgetWei = parseUnits('1000', 18);
       const article: RewardArticle = {
         id: 'article-001',

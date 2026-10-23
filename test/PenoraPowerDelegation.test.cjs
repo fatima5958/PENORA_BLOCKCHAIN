@@ -3,7 +3,7 @@ const { expect } = require("chai");
 const { ethers } = require("hardhat");
 const { time } = require("@nomicfoundation/hardhat-network-helpers");
 
-describe("PenoraPowerDelegation — Steemit-Style Power Delegation Suite", function () {
+describe("PenoraPowerDelegation — PENORA Power Delegation Suite", function () {
   let token, escrow, delegation, votingV2;
   let owner, userA, userB, userC, userD;
 

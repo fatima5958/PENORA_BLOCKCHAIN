@@ -115,7 +115,7 @@ export const SpatialFeedV4: React.FC = () => {
     if (new URLSearchParams(window.location.search).get('view') === 'bookmarks') setActiveNav('Bookmarks');
   }, []);
 
-  // Subscribe to both Steemit Key Auth and Supabase Auth
+  // Subscribe to both PENORA Key Auth and Supabase Auth
   useEffect(() => {
     const unsubKey = penoraKeyAuth.subscribe(ku => {
       setKeyUser(ku);
@@ -353,7 +353,7 @@ export const SpatialFeedV4: React.FC = () => {
     <div className="pn-mobile-feed w-full max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-6">
       {actionError && <p role="alert" className="text-sm text-red-700 p-3 rounded-xl bg-red-50">{actionError}</p>}
       {voteError && <p role="alert" className="text-sm text-red-700 p-3 rounded-xl bg-red-50">{voteError}</p>}
-      {/* Main 3-Column Steemit-Inspired Publishing Grid */}
+      {/* Main 3-Column PENORA Publishing Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* ─── LEFT COLUMN: Navigation & Trending Topics (3 cols) ────────── */}
         <aside className="hidden lg:block lg:col-span-3 space-y-4 sticky top-24">
