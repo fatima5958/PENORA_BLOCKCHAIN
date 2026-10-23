@@ -1,15 +1,24 @@
 ---
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import { PublicCreatorProfile } from '../../components/profile/PublicCreatorProfile';
+import { supabase } from '../../lib/supabaseClient';
 
-export function getStaticPaths() {
-  return [
-    { params: { handle: 'fatima_test' } },
-    { params: { handle: 'fatima' } },
-    { params: { handle: 'creator' } },
-    { params: { handle: 'mateen' } },
-    { params: { handle: 'penora' } },
-  ];
+export async function getStaticPaths() {
+  const fallbackHandles = ['fatima_test', 'fatima', 'creator', 'mateen', 'penora', 'bhojokhan'];
+  try {
+    const { data } = await supabase.from('profiles').select('username').limit(300);
+    const set = new Set(fallbackHandles);
+    if (data) {
+      data.forEach((p) => {
+        if (p.username && p.username.trim() && p.username !== 'me') {
+          set.add(p.username.trim());
+        }
+      });
+    }
+    return Array.from(set).map((handle) => ({ params: { handle } }));
+  } catch {
+    return fallbackHandles.map((handle) => ({ params: { handle } }));
+  }
 }
 ---
 <BaseLayout title="Creator Profile — PENORA">

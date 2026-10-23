@@ -37,10 +37,17 @@ export function getReadNotificationIds(userId: string): Set<string> {
   }
 }
 
+export function dispatchNotificationUpdate(): void {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('penora:notifications-updated'));
+  }
+}
+
 export function saveReadNotificationIds(userId: string, readIds: Set<string>): void {
   if (typeof window === 'undefined' || !window.localStorage || !userId) return;
   try {
     localStorage.setItem(`${READ_NOTIFICATIONS_PREFIX}${userId}`, JSON.stringify(Array.from(readIds)));
+    dispatchNotificationUpdate();
   } catch {
     // Ignore storage errors
   }
@@ -138,19 +145,53 @@ export async function fetchUserNotifications(
           });
         }
       }
+
+      // 3b. Merge comments from local storage ledger if any
+      if (typeof window !== 'undefined' && window.localStorage) {
+        try {
+          const rawComments = localStorage.getItem('penora_comments_ledger_v1');
+          if (rawComments) {
+            const localComments: Array<{ id: string; author_id: string; post_id: string; body: string; created_at: string }> = JSON.parse(rawComments);
+            for (const lc of localComments) {
+              if (lc.author_id !== userId && postMap.has(lc.post_id)) {
+                const notifId = `comment_${lc.id}`;
+                if (!notifications.some(n => n.id === notifId)) {
+                  actorIds.add(lc.author_id);
+                  const post = postMap.get(lc.post_id);
+                  notifications.push({
+                    id: notifId,
+                    type: 'comment',
+                    actor: { id: lc.author_id, username: '', displayName: '' },
+                    target: {
+                      postId: lc.post_id,
+                      title: post?.title || 'your blog',
+                      slug: post?.slug || '',
+                      commentId: lc.id,
+                      commentBody: lc.body,
+                    },
+                    createdAt: lc.created_at || new Date().toISOString(),
+                    read: readIds.has(notifId),
+                    link: post?.slug ? `/read?slug=${encodeURIComponent(post.slug)}#comments` : '/',
+                  });
+                }
+              }
+            }
+          }
+        } catch {}
+      }
     }
 
-    // 4. Fetch follows targeting this user
+    // 4. Fetch follows targeting this user (Supabase follows table PK is follower_id, followee_id)
     const { data: follows } = await supabase
       .from('follows')
-      .select('id, follower_id, created_at')
+      .select('follower_id, created_at')
       .eq('followee_id', userId);
 
     if (follows) {
       for (const f of follows) {
         if (f.follower_id === userId) continue;
         actorIds.add(f.follower_id);
-        const notifId = `follow_${f.id || f.follower_id}`;
+        const notifId = `follow_${f.follower_id}`;
         notifications.push({
           id: notifId,
           type: 'follow',
@@ -164,6 +205,32 @@ export async function fetchUserNotifications(
           link: `/profile/${f.follower_id}`,
         });
       }
+    }
+
+    // 4b. Merge follows from local storage ledger if any
+    if (typeof window !== 'undefined' && window.localStorage) {
+      try {
+        const rawFollows = localStorage.getItem('penora_follows_ledger_v1');
+        if (rawFollows) {
+          const followsMap: Record<string, string[]> = JSON.parse(rawFollows);
+          for (const [followerId, followeeList] of Object.entries(followsMap)) {
+            if (followerId !== userId && Array.isArray(followeeList) && followeeList.includes(userId)) {
+              const notifId = `follow_${followerId}`;
+              if (!notifications.some(n => n.id === notifId)) {
+                actorIds.add(followerId);
+                notifications.push({
+                  id: notifId,
+                  type: 'follow',
+                  actor: { id: followerId, username: '', displayName: '' },
+                  createdAt: new Date().toISOString(),
+                  read: readIds.has(notifId),
+                  link: `/profile/${followerId}`,
+                });
+              }
+            }
+          }
+        }
+      } catch {}
     }
 
     // 5. Fetch mentions in comments if username is available

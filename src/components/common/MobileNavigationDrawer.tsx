@@ -574,7 +574,7 @@ export const MobileNavigationDrawer: React.FC<MobileNavigationDrawerProps> = ({
                   <span className="truncate">Notifications</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="h-2 w-2 rounded-full bg-[#EF4444]" />
+                  <span className="h-2 w-2 rounded-full bg-[#00E5F4] ring-2 ring-white/50 shadow-[0_0_8px_#00E5F4]" />
                   <ChevronRight className="h-4 w-4 opacity-40 shrink-0" />
                 </div>
               </a>

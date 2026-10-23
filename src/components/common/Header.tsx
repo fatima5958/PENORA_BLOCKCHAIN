@@ -13,9 +13,6 @@ import {
   User,
   Menu,
   X,
-  Compass,
-  Users,
-  Home,
   CheckCircle2,
   ArrowRight,
   ArrowLeft,
@@ -37,6 +34,7 @@ import { PenoraLogo } from '../brand/PenoraLogo';
 import { PenoraWriteIcon } from '../brand/PenoraWriteIcon';
 import { MobileNavigationDrawer } from './MobileNavigationDrawer';
 import { penoraKeyAuth, type PenoraUser } from '../../lib/auth/penoraKeyAuth';
+import { fetchUserNotifications } from '../../lib/api/notifications';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 
 interface HeaderProps {
@@ -66,6 +64,51 @@ export const Header: React.FC<HeaderProps> = ({ currentPath = '/' }) => {
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
+
+  // Live unread notifications watcher
+  useEffect(() => {
+    let mounted = true;
+    const uid = keyUser?.id || user?.id;
+    if (!uid) {
+      setUnreadNotifications(0);
+      return;
+    }
+
+    const checkNotifications = async () => {
+      try {
+        const username = keyUser?.username || (user?.user_metadata?.username as string) || user?.email?.split('@')[0];
+        const res = await fetchUserNotifications(uid, username);
+        if (mounted && res.data) {
+          const unread = res.data.filter((n) => !n.read).length;
+          setUnreadNotifications(unread);
+        }
+      } catch {
+        // preserve previous state
+      }
+    };
+
+    checkNotifications();
+
+    const handler = () => {
+      checkNotifications();
+    };
+
+    window.addEventListener('penora:notifications-updated', handler);
+    window.addEventListener('penora:vote-cast', handler);
+    window.addEventListener('penora:comment-added', handler);
+    window.addEventListener('penora:follow-changed', handler);
+    const interval = window.setInterval(checkNotifications, 15000);
+
+    return () => {
+      mounted = false;
+      window.removeEventListener('penora:notifications-updated', handler);
+      window.removeEventListener('penora:vote-cast', handler);
+      window.removeEventListener('penora:comment-added', handler);
+      window.removeEventListener('penora:follow-changed', handler);
+      window.clearInterval(interval);
+    };
+  }, [keyUser?.id, user?.id]);
 
   // Search states
   const [searchQuery, setSearchQuery] = useState('');
@@ -437,44 +480,20 @@ export const Header: React.FC<HeaderProps> = ({ currentPath = '/' }) => {
             )}
           </div>
 
-          {/* Right: Article Studio shortcut & Auth Controls */}
+          {/* Right: Article Studio shortcut, Divider & Auth Controls (Simple Header) */}
           <div className="flex items-center gap-2 sm:gap-2.5">
             {/* Article Studio pen shortcut */}
             <a
               href="/editor"
               aria-label="Open Article Studio"
               title="Create a blog"
-              className="pn-focus inline-flex h-8 w-8 sm:h-11 sm:w-11 shrink-0 items-center justify-center rounded-xl border border-[#007C8B]/20 bg-[#F4F7FA] shadow-sm transition-colors hover:bg-[#00E5F4]/10 hover:border-[#007C8B]/50"
+              className="pn-focus inline-flex h-8 w-8 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-xl border border-[#007C8B]/20 bg-[#F4F7FA] shadow-xs transition-colors hover:bg-[#00E5F4]/10 hover:border-[#007C8B]/50"
             >
-              <PenoraWriteIcon className="h-6 w-6 sm:h-9 sm:w-9" />
+              <PenoraWriteIcon className="h-6 w-6 sm:h-8 sm:w-8" />
             </a>
 
-            {/* Desktop Navigation Links */}
-            <nav className="hidden lg:flex items-center gap-1 xl:gap-2">
-              <a
-                href="/"
-                className={`pn-nav-link ${
-                  currentPath === '/' || currentPath === '/feed' ? 'pn-nav-link-active' : ''
-                }`}
-              >
-                <Home className="h-4 w-4" />
-                <span>Home</span>
-              </a>
-              <a
-                href="/explore"
-                className={`pn-nav-link ${currentPath.startsWith('/explore') ? 'pn-nav-link-active' : ''}`}
-              >
-                <Compass className="h-4 w-4" />
-                <span>Explore</span>
-              </a>
-              <a
-                href="/communities"
-                className={`pn-nav-link ${currentPath.startsWith('/communities') ? 'pn-nav-link-active' : ''}`}
-              >
-                <Users className="h-4 w-4" />
-                <span>Communities</span>
-              </a>
-            </nav>
+            {/* Subtle Divider */}
+            <div className="h-5 w-px bg-[#0A2540]/10 hidden sm:block" />
 
             {/* Auth / Profile Area */}
             {authLoading ? (
@@ -491,14 +510,25 @@ export const Header: React.FC<HeaderProps> = ({ currentPath = '/' }) => {
                   <Search className="h-4 w-4" />
                 </button>
 
-                {/* Notifications Link */}
+                {/* Notifications Link with Active Dynamic Indicator */}
                 <a
                   href="/notifications"
-                  className="pn-icon-btn relative h-8 w-8 sm:h-9 sm:w-9 text-[#0A2540]"
-                  aria-label="Notifications"
+                  className="pn-icon-btn relative h-8 w-8 sm:h-9 sm:w-9 text-[#0A2540] hover:text-[#007C8B] transition-colors"
+                  aria-label={
+                    unreadNotifications > 0
+                      ? `${unreadNotifications} unread notifications`
+                      : 'Notifications'
+                  }
+                  title={
+                    unreadNotifications > 0
+                      ? `${unreadNotifications} unread notifications`
+                      : 'Notifications'
+                  }
                 >
                   <Bell className="h-4 w-4" />
-                  <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-[#EF4444]" />
+                  {unreadNotifications > 0 && (
+                    <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-[#00E5F4] ring-2 ring-white shadow-[0_0_8px_#00E5F4]" />
+                  )}
                 </a>
 
                 {/* Profile Dropdown */}

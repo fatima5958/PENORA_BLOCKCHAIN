@@ -8,6 +8,35 @@ import { Compass, Home, Search, ArrowRight } from 'lucide-react';
   title="Page Not Found — PENORA"
   description="The requested page could not be found on PENORA."
 >
+  <script is:inline>
+    // Immediate zero-latency routing for dynamic creator handles and articles
+    (function () {
+      try {
+        var segments = window.location.pathname.split('/').filter(Boolean);
+        if (segments.length > 0) {
+          // 1. /profile/:handle -> route to live creator view immediately
+          if (segments[0] === 'profile' && segments[1] && segments[1] !== 'me') {
+            var handle = encodeURIComponent(segments[1].replace(/^@/, ''));
+            window.location.replace('/creator?handle=' + handle);
+            return;
+          }
+          // 2. /@handle -> route to live creator view immediately
+          if (segments[0].indexOf('@') === 0 && segments[0].length > 1) {
+            var handle = encodeURIComponent(segments[0].slice(1));
+            window.location.replace('/creator?handle=' + handle);
+            return;
+          }
+          // 3. /story/:slug -> route to live article reader
+          if (segments[0] === 'story' && segments[1]) {
+            var slug = encodeURIComponent(segments[1]);
+            window.location.replace('/read?slug=' + slug);
+            return;
+          }
+        }
+      } catch (e) {}
+    })();
+  </script>
+
   <div class="max-w-2xl mx-auto px-4 sm:px-6 py-16 sm:py-24 text-center">
     <div className="w-16 h-16 mx-auto mb-6 flex items-center justify-center rounded-2xl bg-[#00E5F4]/15 border border-[#007C8B]/20 text-[#007C8B]">
       <PenoraLogo variant="app-icon" size="sm" />
@@ -53,7 +82,7 @@ import { Compass, Home, Search, ArrowRight } from 'lucide-react';
     if (typeof window !== 'undefined') {
       const path = window.location.pathname.split('/').filter(Boolean);
       if (path[0] === 'profile' && path[1] && path[1] !== 'me') {
-        const handle = encodeURIComponent(path[1]);
+        const handle = encodeURIComponent(path[1].replace(/^@/, ''));
         const notice = document.getElementById('dynamic-creator-notice');
         const link = document.getElementById('dynamic-creator-link') as HTMLAnchorElement | null;
         const text = document.getElementById('dynamic-creator-text');
