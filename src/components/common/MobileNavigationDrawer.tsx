@@ -8,6 +8,7 @@
 // - Proper touch targets (46px+), consistent padding, and zero horizontal overflow
 
 import React, { useState, useEffect, useRef } from 'react';
+import '../../styles/mobile-sidebar.css';
 import {
   Home,
   Compass,
@@ -78,12 +79,25 @@ export const MobileNavigationDrawer: React.FC<MobileNavigationDrawerProps> = ({
   });
 
   const drawerRef = useRef<HTMLDivElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const [isPresent, setIsPresent] = useState(isOpen);
+
+  // Retain the panel through its exit; keep focus and scroll locked until it finishes.
+  useEffect(() => {
+    if (isOpen) {
+      setIsPresent(true);
+      return;
+    }
+    const duration = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 220;
+    const timer = window.setTimeout(() => setIsPresent(false), duration);
+    return () => window.clearTimeout(timer);
+  }, [isOpen]);
 
   // Stack-safe background scroll lock, Escape key dismissal, and focus trapping
-  useOverlayLock(isOpen, {
+  useOverlayLock(isOpen || isPresent, {
     containerRef: drawerRef,
-    initialFocusRef: searchInputRef,
+    initialFocusRef: closeButtonRef,
     onEscape: onClose,
   });
 
@@ -174,11 +188,11 @@ export const MobileNavigationDrawer: React.FC<MobileNavigationDrawerProps> = ({
 
   const isLight = theme === 'light';
 
-  if (!isOpen) return null;
+  if (!isOpen && !isPresent) return null;
 
   // Base styling: 16px mobile typography, 46px touch target, snug fit
   const getItemClassName = (isActive: boolean) =>
-    `w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-[16px] font-medium transition-all min-h-[46px] select-none ${
+    `pn-sidebar-link ${isActive ? 'pn-sidebar-link-active' : ''} w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-[16px] font-medium min-h-[46px] select-none ${
       isActive
         ? isLight
           ? 'bg-[#007C8B]/10 text-[#007C8B] font-semibold border-l-[3px] border-[#007C8B]'
@@ -193,11 +207,13 @@ export const MobileNavigationDrawer: React.FC<MobileNavigationDrawerProps> = ({
       role="dialog"
       aria-modal="true"
       aria-label="Navigation Menu"
-      className="fixed inset-0 z-50 lg:hidden flex overflow-hidden"
+      data-state={isOpen ? 'open' : 'closing'}
+      data-theme={theme}
+      className="pn-sidebar fixed inset-0 z-50 lg:hidden flex overflow-hidden"
     >
       {/* ─── 1. Subtle Dark Backdrop (Closes on Tap) ─── */}
       <div
-        className="fixed inset-0 bg-black/55 backdrop-blur-[2px] transition-opacity duration-300"
+        className="pn-sidebar-backdrop fixed inset-0 bg-black/55 backdrop-blur-[2px]"
         onClick={onClose}
         aria-hidden="true"
       />
@@ -206,7 +222,7 @@ export const MobileNavigationDrawer: React.FC<MobileNavigationDrawerProps> = ({
       <div
         ref={drawerRef}
         tabIndex={-1}
-        className={`relative z-10 w-[75vw] max-w-[280px] h-full shadow-2xl flex flex-col justify-between overflow-x-hidden overflow-y-auto overscroll-contain touch-pan-y transform transition-all duration-300 ease-out pb-[max(1.25rem,env(safe-area-inset-bottom,0px))] pt-[max(0.875rem,env(safe-area-inset-top,0px))] px-3 ${
+        className={`pn-sidebar-panel relative z-10 w-[75vw] max-w-[280px] h-full shadow-2xl flex flex-col justify-between overflow-x-hidden overflow-y-auto overscroll-contain touch-pan-y pb-[max(1.25rem,env(safe-area-inset-bottom,0px))] pt-[max(0.875rem,env(safe-area-inset-top,0px))] px-3 ${
           isLight
             ? 'bg-gradient-to-b from-[#FFFFFF] via-[#F8FBFD] to-[#F1F6FA] text-[#0A2540] border-r border-[#0A2540]/10'
             : 'bg-gradient-to-b from-[#0A2540] via-[#06182C] to-[#04101E] text-white border-r border-[#00E5F4]/20 shadow-[0_0_40px_rgba(0,229,244,0.12)]'
@@ -214,7 +230,7 @@ export const MobileNavigationDrawer: React.FC<MobileNavigationDrawerProps> = ({
       >
         <div className="space-y-4">
           {/* Header: Brand Logo + Theme Switch + Close Button */}
-          <div className="flex items-center justify-between pt-0.5 pb-2.5 border-b border-[#0A2540]/8 dark:border-white/10">
+          <div className="pn-sidebar-header flex items-center justify-between pt-0.5 pb-2.5 border-b border-[#0A2540]/8 dark:border-white/10">
             <a href="/" onClick={onClose} className="flex items-center min-w-0" aria-label="PENORA Home">
               <PenoraLogo
                 variant="horizontal"
@@ -243,6 +259,7 @@ export const MobileNavigationDrawer: React.FC<MobileNavigationDrawerProps> = ({
 
               {/* Close Button */}
               <button
+                ref={closeButtonRef}
                 type="button"
                 onClick={onClose}
                 className={`p-2 rounded-full transition-colors ${
@@ -260,7 +277,7 @@ export const MobileNavigationDrawer: React.FC<MobileNavigationDrawerProps> = ({
           {/* Creator Profile Header Card */}
           {activeUser ? (
             <div
-              className={`p-3 rounded-2xl transition-all ${
+              className={`pn-sidebar-identity p-3 rounded-2xl ${
                 isLight
                   ? 'bg-white border border-[#0A2540]/8 shadow-xs'
                   : 'bg-white/5 border border-white/10 backdrop-blur-md shadow-inner'
@@ -291,11 +308,11 @@ export const MobileNavigationDrawer: React.FC<MobileNavigationDrawerProps> = ({
                 {/* Identity Info */}
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-1.5">
-                    <span className="font-bold text-[14px] truncate text-[#0A2540] dark:text-white">
+                    <span className="pn-sidebar-name font-bold text-[14px] truncate text-[#0A2540] dark:text-white">
                       {displayName}
                     </span>
                     <CheckCircle2 className="h-3.5 w-3.5 text-[#00E5F4] shrink-0" />
-                    <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-[#F59E0B]/15 text-[#D97706] border border-[#F59E0B]/30 shrink-0">
+                    <span className="pn-sidebar-creator-badge inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-[#F59E0B]/15 text-[#D97706] border border-[#F59E0B]/30 shrink-0">
                       <Crown className="h-2.5 w-2.5" />
                       Creator
                     </span>
@@ -346,7 +363,7 @@ export const MobileNavigationDrawer: React.FC<MobileNavigationDrawerProps> = ({
           ) : (
             /* Guest Card */
             <div
-              className={`p-3.5 rounded-2xl text-center space-y-2.5 ${
+              className={`pn-sidebar-identity p-3.5 rounded-2xl text-center space-y-2.5 ${
                 isLight
                   ? 'bg-white border border-[#0A2540]/8 shadow-xs'
                   : 'bg-white/5 border border-white/10 backdrop-blur-md'
@@ -402,6 +419,7 @@ export const MobileNavigationDrawer: React.FC<MobileNavigationDrawerProps> = ({
                 <input
                   ref={searchInputRef}
                   type="search"
+                  aria-label="Search creators and topics"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Search creators &amp; topics..."
@@ -461,7 +479,7 @@ export const MobileNavigationDrawer: React.FC<MobileNavigationDrawerProps> = ({
           </div>
 
           {/* Grouped Navigation Links */}
-          <div className="space-y-4 pt-1">
+          <div className="pn-sidebar-navigation space-y-4 pt-1">
             {/* Section A: Discover */}
             <div className="space-y-1">
               <div
@@ -692,7 +710,7 @@ export const MobileNavigationDrawer: React.FC<MobileNavigationDrawerProps> = ({
           <a
             href="/editor"
             onClick={onClose}
-            className={`block p-3 rounded-2xl transition-all group ${
+            className={`pn-sidebar-cta block p-3 rounded-2xl group ${
               isLight
                 ? 'bg-gradient-to-r from-[#FCEFF5] to-[#F0F7FB] border border-[#0A2540]/8 hover:border-[#007C8B]/30 shadow-xs'
                 : 'bg-gradient-to-r from-white/5 to-[#00E5F4]/10 border border-[#00E5F4]/20 hover:border-[#00E5F4]/40 shadow-sm'
@@ -700,7 +718,7 @@ export const MobileNavigationDrawer: React.FC<MobileNavigationDrawerProps> = ({
           >
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2.5 min-w-0">
-                <span className="text-xl shrink-0" aria-hidden="true">👑</span>
+                <span className="pn-sidebar-cta-icon shrink-0" aria-hidden="true"><PenLine className="h-4 w-4" /></span>
                 <div className="min-w-0">
                   <div className={`text-[13px] font-bold truncate ${isLight ? 'text-[#0A2540]' : 'text-white'}`}>
                     Grow as a Creator
