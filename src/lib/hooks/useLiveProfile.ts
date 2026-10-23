@@ -32,7 +32,7 @@ export function useLiveProfile(id?: string) {
       window.clearInterval(timer);
       window.removeEventListener('penora:profile-updated', onSaved);
       window.removeEventListener('focus', onVisible);
-      window.removeEventListener('storage', onSaved);
+      window.removeEventListener('storage', onStorage);
       document.removeEventListener('visibilitychange', onVisible);
     };
   }, [id]);

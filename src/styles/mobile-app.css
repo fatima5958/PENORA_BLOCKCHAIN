@@ -1,0 +1,18 @@
+/* Shared phone ergonomics. Desktop layout remains controlled by each screen. */
+@media (max-width: 767px) {
+  html { scroll-padding-top: 76px; scroll-padding-bottom: calc(90px + env(safe-area-inset-bottom, 0px)); }
+  body { -webkit-text-size-adjust: 100%; }
+  button, a, input, select, textarea { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+  button, a { scroll-margin-block: 84px; }
+  input, select, textarea { font-size: max(16px, 1em); }
+  .pn-mobile-dock a { min-height: 44px; min-width: 44px; }
+  .pn-mobile-dock a:focus-visible { outline: 2px solid #00e5f4; outline-offset: -2px; border-radius: 12px; }
+  .pn-header { padding-top: env(safe-area-inset-top, 0px); height: calc(60px + env(safe-area-inset-top, 0px)); }
+  .pn-header > div { min-height: 60px; }
+  .pn-header a[aria-label='Open Article Studio'] { display: none; }
+  /* A fixed dock must never sit on top of a modal's confirm/cancel controls. */
+  body:has([aria-modal='true']) .pn-mobile-dock { visibility: hidden; pointer-events: none; }
+  body:has(main [aria-modal='true']) .pn-header { z-index: 0; }
+  [role='dialog'][aria-label='Navigation Menu'] { z-index: 60; }
+  [role='dialog'][aria-label='Navigation Menu'] button { min-width: 44px; min-height: 44px; }
+}

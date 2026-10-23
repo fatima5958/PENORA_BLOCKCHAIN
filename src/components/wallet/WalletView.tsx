@@ -1,3 +1,6 @@
+import { WalletSection } from './WalletSection';
+import { CreatorRecipientPicker } from './CreatorRecipientPicker';
+import { resolveCreatorRecipient, type CreatorRecipient } from '../../lib/wallet/creatorRecipient';
 // src/components/wallet/WalletView.tsx
 // PENORA Blockchain — Option 4 Hybrid Wallet (Phase 3: Real USDT Deposits, Withdrawals & Transfers)
 import '../../styles/wallet.css';
@@ -83,6 +86,9 @@ export const WalletView: React.FC = () => {
 
   // Send / Withdraw State
   const [sendRecipient, setSendRecipient] = useState('');
+  const [creatorRecipient, setCreatorRecipient] = useState<CreatorRecipient | null>(null);
+  const [reviewingTransfer, setReviewingTransfer] = useState(false);
+  const [recipientPickerVersion, setRecipientPickerVersion] = useState(0);
   const [sendAmount, setSendAmount] = useState('');
   const [gasEstimate, setGasEstimate] = useState<UsdtGasEstimate | null>(null);
   const [estimatingGas, setEstimatingGas] = useState(false);
@@ -244,6 +250,7 @@ export const WalletView: React.FC = () => {
     setPendingPowerHash(null);
     setSendError(null);
     setSendRecipient('');
+    setCreatorRecipient(null);
     setSendAmount('');
   }, [walletState.address, walletState.chainId, asset]);
 
@@ -312,24 +319,29 @@ export const WalletView: React.FC = () => {
   };
 
   const handleReviewTransfer = async () => {
+    if (reviewingTransfer || sendLoading) return;
+    const context = actionContext.current;
     setSendError(null);
-    if (!sendRecipient || !isAddress(sendRecipient)) {
-      setSendError('Please enter a valid recipient EVM address.');
-      return;
-    }
+    setReviewingTransfer(true);
     try {
-      if (!tokenConfigured) throw new Error(`${asset} contract is not configured yet.`);
+      if (!sendRecipient || !isAddress(sendRecipient)) throw new Error('Choose a creator or enter a valid recipient EVM address.');
+      if (!walletState.address || !walletState.isCorrectNetwork) throw new Error('Connect your wallet on Polygon Amoy first.');
+      if (sendRecipient.toLowerCase() === walletState.address.toLowerCase()) throw new Error('Recipient wallet must be different from your wallet.');
+      if (creatorRecipient) {
+        const latest = await resolveCreatorRecipient(creatorRecipient.username);
+        if (latest.id !== creatorRecipient.id || latest.address.toLowerCase() !== sendRecipient.toLowerCase()) throw new Error('The creator wallet changed. Look up the creator again and review the new address.');
+      }
+      if (context !== actionContext.current) return;
+      if (!tokenConfigured) throw new Error(asset + ' contract is not configured yet.');
       const raw = parseTokenAmount(sendAmount, tokenDecimals);
       if (tokenBalance === null) throw new Error('Balance unavailable. Refresh your wallet before continuing.');
-      // Balance may be zero, so parse it without the positive-amount validator.
       const balanceRaw = tokenBalance === '0' ? 0n : parseTokenAmount(tokenBalance, tokenDecimals);
-      if (raw > balanceRaw) throw new Error(`Requested amount exceeds available balance (${tokenBalance} ${asset}).`);
+      if (raw > balanceRaw) throw new Error('Requested amount exceeds available balance.');
       if (!await handleEstimateGas(sendRecipient, sendAmount)) return;
+      if (context === actionContext.current) setShowSendConfirmModal(true);
     } catch (err: any) {
-      setSendError(err.message);
-      return;
-    }
-    setShowSendConfirmModal(true);
+      if (context === actionContext.current) setSendError(err.message || 'Transfer review failed.');
+    } finally { setReviewingTransfer(false); }
   };
 
   const handleExecuteSend = async () => {
@@ -340,6 +352,15 @@ export const WalletView: React.FC = () => {
 
     try {
       const reviewedAddress = walletState.address;
+      if (creatorRecipient) {
+        const latest = await resolveCreatorRecipient(creatorRecipient.username);
+        if (context !== actionContext.current) return;
+        if (latest.id !== creatorRecipient.id || latest.address.toLowerCase() !== sendRecipient.toLowerCase()) {
+          setShowSendConfirmModal(false);
+          throw new Error('The creator wallet changed. Find the creator again before sending.');
+        }
+      }
+      if (context !== actionContext.current) return;
       const result = await tokenService.executeSendUsdt(sendRecipient, sendAmount, undefined, reviewedAddress ?? undefined);
       if (context !== actionContext.current || !penoraWalletService.getState().isCorrectNetwork || penoraWalletService.getState().address?.toLowerCase() !== reviewedAddress?.toLowerCase()) return;
       if (result.status === 'failed') {
@@ -486,9 +507,9 @@ export const WalletView: React.FC = () => {
         className="fixed bottom-10 right-10 w-[600px] h-[600px] bg-[#007C8B]/6 rounded-full blur-[160px] pointer-events-none"
       />
 
-      <div className="max-w-[1200px] mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8 relative z-10 space-y-4 sm:space-y-6">
+      <div className="wallet-content max-w-[1200px] mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8 relative z-10 space-y-4 sm:space-y-6">
         {/* ─── 1. TOP HEADER / TITLE BAR ────────────────────────────────────── */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-[#007C8B]/10">
+        <div className="wallet-page-heading flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-[#007C8B]/10">
           <div>
             <div className="flex items-center gap-2 sm:gap-2.5 flex-wrap">
               <span className="p-2 rounded-xl bg-[var(--wallet-surface)] border border-[#007C8B]/15 shadow-2xs">
@@ -530,10 +551,10 @@ export const WalletView: React.FC = () => {
         </div>
 
         {/* ─── PROMINENT TESTNET WARNING BANNER ───────────────────────────────── */}
-        <div className="flex items-start sm:items-center gap-3 px-4 py-3 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-900 dark:text-amber-200 text-xs shadow-xs">
+        <div className="wallet-testnet-notice flex items-start sm:items-center gap-3 px-4 py-3 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-900 dark:text-amber-200 text-xs shadow-xs">
           <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0 mt-0.5 sm:mt-0" />
           <div className="leading-relaxed">
-            <strong className="font-bold tracking-wide uppercase">TESTNET ENVIRONMENT — NO REAL VALUE:</strong> Operating strictly on Polygon Amoy Testnet (Chain ID 80002). All balances (Test PNR, Test USDT, POL) and contract interactions are for protocol testing only and carry zero monetary value. Never send real mainnet assets to these addresses.
+            <span className="sm:hidden"><strong>Testnet only · no real money.</strong> Use Amoy test tokens. Never send mainnet assets.</span><span className="hidden sm:inline"><strong className="font-bold tracking-wide uppercase">TESTNET ENVIRONMENT — NO REAL VALUE:</strong> Operating strictly on Polygon Amoy Testnet (Chain ID 80002). All balances (Test PNR, Test USDT, POL) and contract interactions are for protocol testing only and carry zero monetary value. Never send real mainnet assets to these addresses.</span>
           </div>
         </div>
 
@@ -553,7 +574,7 @@ export const WalletView: React.FC = () => {
         {(activeTab === 'send' || activeTab === 'deposit') && (
           <div className="flex flex-wrap items-center gap-3 rounded-2xl bg-[var(--wallet-surface)] p-4 border border-[#007C8B]/15">
             <label htmlFor="wallet-asset" className="font-semibold text-sm">Choose token</label>
-            <select id="wallet-asset" value={asset} disabled={sendLoading} onChange={e => setAsset(e.target.value as 'USDT' | 'PNR')}
+            <select id="wallet-asset" value={asset} disabled={sendLoading || reviewingTransfer} onChange={e => setAsset(e.target.value as 'USDT' | 'PNR')}
               className="bg-[var(--wallet-inset)] border border-[#007C8B]/20 rounded-xl px-4 py-2 text-sm">
               <option value="USDT">USDT · test token</option><option value="PNR">PNR · Penora</option>
             </select>
@@ -561,17 +582,48 @@ export const WalletView: React.FC = () => {
           </div>
         )}
 
-        <RewardWalletLink address={walletState.isCorrectNetwork ? walletState.address : null} />
 
-        <a href="/exchange/" className="flex items-center justify-between rounded-2xl border border-[#a8edbd]/30 bg-[#122129] px-5 py-4 text-white hover:bg-[#193039] transition-colors">
+        {activeTab === 'overview' && (
+          <section className="wallet-mobile-hero" aria-label="Wallet summary">
+            <div className="wallet-mobile-hero-top">
+              <span><ShieldCheck size={14} aria-hidden="true" /> YOUR CREATIVE CAPITAL</span>
+              <button type="button" onClick={refreshAllBalances} disabled={!walletState.address || !walletState.isCorrectNetwork} aria-label="Refresh wallet balances"><RefreshCw size={17} aria-hidden="true" /></button>
+            </div>
+            <p className="wallet-mobile-balance-label">Available Test PNR</p>
+            <div className="wallet-mobile-balance"><strong>{walletState.balancePnr ?? '—'}</strong><span>PNR</span></div>
+            <div className="wallet-mobile-address">
+              {walletState.address ? (
+                <button type="button" onClick={() => handleCopy(walletState.address!)} aria-label="Copy wallet address">
+                  <Wallet size={13} aria-hidden="true" /><span>{shortAddress}</span>{copiedAddress ? <Check size={13} /> : <Copy size={13} />}
+                </button>
+              ) : (
+                <button type="button" onClick={() => penoraWalletService.connect()} disabled={walletState.status === 'connecting'}>
+                  <Wallet size={14} aria-hidden="true" />{walletState.status === 'connecting' ? 'Connecting…' : 'Connect your wallet'}<ArrowUpRight size={14} aria-hidden="true" />
+                </button>
+              )}
+              <span className="wallet-mobile-status">{walletState.status === 'connected' ? 'Connected' : walletState.status === 'wrong_network' ? 'Wrong network' : 'Not connected'}</span>
+            </div>
+            <div className="wallet-mobile-actions">
+              <button type="button" onClick={() => setActiveTab('send')}><span><Send size={19} aria-hidden="true" /></span>Send</button>
+              <button type="button" onClick={() => setActiveTab('receive')}><span><QrCode size={20} aria-hidden="true" /></span>Receive</button>
+              <button type="button" disabled={!walletState.address || !walletState.isCorrectNetwork || !walletState.contractsDeployed} onClick={() => setShowPowerUpModal(true)}><span><Zap size={20} aria-hidden="true" /></span>Power Up</button>
+              <a href="/exchange/"><span><ArrowUpRight size={21} aria-hidden="true" /></span>Exchange</a>
+            </div>
+          </section>
+        )}
+
+        <WalletSection title="Receive from creators"><div className="wallet-reward-link"><RewardWalletLink address={walletState.isCorrectNetwork ? walletState.address : null} /></div></WalletSection>
+
+        <a href="/exchange/" className="wallet-exchange-card flex items-center justify-between rounded-2xl border border-[#a8edbd]/30 bg-[#122129] px-5 py-4 text-white hover:bg-[#193039] transition-colors">
           <div><span className="text-[10px] tracking-[.18em] text-[#a8edbd] font-semibold">PENORA EXCHANGE</span><p className="mt-1 text-sm">Buy PNR with USDT</p></div><span className="text-xl text-[#a8edbd]" aria-hidden="true">↗</span>
         </a>
 
         {/* ─── NAVIGATION TABS ──────────────────────────────────────────────── */}
-        <div className="flex items-center gap-1.5 sm:gap-2 bg-[var(--wallet-surface)] backdrop-blur-md p-1.5 rounded-2xl border border-[#007C8B]/15 overflow-x-auto no-scrollbar scroll-smooth">
+        <div className="wallet-tabs flex items-center gap-1.5 sm:gap-2 bg-[var(--wallet-surface)] backdrop-blur-md p-1.5 rounded-2xl border border-[#007C8B]/15 overflow-x-auto no-scrollbar scroll-smooth">
           <button
             type="button"
             onClick={() => setActiveTab('overview')}
+            aria-pressed={activeTab === 'overview'}
             className={`shrink-0 px-3.5 sm:px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
               activeTab === 'overview'
                 ? 'bg-gradient-to-r from-[#007C8B] via-[#00B3C4] to-[#00E5F4] text-white shadow-2xs'
@@ -650,6 +702,7 @@ export const WalletView: React.FC = () => {
           <button
             type="button"
             onClick={() => setActiveTab('deposit')}
+            aria-pressed={activeTab === 'deposit'}
             className={`shrink-0 px-3.5 sm:px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
               activeTab === 'deposit'
                 ? 'bg-gradient-to-r from-[#007C8B] via-[#00B3C4] to-[#00E5F4] text-white shadow-2xs'
@@ -663,6 +716,7 @@ export const WalletView: React.FC = () => {
           <button
             type="button"
             onClick={() => setActiveTab('send')}
+            aria-pressed={activeTab === 'send'}
             className={`shrink-0 px-3.5 sm:px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
               activeTab === 'send'
                 ? 'bg-gradient-to-r from-[#007C8B] via-[#00B3C4] to-[#00E5F4] text-white shadow-2xs'
@@ -676,6 +730,7 @@ export const WalletView: React.FC = () => {
           <button
             type="button"
             onClick={() => setActiveTab('receive')}
+            aria-pressed={activeTab === 'receive'}
             className={`shrink-0 px-3.5 sm:px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
               activeTab === 'receive'
                 ? 'bg-gradient-to-r from-[#007C8B] via-[#00B3C4] to-[#00E5F4] text-white shadow-2xs'
@@ -700,7 +755,7 @@ export const WalletView: React.FC = () => {
           <div className="space-y-6">
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
               {/* Main Celestial Card: Liquid PNR & PENORA Power & USDT (~7 cols) */}
-              <div className="lg:col-span-7 bg-gradient-to-br from-[#0A2540] via-[#0E3456] to-[#06182C] text-white rounded-3xl p-6 sm:p-8 relative overflow-hidden shadow-xl border border-white/10 space-y-6">
+              <div className="wallet-assets-card lg:col-span-7 bg-gradient-to-br from-[#0A2540] via-[#0E3456] to-[#06182C] text-white rounded-3xl p-6 sm:p-8 relative overflow-hidden shadow-xl border border-white/10 space-y-6">
                 <div
                   aria-hidden="true"
                   className="absolute -top-24 -right-24 w-72 h-72 bg-[#00E5F4]/20 rounded-full blur-[80px] pointer-events-none"
@@ -724,7 +779,7 @@ export const WalletView: React.FC = () => {
                   </div>
 
                   {/* 4-Card Balances Grid */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="wallet-asset-grid grid grid-cols-1 sm:grid-cols-2 gap-4">
                     {/* 1. Liquid PNR */}
                     <div className="p-4 rounded-2xl bg-white/5 border border-white/10 space-y-2">
                       <div className="flex items-center justify-between">
@@ -812,7 +867,7 @@ export const WalletView: React.FC = () => {
                   </div>
 
                   {/* Primary Actions Grid */}
-                  <div className="pt-2 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+                  <div className="wallet-desktop-actions pt-2 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
                     <button
                       type="button"
                       onClick={() => setActiveTab('deposit')}
@@ -873,7 +928,8 @@ export const WalletView: React.FC = () => {
               </div>
 
               {/* Right Column: Web3 Connection & Mana (~5 cols) */}
-              <div className="lg:col-span-5 space-y-4">
+              <div className="wallet-connection-column lg:col-span-5 space-y-4">
+                <WalletSection title="Connection & voting power">
                 {/* 1. Web3 EVM Connection Card */}
                 <div className="bg-[var(--wallet-surface)] backdrop-blur-md rounded-3xl p-6 border border-[#007C8B]/15 shadow-sm space-y-4">
                   <div className="flex items-center justify-between">
@@ -1035,9 +1091,11 @@ export const WalletView: React.FC = () => {
                     Regenerates linearly over <strong className="text-[var(--wallet-text)]">5 days</strong> (432,000s). Each 100% vote consumes 2% mana.
                   </div>
                 </div>
+                </WalletSection>
               </div>
             </div>
 
+            <WalletSection title="Staking, rewards & wallet guide">
             {/* Zero-Balance / Faucet & Testnet Setup Instructions */}
             {walletState.status === 'connected' && walletState.isCorrectNetwork && (
               <div className="bg-[var(--wallet-surface)] backdrop-blur-md rounded-3xl p-6 border border-[#007C8B]/20 shadow-sm space-y-4">
@@ -1276,6 +1334,7 @@ export const WalletView: React.FC = () => {
               votingManaPercent={walletState.votingManaPercent}
             />
             <CreatorEconomyGuide />
+            </WalletSection>
           </div>
         )}
 
@@ -1491,16 +1550,28 @@ export const WalletView: React.FC = () => {
               )}
 
               <div className="space-y-4">
+                <CreatorRecipientPicker key={walletState.address + ':' + asset + ':' + recipientPickerVersion} disabled={sendLoading || reviewingTransfer} onSelect={recipient => {
+                  actionContext.current++;
+                  gasRequest.current++;
+                  setCreatorRecipient(recipient);
+                  setSendRecipient(recipient?.address || '');
+                  setGasEstimate(null); setGasError(null); setEstimatingGas(false); setShowSendConfirmModal(false);
+                }} />
                 {/* Recipient Address */}
                 <div className="space-y-1.5">
                   <label className="text-xs font-semibold text-[var(--wallet-text)] block">
-                    Recipient Address (Polygon Amoy)
+                    Or enter a wallet address (Polygon Amoy)
                   </label>
                   <input
                     type="text"
                     placeholder="0x..."
                     value={sendRecipient}
+                    disabled={sendLoading || reviewingTransfer}
                     onChange={e => {
+                      actionContext.current++;
+                      setCreatorRecipient(null);
+                      setRecipientPickerVersion(n => n + 1);
+                      setShowSendConfirmModal(false);
                       setSendRecipient(e.target.value);
                       handleEstimateGas(e.target.value, sendAmount);
                     }}
@@ -1539,6 +1610,7 @@ export const WalletView: React.FC = () => {
                       placeholder="0.00"
                       value={sendAmount}
                       onChange={e => {
+                        actionContext.current++;
                         setSendAmount(e.target.value);
                         handleEstimateGas(sendRecipient, e.target.value);
                       }}
@@ -1602,7 +1674,7 @@ export const WalletView: React.FC = () => {
                   type="button"
                   onClick={handleReviewTransfer}
                   disabled={
-                    walletState.status !== 'connected' || !tokenConfigured || tokenBalance === null || sendLoading || estimatingGas ||
+                    walletState.status !== 'connected' || !tokenConfigured || tokenBalance === null || sendLoading || reviewingTransfer || estimatingGas ||
                     !sendRecipient ||
                     !isAddress(sendRecipient) ||
                     !isSpendableAmount(sendAmount, tokenBalance, tokenDecimals)
@@ -1929,6 +2001,7 @@ export const WalletView: React.FC = () => {
               </div>
               <div className="space-y-1 pb-2 border-b border-slate-200/80">
                 <span className="text-[var(--wallet-muted)] block">Destination Address</span>
+                {creatorRecipient && <span className="block text-sm font-semibold mb-2">{creatorRecipient.displayName} (@{creatorRecipient.username})</span>}
                 <span className="font-mono text-[11px] font-semibold text-[var(--wallet-text)] break-all block">
                   {sendRecipient}
                 </span>
