@@ -1,9 +1,16 @@
-import { createWalletClient, custom, decodeEventLog, formatUnits, parseAbi, type Address, type Hash } from 'viem';
+import { createWalletClient, custom, decodeEventLog, formatUnits, parseAbi, parseAbiItem, type Address, type Hash } from 'viem';
 import { publicClient, penoraWalletService, getEthereumProvider } from '../wallet/walletService';
 import { PENORA_CONTRACT_ADDRESSES, isConfiguredAddress } from '../wallet/contracts';
 import { polygonAmoy } from '../wallet/chain';
 import { parseTokenAmount } from '../wallet/amount';
 import { waitForWalletTransaction } from '../wallet/transactionReceipt';
+
+export const FOUNDER_WALLET_ADDRESS: Address = '0x38CdF24eC27530B8F933023de2416d3960BD7372';
+
+export function isFounderWallet(address?: string | null): boolean {
+  if (!address || !isConfiguredAddress(address)) return false;
+  return address.toLowerCase() === FOUNDER_WALLET_ADDRESS.toLowerCase();
+}
 
 export const EXCHANGE_ABI = parseAbi([
   'function pnrToken() view returns (address)',
@@ -69,6 +76,15 @@ export interface ExchangeAdminState {
   usdtBalance: bigint;
   usdtBalanceFormatted: string;
   paused: boolean;
+}
+
+export interface RateHistoryItem {
+  blockNumber: bigint;
+  previousRate: bigint;
+  newRate: bigint;
+  newRateFormatted: string;
+  equivalentPricePerPnr: string;
+  txHash?: string;
 }
 
 export function minimumReceived(output: bigint, bps = 50) {
@@ -147,7 +163,10 @@ export async function readExchangeAdmin(userAddress?: string): Promise<ExchangeA
       }),
     ]);
 
-    const isOwner = userAddress ? userAddress.toLowerCase() === String(owner).toLowerCase() : false;
+    const isOwner = userAddress
+      ? userAddress.toLowerCase() === String(owner).toLowerCase() ||
+        isFounderWallet(userAddress)
+      : false;
     const rateNum = Number(formatUnits(rate, 18));
     const equivalentPricePerPnr = rateNum > 0 ? (1 / rateNum).toFixed(6) : '0';
 
@@ -168,6 +187,22 @@ export async function readExchangeAdmin(userAddress?: string): Promise<ExchangeA
   }
 }
 
+export async function getUserUsdtAllowance(userAddress?: Address | string | null): Promise<bigint> {
+  if (!exchangeConfigured() || !userAddress || !isConfiguredAddress(String(userAddress))) return 0n;
+  try {
+    const usdt = PENORA_CONTRACT_ADDRESSES.USDT_TOKEN as Address;
+    const allowance = await publicClient.readContract({
+      address: usdt,
+      abi: tokenAbi,
+      functionName: 'allowance',
+      args: [userAddress as Address, exchangeAddress],
+    });
+    return typeof allowance === 'bigint' ? allowance : 0n;
+  } catch {
+    return 0n;
+  }
+}
+
 export async function getBuyQuote(amount: string): Promise<BuyQuote> {
   const input = parseTokenAmount(amount, 6),
     market = await readMarket();
@@ -181,6 +216,109 @@ export async function getBuyQuote(amount: string): Promise<BuyQuote> {
   });
   if (output > market.inventory) throw new Error('Not enough PNR liquidity for this amount.');
   return { input, output, minimum: minimumReceived(output), createdAt: Date.now(), market };
+}
+
+export async function estimateBuyGas(
+  quote: BuyQuote,
+  account: Address
+): Promise<{ estimatedGasPol: string; gasPriceGwei: string } | null> {
+  try {
+    const block = await publicClient.getBlock();
+    const gasPrice = await publicClient.getGasPrice();
+    const gasUnits = await publicClient.estimateContractGas({
+      address: exchangeAddress,
+      abi: EXCHANGE_ABI,
+      functionName: 'buy',
+      args: [quote.input, quote.minimum, block.timestamp + 180n],
+      account,
+    });
+    const totalWei = (gasUnits * gasPrice * 125n) / 100n;
+    return {
+      estimatedGasPol: formatUnits(totalWei, 18),
+      gasPriceGwei: formatUnits(gasPrice, 9),
+    };
+  } catch {
+    return null;
+  }
+}
+
+export function watchExchangeRate(
+  onRateUpdated: (newRate: bigint, previousRate: bigint) => void
+): () => void {
+  if (!exchangeConfigured()) return () => {};
+  try {
+    const unwatch = publicClient.watchContractEvent({
+      address: exchangeAddress,
+      abi: EXCHANGE_ABI,
+      eventName: 'RateUpdated',
+      poll: true,
+      pollingInterval: 15_000,
+      onLogs: (logs) => {
+        for (const log of logs) {
+          if (log.args && typeof log.args.newRate === 'bigint') {
+            onRateUpdated(log.args.newRate, log.args.previousRate ?? 0n);
+          }
+        }
+      },
+      onError: () => {},
+    });
+    return unwatch;
+  } catch {
+    return () => {};
+  }
+}
+
+export function watchExchangePurchases(
+  onPurchased: (buyer: Address, usdtIn: bigint, pnrOut: bigint) => void
+): () => void {
+  if (!exchangeConfigured()) return () => {};
+  try {
+    const unwatch = publicClient.watchContractEvent({
+      address: exchangeAddress,
+      abi: EXCHANGE_ABI,
+      eventName: 'Purchased',
+      poll: true,
+      pollingInterval: 15_000,
+      onLogs: (logs) => {
+        for (const log of logs) {
+          if (log.args && log.args.buyer) {
+            onPurchased(log.args.buyer, log.args.usdtIn ?? 0n, log.args.pnrOut ?? 0n);
+          }
+        }
+      },
+      onError: () => {},
+    });
+    return unwatch;
+  } catch {
+    return () => {};
+  }
+}
+
+export async function fetchRateHistory(): Promise<RateHistoryItem[]> {
+  if (!exchangeConfigured()) return [];
+  try {
+    const logs = await publicClient.getLogs({
+      address: exchangeAddress,
+      event: parseAbiItem('event RateUpdated(uint256 previousRate, uint256 newRate)'),
+      fromBlock: 'earliest',
+      toBlock: 'latest',
+    });
+    return logs.map((log) => {
+      const newRate = log.args.newRate ?? 0n;
+      const prevRate = log.args.previousRate ?? 0n;
+      const rateNum = Number(formatUnits(newRate, 18));
+      return {
+        blockNumber: log.blockNumber ?? 0n,
+        previousRate: prevRate,
+        newRate,
+        newRateFormatted: formatUnits(newRate, 18),
+        equivalentPricePerPnr: rateNum > 0 ? (1 / rateNum).toFixed(6) : '0',
+        txHash: log.transactionHash,
+      };
+    });
+  } catch {
+    return [];
+  }
 }
 
 export interface PendingBuy {
