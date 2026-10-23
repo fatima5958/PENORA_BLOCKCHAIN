@@ -15,6 +15,7 @@ import {
 } from 'viem';
 import { PENORA_CONTRACT_ADDRESSES, isConfiguredAddress } from './contracts';
 import { PENORA_TARGET_CHAIN_ID } from './chain';
+import { validateContractCalldata } from './calldataValidator';
 
 export interface SponsorshipQuota {
   maxDailyRequests: number;
@@ -269,67 +270,20 @@ export function evaluateTransactionSponsorship({
     return { eligible: false, reason: 'Valid sender and destination addresses required.', quotaRemainingToday: 0 };
   }
 
-  // 1. Strict Contract Allowlist
-  const c = PENORA_CONTRACT_ADDRESSES;
-  const configuredTargets = [
-    c.PNR_TOKEN,
-    c.USDT_TOKEN,
-    c.POWER_ESCROW,
-    c.VOTING_INFLUENCE,
-    c.REWARD_DISTRIBUTOR,
-    c.EXCHANGE,
-    c.P2P_ESCROW,
-  ].filter(isConfiguredAddress).map(a => a.toLowerCase());
+  // 1-4. Target-bound calldata validation, ABI decoding, bounded allowance & zero-POL checks
+  const calldataResult = validateContractCalldata({
+    to,
+    data: data as string,
+    value,
+    senderAddress: from,
+  });
 
-  if (!configuredTargets.includes(to.toLowerCase())) {
+  if (!calldataResult.valid) {
     return {
       eligible: false,
-      reason: `Destination ${to} is not an authorized PENORA Amoy contract.`,
+      reason: calldataResult.reason || 'Calldata verification failed.',
       quotaRemainingToday: 0,
     };
-  }
-
-  // 2. Strict Calldata & Selector Allowlist
-  const dataHex = (data || '0x') as string;
-  if (!/^0x[0-9a-fA-F]{8}/.test(dataHex)) {
-    return {
-      eligible: false,
-      reason: 'Transaction requires valid calldata with a recognized 4-byte function selector.',
-      quotaRemainingToday: 0,
-    };
-  }
-
-  const selector = dataHex.slice(0, 10).toLowerCase();
-  if (!APPROVED_PENORA_SELECTORS[selector]) {
-    return {
-      eligible: false,
-      reason: `Function selector ${selector} is not permitted for sponsored gas execution.`,
-      quotaRemainingToday: 0,
-    };
-  }
-
-  // 3. Allowance Safety Check: Reject Unbounded / Unlimited Allowances
-  const allowanceCheck = isSafeBoundedAllowance(to, dataHex);
-  if (!allowanceCheck.isSafe) {
-    return {
-      eligible: false,
-      reason: allowanceCheck.reason || 'Unbounded token allowance rejected.',
-      quotaRemainingToday: 0,
-    };
-  }
-
-  // 4. Native POL Value Cap (Must be 0)
-  try {
-    const val = BigInt(value || '0');
-    if (val > 0n) {
-      return {
-        eligible: false,
-        reason: 'Gas sponsorship permits contract calls only; native POL value must be zero.',
-        quotaRemainingToday: 0,
-      };
-    }
-  } catch {
-    return { eligible: false, reason: 'Invalid transaction value parameter.', quotaRemainingToday: 0 };
   }
 
   // 5. Gas Limits and Fee Caps

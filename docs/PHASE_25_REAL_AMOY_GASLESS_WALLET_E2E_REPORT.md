@@ -23,26 +23,34 @@ Prior to Phase 25 implementation, both remote repositories were fetched and audi
 
 ## 2. Actual Code Changes & Files Modified
 
-1. [`src/lib/wallet/gasSponsorshipService.ts`](file:///C:/dev/PENORA-CLEAN/src/lib/wallet/gasSponsorshipService.ts):
+1. [`src/lib/wallet/calldataValidator.ts`](file:///C:/dev/PENORA-CLEAN/src/lib/wallet/calldataValidator.ts):
+   - **Contract-Specific Decoded Calldata & ABI Validator:** Decodes function calls against verified contract ABIs for PNR, USDT, Exchange, Escrow, and Power.
+   - **Destination-Bound Enforcement:** Replaces loose global 4-byte selector checks with destination-bound decoded ABI validation, preventing cross-contract selector confusion attacks.
+   - **Strict Zero-POL Enforcement:** Verifies that native POL transfer value is strictly 0 on contract interactions.
+   - **Founder-Only Exchange Administration:** Rejects non-founder caller executions for `setRate`, `pause`, `unpause`, and `withdraw`.
+2. [`src/lib/wallet/serverSponsorshipService.ts`](file:///C:/dev/PENORA-CLEAN/src/lib/wallet/serverSponsorshipService.ts):
+   - **Server-Side Sponsorship Authorization Service:** Enforces server-side identity verification, ABI parameter checks, and quota management before sponsoring gas.
+   - **Atomic Rate Limiting & Nonce Tracking:** Prevents transaction replays by strictly validating increasing nonces and enforcing hourly (max 5) and daily (max 20) quotas.
+   - **Cryptographic Sponsorship Token:** Generates deterministic `authToken` and ERC-4337 v0.6 `paymasterAndData` payload with a 5-minute validity window.
+3. [`src/lib/wallet/gasSponsorshipService.ts`](file:///C:/dev/PENORA-CLEAN/src/lib/wallet/gasSponsorshipService.ts):
    - **Canonical ERC-4337 v0.6 UserOp Data Model:** Created `UserOperationV06`, `UserOpReceipt`, and `computeUserOpHash()` implementing standard ERC-4337 hashing over EntryPoint (`0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789`) and Chain ID (`80002`).
    - **Deterministic Smart Account Address Derivation:** Implemented `deriveDeterministicSmartAccountAddress(ownerAddress, salt)` computing the standard `CREATE2` address for `SimpleAccountFactory` (`0x9406Cc6185a34B98050053954705574c8C1BE90B`).
    - **SimpleAccount `initCode` Construction:** Implemented `buildSimpleAccountInitCode()` to enable lazy counterfactual deployment on the user's first sponsored transaction.
    - **Bounded Allowance Enforcement:** Implemented `isSafeBoundedAllowance()` strictly rejecting `type(uint256).max` (`0xffffff...`) and approvals exceeding the fixed total supply cap (100M PNR / 10M USDT).
-   - **Sponsorship Policy & Abuse Engine:** Hourly (max 5) and daily (max 20) rate-limiting per verified PENORA user; gas limit cap (500k) and fee cap (50 Gwei); strict contract and 4-byte selector allowlist.
+   - **Decoded ABI Integration:** Integrated `validateContractCalldata` directly into `evaluateTransactionSponsorship()`.
    - **Honest Status Diagnostics:** `getGasSponsorshipStatus()` verifies environment variables (`PUBLIC_AMOY_BUNDLER_URL`, `PUBLIC_AMOY_PAYMASTER_URL`) and transparently reports unconfigured state without fake claims.
-2. [`src/lib/wallet/activeKeyAmoyProvider.ts`](file:///C:/dev/PENORA-CLEAN/src/lib/wallet/activeKeyAmoyProvider.ts):
-   - Integrated `isSafeBoundedAllowance` into `isPermittedActiveKeyAmoyCall()`, guaranteeing that unlimited token allowance attempts are blocked before prompt or signature.
-   - Enforced 4-byte function selector validation against 21 approved methods across PNR, USDT, Exchange, Escrow, and Power.
-   - Enforced zero native POL transfer values on contract calls.
-3. [`src/components/wallet/ActiveKeyWalletEntry.tsx`](file:///C:/dev/PENORA-CLEAN/src/components/wallet/ActiveKeyWalletEntry.tsx):
+4. [`src/lib/wallet/activeKeyAmoyProvider.ts`](file:///C:/dev/PENORA-CLEAN/src/lib/wallet/activeKeyAmoyProvider.ts):
+   - Integrated `validateContractCalldata` into `isPermittedActiveKeyAmoyCall()` and `eth_sendTransaction`.
+   - Detailed rejection reasons passed through to the client UI/errors.
+5. [`src/components/wallet/ActiveKeyWalletEntry.tsx`](file:///C:/dev/PENORA-CLEAN/src/components/wallet/ActiveKeyWalletEntry.tsx):
    - Rendered dual-address display: **Derived EOA Signer** and **ERC-4337 Smart Account Address (AA / Gasless Target)**.
    - Displayed security pill: `Bounded Allowances Enforced`.
    - Displayed transparent gas sponsorship badge: `Pending Amoy Paymaster deployment · Native Test POL required`.
    - Preserved seamless one-click toggle to external MetaMask.
-4. [`src/tests/activeKeyAmoyGaslessAA.test.ts`](file:///C:/dev/PENORA-CLEAN/src/tests/activeKeyAmoyGaslessAA.test.ts):
-   - Added 12 new isolated tests covering Smart Account derivation stability, `initCode` generation, UserOp hashing, bounded allowance rejection, rate limiting, and provider fallback.
-5. [`src/tests/activeKeyWalletSecurity.test.ts`](file:///C:/dev/PENORA-CLEAN/src/tests/activeKeyWalletSecurity.test.ts):
-   - Verified all 20 comprehensive security, account switching, idle locking, and authority matching scenarios.
+6. [`src/tests/contractCalldataValidation.test.ts`](file:///C:/dev/PENORA-CLEAN/src/tests/contractCalldataValidation.test.ts):
+   - Added 16 new isolated tests validating PNR token bounds, USDT token bounds, native POL rejection, founder admin role enforcement, server sponsorship authorization, hourly limits, and sequential nonces.
+7. [`src/tests/activeKeyAmoyGaslessAA.test.ts`](file:///C:/dev/PENORA-CLEAN/src/tests/activeKeyAmoyGaslessAA.test.ts):
+   - Added 12 isolated tests covering Smart Account derivation stability, `initCode` generation, UserOp hashing, bounded allowance rejection, rate limiting, and provider fallback.
 
 ---
 
@@ -130,12 +138,13 @@ To select the most practical, zero-budget, standards-compliant ERC-4337 infrastr
 ## 6. Automated Test Results
 
 ### Full Vitest Suite Execution:
-- **Test Files:** 50 passed (50 total, 100%)
-- **Total Tests:** 529 passed (529 total, 100%)
-- **Regression Count:** 0 regressions across all 50 suites
-- **Execution Time:** ~71.64s
+- **Test Files:** 51 passed (51 total, 100%)
+- **Total Tests:** 545 passed (545 total, 100%)
+- **Regression Count:** 0 regressions across all 51 suites
+- **Execution Time:** ~68.98s
 
 ### Key Test Suites Breakdown:
+- `src/tests/contractCalldataValidation.test.ts`: **16 / 16 PASS** (Decoded ABI validation, token supply caps, founder admin enforcement, server sponsorship authorization)
 - `src/tests/activeKeyAmoyGaslessAA.test.ts`: **12 / 12 PASS** (AA smart accounts, bounded allowances, UserOp hashing)
 - `src/tests/activeKeyWalletSecurity.test.ts`: **20 / 20 PASS** (Authority isolation, idle locking, wrong-chain, MetaMask fallback)
 - `src/tests/activeKeyAmoyWallet.test.ts`: **11 / 11 PASS** (Deterministic derivation, provider RPC, confirmation checks)
@@ -146,7 +155,7 @@ To select the most practical, zero-budget, standards-compliant ERC-4337 infrastr
 
 ### Static Analysis & Build:
 - **TypeScript (`npm run lint` / `tsc --noEmit`):** 0 errors.
-- **Astro Production Build (`npm run build`):** 102 static pages compiled successfully in 41.72s.
+- **Astro Production Build (`npm run build`):** 106 static pages compiled successfully in 39.92s.
 
 ---
 

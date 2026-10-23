@@ -134,6 +134,34 @@ export function isTokenAddressAllowed(chainId: number, address: string): boolean
 // ABI for ERC-20 PenoraToken (PNR)
 export const PNR_TOKEN_ABI = [
   {
+    inputs: [
+      { name: 'to', type: 'address' },
+      { name: 'value', type: 'uint256' },
+    ],
+    name: 'transfer',
+    outputs: [{ name: '', type: 'bool' }],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  {
+    inputs: [
+      { name: 'from', type: 'address' },
+      { name: 'to', type: 'address' },
+      { name: 'value', type: 'uint256' },
+    ],
+    name: 'transferFrom',
+    outputs: [{ name: '', type: 'bool' }],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  {
+    inputs: [{ name: 'amount', type: 'uint256' }],
+    name: 'burn',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  {
     inputs: [{ name: 'account', type: 'address' }],
     name: 'balanceOf',
     outputs: [{ name: '', type: 'uint256' }],

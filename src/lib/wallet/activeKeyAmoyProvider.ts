@@ -15,6 +15,7 @@ import { extractWifKey, deriveKeyInfoFromWif } from '../crypto/penoraKeys';
 import { AMOY_RPC_URL, polygonAmoy, PENORA_TARGET_CHAIN_ID } from './chain';
 import { PENORA_CONTRACT_ADDRESSES, isConfiguredAddress } from './contracts';
 import { APPROVED_PENORA_SELECTORS, isSafeBoundedAllowance } from './gasSponsorshipService';
+import { validateContractCalldata } from './calldataValidator';
 
 const text = (str: string) => new TextEncoder().encode(str);
 const SECP256K1_ORDER = BigInt('0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141');
@@ -65,18 +66,9 @@ type EvmTx = {
  * Each on-chain transaction requires explicit review in addition to the
  * existing PENORA modal. Never forward unknown signing RPC methods.
  */
-/** Only allow approved PENORA Amoy contract calls with recognized function selectors and safe bounded allowances. */
-export function isPermittedActiveKeyAmoyCall(to: string, data?: string, value?: string): boolean {
-  if (!isAddress(to) || !data || !/^0x[0-9a-fA-F]{8}(?:[0-9a-fA-F]{2})*$/.test(data)) return false;
-  try { if (BigInt(value || '0') !== 0n) return false; } catch { return false; }
-  const selector = data.slice(0, 10).toLowerCase();
-  if (!APPROVED_PENORA_SELECTORS[selector]) return false;
-  if (!isSafeBoundedAllowance(to as Address, data).isSafe) return false;
-  const a = PENORA_CONTRACT_ADDRESSES;
-  return [
-    a.PNR_TOKEN, a.USDT_TOKEN, a.POWER_ESCROW, a.VOTING_INFLUENCE,
-    a.REWARD_DISTRIBUTOR, a.EXCHANGE, a.P2P_ESCROW,
-  ].some(contract => isConfiguredAddress(contract) && contract.toLowerCase() === to.toLowerCase());
+/** Only allow approved PENORA Amoy contract calls with recognized function selectors, decoded ABI safety, and bounded allowances. */
+export function isPermittedActiveKeyAmoyCall(to: string, data?: string, value?: string, senderAddress?: string): boolean {
+  return validateContractCalldata({ to, data, value, senderAddress }).valid;
 }
 
 export class ActiveKeyAmoyProvider {
@@ -111,8 +103,14 @@ export class ActiveKeyAmoyProvider {
         if (tx.chainId !== undefined && Number(tx.chainId) !== PENORA_TARGET_CHAIN_ID) {
           throw new Error('Transactions are restricted to Polygon Amoy testnet.');
         }
-        if (!isPermittedActiveKeyAmoyCall(tx.to || '', tx.data, tx.value)) {
-          throw new Error('Active Key wallet only supports configured PENORA Amoy contract calls with zero native POL value and bounded allowances.');
+        const validation = validateContractCalldata({
+          to: tx.to || '',
+          data: tx.data,
+          value: tx.value,
+          senderAddress: this.address,
+        });
+        if (!validation.valid) {
+          throw new Error(`Active Key wallet only supports configured PENORA Amoy contract calls. ${validation.reason || 'Unauthorized contract call or invalid calldata.'}`);
         }
         if (typeof window === 'undefined' || typeof window.confirm !== 'function') {
           throw new Error('A visible user confirmation is required before signing.');
