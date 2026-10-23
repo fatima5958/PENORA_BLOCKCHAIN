@@ -1,6 +1,7 @@
 ---
 import '../styles/penora-brand.css';
 import '../styles/global.css';
+import '../styles/mobile-app.css';
 import { Header } from '../components/common/Header';
 import InstallPrompt from '../components/install/InstallPrompt.astro';
 import { Footer } from '../components/common/Footer';
@@ -79,7 +80,7 @@ const currentPath = Astro.url.pathname;
     <!-- Mobile Bottom Navigation Bar (<768px) -->
     <MobileBottomNav client:load currentPath={currentPath} />
 
-    {!['/', '/feed', '/feed/'].includes(currentPath) && <Footer client:idle />}
+    {!['/', '/feed', '/feed/'].includes(currentPath) && !currentPath.startsWith('/profile') && <Footer client:idle />}
 
     <!-- Service Worker Registration -->
     <script is:inline>

@@ -31,7 +31,7 @@
   .pn-feed-actions { width: 100%; justify-content: space-between; gap: 4px; flex-wrap: wrap; }
   .pn-feed-actions .pn-icon-btn { min-width: 32px; min-height: 38px; }
   .pn-vote-btn { min-height: 32px; padding: 0 8px; }
-  .pn-feed-header .pn-icon-btn[aria-label='Toggle navigation menu'] { display: none; }
+  .pn-feed-header .pn-icon-btn[aria-label='Toggle navigation menu'] { display: inline-flex; }
   .pn-feed-header a[aria-label='Open Article Studio'] { display: none; }
   .pn-feed-dock { background: #fffffff2; border-color: #e3f1f5; border-radius: 24px 24px 0 0; box-shadow: 0 -5px 24px #0a25400a; backdrop-filter: blur(16px); padding-top: 9px; }
   .pn-feed-dock a { color: #4A5B70; min-height: 44px; }

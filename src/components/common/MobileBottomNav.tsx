@@ -44,10 +44,10 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({ currentPath = 
   const activeUser = keyUser || user;
 
   const isHome = currentPath === '/' || currentPath === '/feed';
-  const isExplore = currentPath.startsWith('/explore') || currentPath.startsWith('/communities');
+  const isExplore = ['/explore', '/communities', '/community', '/creators', '/challenges'].some(path => currentPath.startsWith(path));
   const isEditor = currentPath.startsWith('/editor');
-  const isWallet = currentPath.startsWith('/wallet');
-  const isProfile = currentPath.startsWith('/profile');
+  const isWallet = currentPath.startsWith('/wallet') || currentPath.startsWith('/exchange');
+  const isProfile = currentPath === '/profile' || currentPath === '/profile/' || /^\/profile\/me\/?$/.test(currentPath);
 
   if (isEditor) {
     return null;
@@ -68,7 +68,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({ currentPath = 
   return (
     <nav
       aria-label="Mobile Navigation"
-      className="md:hidden fixed bottom-0 inset-x-0 z-50 bg-[#06182C] border-t border-[#00E5F4]/20 shadow-[0_-8px_32px_rgba(6,24,44,0.6)] pb-[max(0.6rem,env(safe-area-inset-bottom,0px))] pt-1 px-2"
+      className="pn-mobile-dock md:hidden fixed bottom-0 inset-x-0 z-50 bg-[#06182C] border-t border-[#00E5F4]/20 shadow-[0_-8px_32px_rgba(6,24,44,0.6)] pb-[max(0.6rem,env(safe-area-inset-bottom,0px))] pt-1 px-2"
     >
       <div className="grid grid-cols-5 items-center w-full max-w-md mx-auto">
         {/* 1. Home */}
