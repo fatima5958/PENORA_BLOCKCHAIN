@@ -234,6 +234,7 @@ export const MobileNavigationDrawer: React.FC<MobileNavigationDrawerProps> = ({
             <a href="/" onClick={onClose} className="flex items-center min-w-0" aria-label="PENORA Home">
               <PenoraLogo
                 variant="horizontal"
+                theme={isLight ? 'light' : 'dark'}
                 size="xs"
                 emblemSize={30}
                 showTagline={false}
