@@ -13,6 +13,7 @@ import {
   type WalletTab,
 } from './MobileWalletOverview';
 import { WalletHeader } from './WalletHeader';
+import { ActiveKeyWalletEntry, activeKeyWalletEnabled } from './ActiveKeyWalletEntry';
 import { WalletNavigation } from './WalletNavigation';
 import { WalletOnboardingBanner } from './WalletOnboardingBanner';
 import { WalletBalanceCard } from './WalletBalanceCard';
@@ -80,6 +81,14 @@ export const WalletView: React.FC = () => {
       setIsProviderInstalled(penoraWalletService.isMetaMaskAvailable());
     } catch {}
   }, []);
+
+  const connectWallet = () => {
+    if (activeKeyWalletEnabled) {
+      document.getElementById('penora-active-key-wallet')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    } else {
+      void penoraWalletService.connect();
+    }
+  };
 
   const toggleTheme = () => {
     const next = theme === 'light' ? 'dark' : 'light';
@@ -713,6 +722,8 @@ export const WalletView: React.FC = () => {
       className="penora-wallet min-h-screen bg-[var(--wallet-bg)] text-[var(--wallet-text)] font-sans selection:bg-[#00E5F4]/30 pb-24"
     >
       <div className="wallet-content max-w-[1160px] mx-auto px-3.5 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-4 sm:space-y-5">
+        {activeKeyWalletEnabled && <ActiveKeyWalletEntry />}
+
         {/* Mobile Header (visible < 768px) */}
         <MobileWalletHeader theme={theme} onToggleTheme={toggleTheme} />
 
@@ -723,7 +734,7 @@ export const WalletView: React.FC = () => {
             theme={theme}
             onToggleTheme={toggleTheme}
             onConnect={() => {
-              void penoraWalletService.connect();
+              connectWallet();
             }}
             onSwitchNetwork={() => {
               void penoraWalletService.switchOrAddAmoyNetwork();
@@ -793,7 +804,7 @@ export const WalletView: React.FC = () => {
               state={walletState}
               onNavigate={setActiveTab}
               onConnect={() => {
-                void penoraWalletService.connect();
+                connectWallet();
               }}
               onSwitchNetwork={() => {
                 void penoraWalletService.switchOrAddAmoyNetwork();
@@ -825,7 +836,7 @@ export const WalletView: React.FC = () => {
                   copied={copiedAddress}
                   isProviderInstalled={isProviderInstalled}
                   onConnect={() => {
-                    void penoraWalletService.connect();
+                    connectWallet();
                   }}
                   onSwitchNetwork={() => {
                     void penoraWalletService.switchOrAddAmoyNetwork();
@@ -852,7 +863,7 @@ export const WalletView: React.FC = () => {
                   onViewAll={() => setActiveTab('history')}
                   onStartSend={() => setActiveTab('send')}
                   onConnect={() => {
-                    void penoraWalletService.connect();
+                    connectWallet();
                   }}
                 />
               </div>
@@ -864,7 +875,7 @@ export const WalletView: React.FC = () => {
                   copied={copiedAddress}
                   isProviderInstalled={isProviderInstalled}
                   onConnect={() => {
-                    void penoraWalletService.connect();
+                    connectWallet();
                   }}
                   onDisconnect={() => {
                     penoraWalletService.disconnect();
@@ -895,7 +906,7 @@ export const WalletView: React.FC = () => {
               onDismiss={handleDismissOnboarding}
               onReopen={handleReopenOnboarding}
               onConnect={() => {
-                void penoraWalletService.connect();
+                connectWallet();
               }}
               onSwitchNetwork={() => {
                 void penoraWalletService.switchOrAddAmoyNetwork();
@@ -1023,7 +1034,7 @@ export const WalletView: React.FC = () => {
               if (walletState.address) void handleCopy(walletState.address);
             }}
             onConnect={() => {
-              void penoraWalletService.connect();
+              connectWallet();
             }}
             onSwitchNetwork={() => {
               void penoraWalletService.switchOrAddAmoyNetwork();
