@@ -1,0 +1,69 @@
+.wallet-phone-heading, .wallet-phone-navigation, .wallet-phone-overview { display: none; }
+@media (max-width: 767px) {
+  .penora-wallet { --wallet-bg: #f3f7f5; --wallet-text: #102e41; --wallet-muted: #647b84; }
+  .penora-wallet[data-wallet-theme='dark'] { --wallet-bg: #0c2232; --wallet-text: #e6f1f2; --wallet-muted: #a3b9c1; }
+  .penora-wallet .wallet-content { padding: 22px 16px 36px; }
+  .penora-wallet .wallet-content > * { min-width: 0; }
+  .penora-wallet .wallet-page-heading, .penora-wallet .wallet-testnet-notice,
+  .penora-wallet .wallet-tabs, .penora-wallet .wallet-full-overview { display: none; }
+  .penora-wallet .wallet-phone-heading { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 10px; }
+  .penora-wallet .wallet-phone-eyebrow { font-family: 'Michroma', sans-serif; font-size: 8px; letter-spacing: .11em; color: var(--wallet-muted); }
+  .penora-wallet .wallet-phone-heading h1 { margin: 6px 0 0; font: 500 22px/1.25 'Sora', sans-serif; letter-spacing: -.055em; color: var(--wallet-text); }
+  .penora-wallet .wallet-phone-heading > button { display: grid; place-items: center; min-width: 44px; min-height: 44px; border: 1px solid rgb(94 135 147 / 18%); border-radius: 50%; background: var(--wallet-surface); color: var(--wallet-text); }
+  .penora-wallet .wallet-phone-notice { grid-column: 1 / -1; display: flex; align-items: flex-start; gap: 6px; margin: 0; color: var(--wallet-muted); font: 400 11px/1.5 'Inter', sans-serif; }
+  .penora-wallet .wallet-phone-notice > span { flex: 0 0 5px; height: 5px; background: #b5812d; border-radius: 50%; margin-top: 5px; }
+  .penora-wallet .wallet-phone-navigation { display: block; }
+  .penora-wallet .wallet-phone-navigation > nav { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)) .85fr; gap: 2px; border-bottom: 1px solid rgb(94 135 147 / 18%); }
+  .penora-wallet .wallet-phone-navigation > nav > button { min-width: 0; min-height: 44px; display: flex; align-items: center; justify-content: center; gap: 2px; padding: 8px 0; position: relative; background: transparent; border: 0; color: var(--wallet-muted); font: 500 11px/1.3 'Sora', sans-serif; letter-spacing: -.025em; }
+  .penora-wallet .wallet-phone-navigation > nav > button[aria-current], .penora-wallet .wallet-phone-navigation > nav > .is-selected { color: var(--wallet-text); }
+  .penora-wallet .wallet-phone-navigation > nav > button[aria-current]::after, .penora-wallet .wallet-phone-navigation > nav > .is-selected::after { content: ''; position: absolute; bottom: -1px; left: 16%; right: 16%; height: 2px; border-radius: 2px; background: #058890; }
+  .penora-wallet .wallet-phone-more { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding: 10px 0 0; }
+  .penora-wallet .wallet-phone-more button { display: flex; align-items: center; justify-content: space-between; gap: 8px; border: 1px solid rgb(94 135 147 / 18%); border-radius: 10px; padding: 10px; min-height: 44px; text-align: left; font: 500 11px/1.5 'Sora', sans-serif; color: var(--wallet-text); background: var(--wallet-surface); }
+  .penora-wallet .wallet-phone-overview { display: flex; flex-direction: column; gap: 20px; }
+  .penora-wallet .wallet-phone-balance { position: relative; isolation: isolate; overflow: hidden; padding: 20px; border: 1px solid rgb(111 220 221 / 18%); border-radius: 24px; background: radial-gradient(ellipse at 100% 100%, #175565, transparent 80%), #09263b; color: #fff; box-shadow: 0 12px 24px rgb(5 36 51 / 10%); }
+  .penora-wallet .wallet-phone-watermark { position: absolute; z-index: -1; top: 16px; right: -26px; opacity: .15; transform: rotate(-14deg); pointer-events: none; }
+  .penora-wallet .wallet-phone-balance-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; font: 500 9px/1.5 'Sora', sans-serif; letter-spacing: .15em; color: #a9c9d3; }
+  .penora-wallet .wallet-phone-network { display: inline-flex; align-items: center; gap: 5px; padding: 4px 7px; border: 1px solid rgb(137 218 221 / 20%); border-radius: 20px; font-size: 8px; letter-spacing: .08em; color: #b8e3e1; }
+  .penora-wallet .wallet-phone-network i { width: 4px; height: 4px; border-radius: 50%; background: #8be6df; }
+  .penora-wallet .wallet-phone-amount { display: flex; align-items: baseline; gap: 8px; margin-top: 16px; font-family: 'Sora', sans-serif; }
+  .penora-wallet .wallet-phone-amount strong { min-width: 0; overflow-wrap: anywhere; font-size: clamp(26px, 8vw, 36px); line-height: 1.2; font-weight: 500; letter-spacing: -.06em; font-variant-numeric: tabular-nums; }
+  .penora-wallet .wallet-phone-amount > span { flex-shrink: 0; font-size: 13px; color: #8be6df; }
+  .penora-wallet .wallet-phone-balance > p { margin: 8px 0 18px; font: 400 11px/1.5 'Inter', sans-serif; color: #b7ced6; }
+  .penora-wallet .wallet-phone-connect { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; min-height: 44px; padding: 10px 12px; background: #8be6df; color: #092c3c; border: 0; border-radius: 12px; font: 500 12px/1.5 'Sora', sans-serif; letter-spacing: -.02em; }
+  .penora-wallet .wallet-phone-connect > svg:last-child { margin-left: auto; }
+  .penora-wallet .wallet-phone-address { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; border-top: 1px solid rgb(255 255 255 / 12%); padding-top: 4px; }
+  .penora-wallet .wallet-phone-address button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 44px; color: #d8f3f2; font: 400 11px 'Inter', sans-serif; background: transparent; }
+  .penora-wallet .wallet-phone-address button:last-child { min-width: 44px; margin-left: auto; }
+  .penora-wallet .wallet-phone-address > span { font: 400 10px/1.4 'Inter', sans-serif; color: #a9d5d2; }
+  .penora-wallet .wallet-phone-actions { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 8px; }
+  .penora-wallet .wallet-phone-actions button { display: flex; flex-direction: column; align-items: center; gap: 8px; min-height: 72px; padding: 0; color: var(--wallet-text); font: 500 11px/1.5 'Sora', sans-serif; letter-spacing: -.02em; }
+  .penora-wallet .wallet-phone-actions button > span { display: grid; place-items: center; width: 48px; height: 48px; border-radius: 16px; border: 1px solid #d1e6e2; background: #e3f0ec; color: #007e86; transition: transform 180ms ease, background-color 180ms ease; }
+  .penora-wallet .wallet-phone-actions button:active > span { transform: scale(.94); background: #cae7e0; }
+  .penora-wallet[data-wallet-theme='dark'] .wallet-phone-actions button > span { background: #173e4c; border-color: #2b5360; color: #91e2de; }
+  .penora-wallet .wallet-phone-section-title { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+  .penora-wallet .wallet-phone-section-title h2 { font: 500 16px/1.5 'Sora', sans-serif; letter-spacing: -.04em; }
+  .penora-wallet .wallet-phone-section-title > span { font: 500 8px/1.5 'Sora', sans-serif; letter-spacing: .12em; color: var(--wallet-muted); }
+  .penora-wallet .wallet-phone-asset { display: flex; align-items: center; gap: 10px; padding: 15px 0; border-bottom: 1px solid rgb(94 135 147 / 15%); }
+  .penora-wallet .wallet-phone-token { display: grid; place-items: center; flex-shrink: 0; width: 38px; height: 38px; border-radius: 50%; background: #e0eeea; color: #007e86; font: 500 20px 'Sora', sans-serif; }
+  .penora-wallet .token-pp { background: #e5e9f1; color: #586982; }
+  .penora-wallet .token-pol { background: #ece8f2; color: #76638e; }
+  .penora-wallet .wallet-phone-asset > div:nth-child(2) { min-width: 0; }
+  .penora-wallet .wallet-phone-asset h3 { font: 500 13px/1.5 'Sora', sans-serif; letter-spacing: -.03em; }
+  .penora-wallet .wallet-phone-asset p { margin: 3px 0 0; font: 400 10px/1.4 'Inter', sans-serif; color: var(--wallet-muted); }
+  .penora-wallet .wallet-phone-asset-value { margin-left: auto; min-width: 0; max-width: 46%; display: flex; flex-direction: column; align-items: flex-end; gap: 3px; text-align: right; }
+  .penora-wallet .wallet-phone-asset-value strong { max-width: 100%; overflow-wrap: anywhere; font: 500 15px/1.4 'Sora', sans-serif; font-variant-numeric: tabular-nums; letter-spacing: -.035em; }
+  .penora-wallet .wallet-phone-asset-value > span { font: 400 10px/1.4 'Inter', sans-serif; color: var(--wallet-muted); }
+  .penora-wallet .wallet-phone-power { padding: 16px; border: 1px solid rgb(94 135 147 / 16%); border-radius: 18px; background: var(--wallet-surface); }
+  .penora-wallet .wallet-phone-power > div:first-child { display: flex; align-items: center; gap: 10px; }
+  .penora-wallet .wallet-phone-power-icon { display: grid; place-items: center; width: 34px; height: 34px; color: #007e86; background: #e3f0ec; border-radius: 10px; flex-shrink: 0; }
+  .penora-wallet .wallet-phone-power h2 { font: 500 13px/1.5 'Sora', sans-serif; letter-spacing: -.035em; }
+  .penora-wallet .wallet-phone-power p { margin: 4px 0 0; font: 400 10px/1.5 'Inter', sans-serif; color: var(--wallet-muted); }
+  .penora-wallet .wallet-phone-power-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 14px; }
+  .penora-wallet .wallet-phone-power-actions button { display: flex; align-items: center; justify-content: space-between; gap: 4px; min-height: 44px; padding: 10px; border: 1px solid rgb(94 135 147 / 20%); border-radius: 10px; color: var(--wallet-text); font: 500 10px/1.5 'Sora', sans-serif; }
+  .penora-wallet .wallet-phone-power .wallet-phone-power-help { margin-top: 10px; }
+  .penora-wallet .wallet-phone-details { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 44px; padding: 4px 0; color: var(--wallet-muted); font: 400 11px/1.5 'Inter', sans-serif; text-align: left; }
+  .penora-wallet .wallet-details-view > .grid { gap: 16px; }
+  .penora-wallet .wallet-details-view .wallet-assets-card { display: none; }
+  .penora-wallet .wallet-content > .rounded-3xl, .penora-wallet .wallet-content > div > .rounded-3xl { padding: 20px 16px; border-radius: 20px; }
+  .penora-wallet :is(h2,h3,h4).font-serif { font-family: 'Sora', sans-serif; font-weight: 500; letter-spacing: -.035em; }
+}
