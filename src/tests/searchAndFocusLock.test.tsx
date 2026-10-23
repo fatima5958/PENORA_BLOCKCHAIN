@@ -65,12 +65,12 @@ describe('PENORA Search, Mobile Drawer & Focus Lock Suite', () => {
       onLogout: vi.fn(),
     };
 
-    it('enforces maximum 320px width and 16px mobile font size', () => {
+    it('enforces compact maximum 280px width and 16px mobile font size', () => {
       const html = renderToStaticMarkup(<MobileNavigationDrawer {...drawerProps} />);
 
-      // Maximum 320px width
-      expect(html).toContain('max-w-[320px]');
-      expect(html).toContain('w-[82vw]');
+      // Maximum 280px width
+      expect(html).toContain('max-w-[280px]');
+      expect(html).toContain('w-[75vw]');
 
       // Menu typography strictly 16px
       expect(html).toContain('text-[16px]');
@@ -87,14 +87,14 @@ describe('PENORA Search, Mobile Drawer & Focus Lock Suite', () => {
       const testViewports = [320, 360, 375, 390, 430];
 
       testViewports.forEach((vw) => {
-        const width = Math.min(Math.round(vw * 0.82), 320);
-        // Never exceed 320px
-        expect(width).toBeLessThanOrEqual(320);
-        // Ratio at least 74% (due to 320px cap on 430px) and at most 85%
-        expect(width / vw).toBeGreaterThanOrEqual(0.74);
-        expect(width / vw).toBeLessThanOrEqual(0.85);
-        // At least 45px tap backdrop preserved
-        expect(vw - width).toBeGreaterThanOrEqual(45);
+        const width = Math.min(Math.round(vw * 0.75), 280);
+        // Never exceed 280px
+        expect(width).toBeLessThanOrEqual(280);
+        // Ratio at least 65% (due to 280px cap on 430px) and at most 76%
+        expect(width / vw).toBeGreaterThanOrEqual(0.65);
+        expect(width / vw).toBeLessThanOrEqual(0.76);
+        // At least 60px tap backdrop preserved
+        expect(vw - width).toBeGreaterThanOrEqual(60);
       });
     });
   });

@@ -1,6 +1,6 @@
 // src/components/common/MobileNavigationDrawer.tsx
 // PENORA — Premium Mobile Navigation Drawer (Sidebar)
-// - Calibrated drawer width: 80–85vw, capped at 320px
+// - Calibrated compact drawer width: 75vw, capped at 280px (snug fit, zero excess right void)
 // - Mobile font size strictly 16px for optimal readability
 // - Integrated live user/creator search preview inside drawer
 // - Stack-safe focus trapping & background scroll lock via useOverlayLock
@@ -176,9 +176,9 @@ export const MobileNavigationDrawer: React.FC<MobileNavigationDrawerProps> = ({
 
   if (!isOpen) return null;
 
-  // Base styling: 16px mobile typography, 46px touch target
+  // Base styling: 16px mobile typography, 46px touch target, snug fit
   const getItemClassName = (isActive: boolean) =>
-    `w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-[16px] font-medium transition-all min-h-[46px] select-none ${
+    `w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-[16px] font-medium transition-all min-h-[46px] select-none ${
       isActive
         ? isLight
           ? 'bg-[#007C8B]/10 text-[#007C8B] font-semibold border-l-[3px] border-[#007C8B]'
@@ -202,11 +202,11 @@ export const MobileNavigationDrawer: React.FC<MobileNavigationDrawerProps> = ({
         aria-hidden="true"
       />
 
-      {/* ─── 2. Calibrated Drawer Panel (80–85vw, max 320px) ─── */}
+      {/* ─── 2. Compact Snug Drawer Panel (75vw, max 280px) ─── */}
       <div
         ref={drawerRef}
         tabIndex={-1}
-        className={`relative z-10 w-[82vw] max-w-[320px] h-full shadow-2xl flex flex-col justify-between overflow-x-hidden overflow-y-auto overscroll-contain touch-pan-y transform transition-all duration-300 ease-out pb-[max(1.25rem,env(safe-area-inset-bottom,0px))] pt-[max(0.875rem,env(safe-area-inset-top,0px))] px-3.5 ${
+        className={`relative z-10 w-[75vw] max-w-[280px] h-full shadow-2xl flex flex-col justify-between overflow-x-hidden overflow-y-auto overscroll-contain touch-pan-y transform transition-all duration-300 ease-out pb-[max(1.25rem,env(safe-area-inset-bottom,0px))] pt-[max(0.875rem,env(safe-area-inset-top,0px))] px-3 ${
           isLight
             ? 'bg-gradient-to-b from-[#FFFFFF] via-[#F8FBFD] to-[#F1F6FA] text-[#0A2540] border-r border-[#0A2540]/10'
             : 'bg-gradient-to-b from-[#0A2540] via-[#06182C] to-[#04101E] text-white border-r border-[#00E5F4]/20 shadow-[0_0_40px_rgba(0,229,244,0.12)]'

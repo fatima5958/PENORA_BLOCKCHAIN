@@ -16,16 +16,16 @@ describe('PENORA Mobile Navigation Drawer & Responsiveness Suite', () => {
     onLogout: vi.fn(),
   };
 
-  it('renders open drawer with calibrated width classes (80-85vw, max-w-[320px])', () => {
+  it('renders open drawer with compact width classes (75vw, max-w-[280px])', () => {
     const html = renderToStaticMarkup(<MobileNavigationDrawer {...defaultProps} />);
 
     // Must have dialog role and modal attribute
     expect(html).toContain('role="dialog"');
     expect(html).toContain('aria-modal="true"');
 
-    // Drawer panel width constraint: w-[82vw] and max-w-[320px]
-    expect(html).toContain('w-[82vw]');
-    expect(html).toContain('max-w-[320px]');
+    // Drawer panel width constraint: w-[75vw] and max-w-[280px] to eliminate dead space
+    expect(html).toContain('w-[75vw]');
+    expect(html).toContain('max-w-[280px]');
     expect(html).toContain('overflow-x-hidden');
   });
 
@@ -71,22 +71,22 @@ describe('PENORA Mobile Navigation Drawer & Responsiveness Suite', () => {
     const viewports = [320, 360, 375, 390, 430];
 
     viewports.forEach((vw) => {
-      // With w-[82vw] and max-w-[320px]:
-      const calculatedWidth = Math.min(Math.round(vw * 0.82), 320);
+      // With w-[75vw] and max-w-[280px]:
+      const calculatedWidth = Math.min(Math.round(vw * 0.75), 280);
       const remainingBackdrop = vw - calculatedWidth;
 
-      // 1. Drawer width must never exceed 320px
-      expect(calculatedWidth).toBeLessThanOrEqual(320);
+      // 1. Drawer width must never exceed 280px
+      expect(calculatedWidth).toBeLessThanOrEqual(280);
 
-      // 2. Drawer width must stay within 80-85vw proportion
+      // 2. Drawer width must stay within 65-76vw proportion
       const ratio = calculatedWidth / vw;
-      if (vw * 0.82 <= 320) {
-        expect(ratio).toBeGreaterThanOrEqual(0.80);
-        expect(ratio).toBeLessThanOrEqual(0.85);
+      if (vw * 0.75 <= 280) {
+        expect(ratio).toBeGreaterThanOrEqual(0.70);
+        expect(ratio).toBeLessThanOrEqual(0.76);
       }
 
       // 3. There must always be visible dark backdrop on the right for comfortable tapping to dismiss
-      expect(remainingBackdrop).toBeGreaterThanOrEqual(45);
+      expect(remainingBackdrop).toBeGreaterThanOrEqual(60);
     });
   });
 
