@@ -227,7 +227,7 @@ class PenoraWalletService {
     if (!eth) {
       this.updateState({
         status: 'error',
-        error: 'No wallet connected. Use PENORA built-in wallet (when enabled) or connect a browser wallet.',
+        error: 'MetaMask not detected. Use PENORA built-in wallet if enabled, or install a browser wallet.',
       });
       return;
     }

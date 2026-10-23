@@ -6,6 +6,9 @@ on:
     paths:
       - package.json
       - src/components/wallet/EmbeddedWalletEntry.tsx
+      - src/components/wallet/WalletView.tsx
+      - src/components/exchange/ExchangeView.tsx
+      - src/lib/wallet/walletService.ts
       - .github/workflows/embedded-wallet-preview.yml
 permissions:
   contents: write
