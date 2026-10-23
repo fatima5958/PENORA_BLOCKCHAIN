@@ -5,7 +5,6 @@ import {
   Bell,
   CheckCheck,
   RotateCw,
-  Heart,
   MessageCircle,
   UserPlus,
   AtSign,
@@ -220,8 +219,8 @@ export const NotificationsView: React.FC = () => {
     switch (type) {
       case 'upvote':
         return (
-          <span className="h-8 w-8 rounded-full flex items-center justify-center bg-rose-500/10 text-rose-500 border border-rose-500/20 shrink-0">
-            <Heart className="h-4 w-4 fill-rose-500" />
+          <span className="h-8 w-8 rounded-full flex items-center justify-center bg-[#00E5F4]/15 text-[#007C8B] border border-[#007C8B]/25 shrink-0 font-bold text-xs">
+            <span aria-hidden="true">▲</span>
           </span>
         );
       case 'comment':

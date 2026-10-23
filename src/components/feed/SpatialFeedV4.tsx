@@ -482,7 +482,7 @@ export const SpatialFeedV4: React.FC = () => {
                                 <span className="truncate">{article.author.name}</span>
                                 {article.author.verified && (
                                   <span
-                                    className="inline-flex items-center px-1.5 py-0.2 rounded bg-[#EEFBFC] text-[#007C8B] text-[10px] font-semibold border border-[#007C8B]/15"
+                                    className="inline-flex items-center px-1.5 py-0.2 rounded bg-[#EEFBFC] text-[#006573] text-[10px] font-semibold border border-[#007C8B]/20"
                                     title="Creator Reputation Score"
                                   >
                                     Rep {article.author.reputation}

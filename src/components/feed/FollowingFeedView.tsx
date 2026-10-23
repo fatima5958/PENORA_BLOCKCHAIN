@@ -12,7 +12,6 @@ import {
   Loader2,
   RefreshCw,
   Repeat,
-  Heart,
   MessageSquare,
   Bookmark,
 } from 'lucide-react';
@@ -362,8 +361,8 @@ export const FollowingFeedView: React.FC = () => {
                     {/* Engagement Actions */}
                     <div className="flex items-center justify-between pt-3 border-t border-[#0A2540]/6 text-xs text-[#6E7D90]">
                       <div className="flex items-center gap-4">
-                        <span className="inline-flex items-center gap-1">
-                          <Heart className="h-3.5 w-3.5" />
+                        <span className="inline-flex items-center gap-1 font-semibold text-[#007C8B]">
+                          <span aria-hidden="true" className="text-[10px]">▲</span>
                           <span>Upvote</span>
                         </span>
                         <a

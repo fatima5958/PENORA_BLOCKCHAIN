@@ -407,7 +407,7 @@ export const Header: React.FC<HeaderProps> = ({ currentPath = '/' }) => {
                           </span>
                         </a>
 
-                        <a href="/exchange/" role="menuitem" onClick={() => setProfileDropdownOpen(false)} className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-[#0A2540] hover:bg-[#F4F7FA] hover:text-[#007C8B] font-medium"><ArrowLeftRight className="h-4 w-4 text-[#007C8B]"/><span>Exchange · Buy PNR</span></a>
+                        <a href="/exchange" role="menuitem" onClick={() => setProfileDropdownOpen(false)} className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-[#0A2540] hover:bg-[#F4F7FA] hover:text-[#007C8B] font-medium"><ArrowLeftRight className="h-4 w-4 text-[#007C8B]"/><span>Exchange · Buy PNR</span></a>
                         {/* 4. Settings */}
                         <a
                           href="/profile/me?tab=about"

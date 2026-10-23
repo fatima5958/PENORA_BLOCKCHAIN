@@ -5,7 +5,7 @@ describe('Penora inventory-backed exchange',function(){
  let owner,buyer,other,pnr,usdt,desk;const rate=ethers.parseEther('20');
  beforeEach(async()=>{
   [owner,buyer,other]=await ethers.getSigners();
-  pnr=await (await ethers.getContractFactory('PenoraToken')).deploy(owner.address);
+  pnr=await (await ethers.getContractFactory('PenoraToken')).deploy(owner.address, ethers.ZeroAddress, 0);
   usdt=await (await ethers.getContractFactory('MockUSDT')).deploy('Test USDT','USDT',ethers.parseUnits('10000',6),owner.address);
   desk=await (await ethers.getContractFactory('PenoraExchange')).deploy(pnr.target,usdt.target,owner.address,rate);
   await pnr.transfer(desk.target,ethers.parseEther('1000'));

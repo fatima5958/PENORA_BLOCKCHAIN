@@ -4,6 +4,7 @@ import {formatUnits,parseUnits} from 'viem';
 import {penoraWalletService,INITIAL_WALLET_STATE} from '../../lib/wallet/walletService';
 import {exchangeConfigured,exchangeAddress,readMarket,getBuyQuote,buyPnr,pendingBuy,reconcileBuy,type MarketSnapshot,type BuyQuote} from '../../lib/exchange/exchangeService';
 import '../../styles/exchange.css';
+import { P2PMarketplaceView } from './P2PMarketplaceView';
 const compact=(raw:bigint,decimals=18)=>Number(formatUnits(raw,decimals)).toLocaleString('en-US',{maximumFractionDigits:6});
 const short=(value:string)=>`${value.slice(0,6)}…${value.slice(-4)}`;
 const frames=['15m','1H','4H','1D','1W'] as const;
@@ -30,6 +31,7 @@ export function ExchangeView() {
  const [amount,setAmount]=useState(''),[quote,setQuote]=useState<BuyQuote|null>(null),[review,setReview]=useState<BuyQuote|null>(null);
  const [busy,setBusy]=useState(false),[message,setMessage]=useState(''),[hash,setHash]=useState<string|null>(null),[pending,setPending]=useState(false);
  const [tab,setTab]=useState<'activity'|'details'>('activity'),[refreshing,setRefreshing]=useState(false);
+ const [tradingMode, setTradingMode] = useState<'desk' | 'p2p'>('desk');
  const context=useRef(0),dialog=useRef<HTMLDialogElement>(null),active=useRef(true);
  const configured=exchangeConfigured();
  useEffect(()=>{active.current=true;const unsubscribe=penoraWalletService.subscribe(setWallet);setPending(!!pendingBuy());setHash(pendingBuy()?.hash??null);return()=>{active.current=false;context.current++;unsubscribe();};},[]);
@@ -52,7 +54,35 @@ export function ExchangeView() {
  return <div className="ex-shell"><div className="ex-wrap">
   <nav className="ex-topline" aria-label="Exchange navigation"><a href="/wallet/"><ArrowLeft size={14}/> Back to wallet</a><span className="ex-network"><span className="ex-dot"/> Polygon Amoy <span className="ex-testnet">TESTNET</span></span></nav>
   <header className="ex-heading"><div><div className="ex-eyebrow">PENORA / CREATOR ECONOMY</div><h1>Your words.<br className="ex-mobile-break"/> Your next move<span>.</span></h1><p>A dedicated space to turn test USDT into liquid PNR.</p></div><div className="ex-heading-actions"><a href="/wallet/" className="ex-wallet-link"><Wallet size={16}/> My wallet <ArrowUpRight size={14}/></a><span className="ex-outline-label">EXCHANGE / 01</span></div></header>
-  <div className="ex-status-strip"><span><ShieldCheck size={15}/> {configured?'Onchain quotes · inventory-backed':'Market preview · trading not activated'}</span><span>Amoy test tokens only. No mainnet deposits.</span></div>
+   <div className="flex items-center gap-2 my-4">
+     <button
+       type="button"
+       onClick={() => setTradingMode('desk')}
+       className={`py-2 px-4 rounded-xl text-xs font-semibold transition-all ${
+         tradingMode === 'desk'
+           ? 'bg-gradient-to-r from-[#007C8B] via-[#00B3C4] to-[#00E5F4] text-white shadow-sm'
+           : 'bg-[#122129] text-white/70 hover:text-white border border-white/10'
+       }`}
+     >
+       Instant Purchase Desk
+     </button>
+     <button
+       type="button"
+       onClick={() => setTradingMode('p2p')}
+       className={`py-2 px-4 rounded-xl text-xs font-semibold transition-all ${
+         tradingMode === 'p2p'
+           ? 'bg-gradient-to-r from-[#007C8B] via-[#00B3C4] to-[#00E5F4] text-white shadow-sm'
+           : 'bg-[#122129] text-white/70 hover:text-white border border-white/10'
+       }`}
+     >
+       P2P Marketplace
+     </button>
+   </div>
+  {tradingMode === 'p2p' ? (
+     <P2PMarketplaceView onBackToDesk={() => setTradingMode('desk')} />
+   ) : (
+     <>
+       <div className="ex-status-strip"><span><ShieldCheck size={15}/> {configured?'Onchain quotes · inventory-backed':'Market preview · trading not activated'}</span><span>Amoy test tokens only. No mainnet deposits.</span></div>
   <section className="ex-market-bar" aria-label="PNR market summary"><div className="ex-pair"><div className="ex-token-mark">P<span>↗</span></div><div><h2>PNR <span>/ USDT</span> <ChevronDown size={14}/></h2><p>PENORA Token <span>•</span> Purchase desk</p></div></div><div className="ex-spot"><strong>{market?`${compact(market.rate)} PNR`:'—'}</strong><span>{market?'Per 1 test USDT · owner-set':'Price awaiting activation'}</span></div><div className="ex-market-stat"><span>Available liquidity</span><strong>{market?`${compact(market.inventory)} PNR`:'—'}</strong></div><div className="ex-market-stat"><span>Execution</span><strong>Onchain <span className="ex-dot"/></strong></div><button type="button" className="ex-icon-button" aria-label="Refresh exchange market" disabled={!configured||refreshing} onClick={()=>void refresh()}><RefreshCw size={16} className={refreshing?'ex-spin':''}/></button></section>
   <div className="ex-terminal"><div className="ex-market-column"><PreviewChart/>
    <section className="ex-panel ex-activity"><div className="ex-panel-head"><div className="ex-tabs"><button type="button" aria-pressed={tab==='activity'} onClick={()=>setTab('activity')}>Your activity</button><button type="button" aria-pressed={tab==='details'} onClick={()=>setTab('details')}>Market details</button></div><span className="ex-small-label">PNR / USDT</span></div>
@@ -68,7 +98,9 @@ export function ExchangeView() {
    </form><div role="status" aria-live="polite" className={message||wallet.error?'ex-feedback':''}>{message||wallet.error}</div></section>
    <section className="ex-liquidity"><div><Layers3 size={18}/><span>Built around real liquidity.</span></div><p>{market?`${compact(market.inventory)} PNR currently held by the desk. Inventory can change before execution.`:'Quotes will come from the deployed desk. No artificial order book or invented trading volume.'}</p><span className="ex-liquidity-bottom">YOUR WALLET. YOUR SIGNATURE. <ArrowUpRight size={14}/></span></section></aside>
   </div>
-  <footer className="ex-bottom"><span><span className="ex-dot"/> PENORA EXCHANGE</span><p>Designed for the people who create the value.</p><a href="/wallet/">Manage assets <ArrowRight size={13}/></a></footer>
+       </>
+   )}
+   <footer className="ex-bottom"><span><span className="ex-dot"/> PENORA EXCHANGE</span><p>Designed for the people who create the value.</p><a href="/wallet/">Manage assets <ArrowRight size={13}/></a></footer>
   <dialog ref={dialog} className="ex-review" onCancel={e=>{if(busy)e.preventDefault();else setReview(null);}} onClose={()=>{if(!busy)setReview(null);}} aria-labelledby="ex-review-title"><div className="ex-eyebrow">CHECK BEFORE YOU SIGN</div><h2 id="ex-review-title">Review your purchase</h2>{review&&<><dl className="ex-details"><div><dt>You pay</dt><dd>{formatUnits(review.input,6)} test USDT</dd></div><div><dt>Expected PNR</dt><dd>{formatUnits(review.output,18)}</dd></div><div><dt>Minimum PNR</dt><dd>{formatUnits(review.minimum,18)}</dd></div><div><dt>Recipient</dt><dd className="ex-address">{wallet.address}</dd></div><div><dt>Network</dt><dd>Polygon Amoy testnet</dd></div></dl><p>Owner-set desk price. 0.5% maximum adverse price movement. Network gas is additional. Quote expires after 60 seconds.</p><div role="status" className="ex-review-status">{message}</div><button type="button" className="ex-primary" disabled={busy} onClick={()=>void purchase()}>{busy?'Waiting for wallet…':'Approve & buy PNR'}<Check size={16}/></button><button type="button" className="ex-review-cancel" disabled={busy} onClick={()=>setReview(null)}>Back to exchange</button></>}</dialog>
  </div></div>;
 }

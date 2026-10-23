@@ -110,12 +110,12 @@ export const ExploreView: React.FC<ExploreViewProps> = ({ topics }) => {
                 <div key={p.id} className="pn-card pn-card-interactive p-4 flex items-center justify-between gap-4">
                   <div>
                     <span className="pn-tag text-[10px] uppercase mb-1 inline-block">{p.tags?.[0] || 'Article'}</span>
-                    <a href={`/story/${p.slug}`}>
+                    <a href={`/read?slug=${encodeURIComponent(p.slug)}`}>
                       <h3 className="pn-h3 text-base hover:text-[#007C8B] transition-colors">{p.title}</h3>
                     </a>
                     <p className="text-xs text-[#4A5B70] line-clamp-1 mt-0.5">{p.excerpt || p.content.slice(0, 120)}</p>
                   </div>
-                  <a href={`/story/${p.slug}`} className="pn-btn pn-btn-secondary pn-btn-sm flex-shrink-0">
+                  <a href={`/read?slug=${encodeURIComponent(p.slug)}`} className="pn-btn pn-btn-secondary pn-btn-sm flex-shrink-0">
                     <span>Read</span>
                     <ExternalLink className="h-3 w-3" />
                   </a>

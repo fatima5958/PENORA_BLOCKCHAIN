@@ -17,7 +17,7 @@ describe('Article rewards after seven days', function () {
   const week = 604800;
   beforeEach(async () => {
     [owner,author,curator,other] = await ethers.getSigners();
-    token=await (await ethers.getContractFactory('PenoraToken')).deploy(owner.address);
+    token=await (await ethers.getContractFactory('PenoraToken')).deploy(owner.address, ethers.ZeroAddress, 0);
     rewards=await (await ethers.getContractFactory('PenoraArticleRewards')).deploy(await token.getAddress(),owner.address);
     publishedAt=await time.latest(); id=articleContentId('post-1');
     await rewards.registerArticle(id,author.address,publishedAt);

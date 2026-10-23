@@ -1,0 +1,68 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { PenoraLogo } from '../components/brand/PenoraLogo';
+import { Compass, Home, Search, ArrowRight } from 'lucide-react';
+---
+
+<BaseLayout
+  title="Page Not Found — PENORA"
+  description="The requested page could not be found on PENORA."
+>
+  <div class="max-w-2xl mx-auto px-4 sm:px-6 py-16 sm:py-24 text-center">
+    <div className="w-16 h-16 mx-auto mb-6 flex items-center justify-center rounded-2xl bg-[#00E5F4]/15 border border-[#007C8B]/20 text-[#007C8B]">
+      <PenoraLogo variant="app-icon" size="sm" />
+    </div>
+
+    <span class="pn-tag text-[11px] font-semibold uppercase tracking-wider mb-3 inline-block">
+      404 · Navigation Notice
+    </span>
+
+    <h1 class="font-serif text-3xl sm:text-4xl font-bold text-[#0A2540] mb-4">
+      Page or Creator Not Found
+    </h1>
+
+    <p class="text-sm text-[#4A5B70] max-w-md mx-auto leading-relaxed mb-8">
+      The story or route you are looking for has either moved, been archived, or was created dynamically.
+    </p>
+
+    <div class="flex flex-wrap items-center justify-center gap-3">
+      <a href="/" class="pn-btn pn-btn-brand text-xs">
+        <Home class="h-4 w-4" />
+        <span>Return to Feed</span>
+      </a>
+      <a href="/explore" class="pn-btn pn-btn-secondary text-xs">
+        <Compass class="h-4 w-4" />
+        <span>Explore Topics</span>
+      </a>
+      <a href="/editor" class="pn-btn pn-btn-ghost text-xs">
+        <span>Write a Blog</span>
+        <ArrowRight class="h-3.5 w-3.5" />
+      </a>
+    </div>
+
+    <div id="dynamic-creator-notice" class="hidden mt-8 p-4 rounded-2xl bg-[#00E5F4]/10 border border-[#007C8B]/20 max-w-md mx-auto text-xs text-[#0A2540]">
+      <p class="mb-2">Looking for a creator handle?</p>
+      <a id="dynamic-creator-link" href="#" class="font-semibold text-[#007C8B] hover:underline flex items-center justify-center gap-1.5">
+        <Search class="h-3.5 w-3.5" />
+        <span id="dynamic-creator-text">Open Creator Profile</span>
+      </a>
+    </div>
+  </div>
+
+  <script>
+    if (typeof window !== 'undefined') {
+      const path = window.location.pathname.split('/').filter(Boolean);
+      if (path[0] === 'profile' && path[1] && path[1] !== 'me') {
+        const handle = encodeURIComponent(path[1]);
+        const notice = document.getElementById('dynamic-creator-notice');
+        const link = document.getElementById('dynamic-creator-link') as HTMLAnchorElement | null;
+        const text = document.getElementById('dynamic-creator-text');
+        if (notice && link && text) {
+          notice.classList.remove('hidden');
+          link.href = `/creator?handle=${handle}`;
+          text.textContent = `Open @${path[1]} via Live Creator View`;
+        }
+      }
+    }
+  </script>
+</BaseLayout>
