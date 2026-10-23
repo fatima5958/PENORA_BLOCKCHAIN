@@ -34,7 +34,7 @@ import {
   BarChart3,
   Loader2,
 } from 'lucide-react';
-import { PenoraLogo } from '../brand/PenoraLogo';
+import { PenoraLogo, PenoraEmblem } from '../brand/PenoraLogo';
 import { getFollowCounts } from '../../lib/api/follows';
 import { getUserArticles } from '../../lib/api/articles';
 import { searchProfiles } from '../../lib/api/profiles';
@@ -229,6 +229,8 @@ export const MobileNavigationDrawer: React.FC<MobileNavigationDrawerProps> = ({
         }`}
       >
         <div className="space-y-4">
+          <div className="pn-sidebar-brand">
+          <div className="pn-sidebar-watermark" aria-hidden="true"><PenoraEmblem size={190} theme="dark" /></div>
           {/* Header: Brand Logo + Theme Switch + Close Button */}
           <div className="pn-sidebar-header flex items-center justify-between pt-0.5 pb-2.5 border-b border-[#0A2540]/8 dark:border-white/10">
             <a href="/" onClick={onClose} className="flex items-center min-w-0" aria-label="PENORA Home">
@@ -275,6 +277,10 @@ export const MobileNavigationDrawer: React.FC<MobileNavigationDrawerProps> = ({
             </div>
           </div>
 
+          <div className="pn-sidebar-manifesto">
+            <span className="pn-sidebar-eyebrow">THE CREATOR NETWORK</span>
+            <p>Ideas deserve<br /><span>ownership.</span></p>
+          </div>
           {/* Creator Profile Header Card */}
           {activeUser ? (
             <div
@@ -370,13 +376,7 @@ export const MobileNavigationDrawer: React.FC<MobileNavigationDrawerProps> = ({
                   : 'bg-white/5 border border-white/10 backdrop-blur-md'
               }`}
             >
-              <div className="flex items-center justify-center gap-1.5 text-xs font-semibold text-[#007C8B] dark:text-[#00E5F4]">
-                <Sparkles className="h-3.5 w-3.5 text-[#00E5F4]" />
-                <span>Join PENORA</span>
-              </div>
-              <p className={`text-xs ${isLight ? 'text-[#52657C]' : 'text-[#7D93AA]'}`}>
-                A fairer creator platform to write, curate, and build verifiable reputation.
-              </p>
+              <p className="pn-sidebar-invitation">Your voice. Your reputation. Your PENORA.</p>
               <div className="grid grid-cols-2 gap-2 pt-1">
                 <button
                   type="button"
@@ -406,6 +406,7 @@ export const MobileNavigationDrawer: React.FC<MobileNavigationDrawerProps> = ({
             </div>
           )}
 
+          </div>
           {/* Search Bar Inside Drawer */}
           <div className="space-y-1.5 pt-0.5">
             <form onSubmit={handleSearchSubmit}>
@@ -423,7 +424,7 @@ export const MobileNavigationDrawer: React.FC<MobileNavigationDrawerProps> = ({
                   aria-label="Search creators and topics"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search creators &amp; topics..."
+                  placeholder="Find your inspiration"
                   className={`w-full text-sm bg-transparent border-none focus:outline-none ${
                     isLight ? 'placeholder:text-[#6E7D90]/70 text-[#0A2540]' : 'placeholder:text-[#7D93AA] text-white'
                   }`}
@@ -526,7 +527,7 @@ export const MobileNavigationDrawer: React.FC<MobileNavigationDrawerProps> = ({
               >
                 <div className="flex items-center gap-3 min-w-0">
                   <Compass className="h-5 w-5 shrink-0" />
-                  <span className="truncate">Explore Topics &amp; Users</span>
+                  <span className="truncate">Explore</span>
                 </div>
                 <ChevronRight className="h-4 w-4 opacity-40 shrink-0" />
               </a>
@@ -552,7 +553,7 @@ export const MobileNavigationDrawer: React.FC<MobileNavigationDrawerProps> = ({
               >
                 <div className="flex items-center gap-3 min-w-0">
                   <Sparkles className="h-5 w-5 shrink-0" />
-                  <span className="truncate">Creator Discovery</span>
+                  <span className="truncate">Discover Creators</span>
                 </div>
                 <ChevronRight className="h-4 w-4 opacity-40 shrink-0" />
               </a>
@@ -606,7 +607,7 @@ export const MobileNavigationDrawer: React.FC<MobileNavigationDrawerProps> = ({
               >
                 <div className="flex items-center gap-3 min-w-0">
                   <Trophy className="h-5 w-5 shrink-0 text-[#007C8B] dark:text-[#00E5F4]" />
-                  <span className="truncate">Writing Challenges</span>
+                  <span className="truncate">Challenges</span>
                 </div>
                 <ChevronRight className="h-4 w-4 opacity-40 shrink-0" />
               </a>
@@ -619,7 +620,7 @@ export const MobileNavigationDrawer: React.FC<MobileNavigationDrawerProps> = ({
               >
                 <div className="flex items-center gap-3 min-w-0">
                   <BarChart3 className="h-5 w-5 shrink-0 text-[#007C8B] dark:text-[#00E5F4]" />
-                  <span className="truncate">Creator Analytics</span>
+                  <span className="truncate">Analytics</span>
                 </div>
                 <ChevronRight className="h-4 w-4 opacity-40 shrink-0" />
               </a>
