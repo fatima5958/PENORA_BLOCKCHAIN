@@ -160,6 +160,44 @@
     background: var(--wallet-surface);
   }
 
+  /* Subnav Context Bar when navigated away from Overview */
+  .penora-wallet .wallet-phone-subnav-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 8px 12px;
+    margin-top: 8px;
+    border-radius: 12px;
+    background: var(--wallet-surface);
+    border: 1px solid var(--wallet-border);
+    font-family: var(--wallet-font-body, 'Inter', sans-serif);
+    font-size: 12.5px;
+  }
+  .penora-wallet .wallet-phone-back {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 36px;
+    padding: 0 4px;
+    border: 0;
+    background: transparent;
+    color: #007c8b;
+    font-size: 13px;
+    font-weight: 600;
+  }
+  .penora-wallet[data-wallet-theme='dark'] .wallet-phone-back {
+    color: #00e5f4;
+  }
+  .penora-wallet .wallet-phone-current-section {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--wallet-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
   /* Overview Stack */
   .penora-wallet .wallet-phone-overview {
     display: flex;

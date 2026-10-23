@@ -122,7 +122,12 @@ export const SendConfirmDialog: React.FC<SendConfirmDialogProps> = ({
       if (e.key === 'Escape' && !sendLoading) onClose();
     };
     window.addEventListener('keydown', handleKey);
-    return () => window.removeEventListener('keydown', handleKey);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      window.removeEventListener('keydown', handleKey);
+      document.body.style.overflow = prevOverflow;
+    };
   }, [open, sendLoading, onClose]);
 
   if (!open) return null;
@@ -280,7 +285,12 @@ export const PowerTransactionDialog: React.FC<PowerModalProps> = ({
       if (e.key === 'Escape' && !actionLoading) onClose();
     };
     window.addEventListener('keydown', handleKey);
-    return () => window.removeEventListener('keydown', handleKey);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      window.removeEventListener('keydown', handleKey);
+      document.body.style.overflow = prevOverflow;
+    };
   }, [open, actionLoading, onClose]);
 
   if (!open) return null;

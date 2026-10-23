@@ -15,6 +15,7 @@ import {
   Moon,
   Sun,
   ExternalLink,
+  ArrowLeft,
 } from 'lucide-react';
 import { historyLabel, historySign } from '../../lib/wallet/history';
 import type { WalletState, WalletTransaction } from '../../lib/wallet/types';
@@ -81,6 +82,19 @@ export function MobileWalletNavigation({
     { id: 'delegation', label: 'Delegation' },
     { id: 'details', label: 'Wallet details & guides' },
   ] as const;
+
+  const SUB_TAB_TITLES: Partial<Record<WalletTab, string>> = {
+    history: 'Recent Activity',
+    earnings: 'Creator Earnings & Claims',
+    power_system: 'PENORA Power Staking',
+    send: 'Send / Withdraw',
+    receive: 'Receive Assets',
+    deposit: 'Deposit Tokens',
+    trade_pnr: 'Trade PNR (P2P Escrow)',
+    delegation: 'Power Delegation',
+    details: 'Wallet Guides & Setup',
+  };
+
   const navigate = (tab: WalletTab) => {
     setExpanded(false);
     onNavigate(tab);
@@ -122,6 +136,21 @@ export function MobileWalletNavigation({
               <ChevronRight size={14} />
             </button>
           ))}
+        </div>
+      )}
+      {activeTab !== 'overview' && (
+        <div className="wallet-phone-subnav-bar">
+          <button
+            type="button"
+            onClick={() => navigate('overview')}
+            className="wallet-phone-back"
+          >
+            <ArrowLeft size={14} />
+            <span>Back to Overview</span>
+          </button>
+          <span className="wallet-phone-current-section">
+            {SUB_TAB_TITLES[activeTab] || 'Section'}
+          </span>
         </div>
       )}
     </div>
