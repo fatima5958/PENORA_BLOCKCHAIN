@@ -26,7 +26,10 @@ export async function deriveAmoyAccountFromActiveKey(activeWif: string): Promise
   if (!globalThis.crypto?.subtle) throw new Error('Unlock requires secure HTTPS/localhost browser crypto.');
   let scalar: Uint8Array | null = null;
   try {
-    const base = await globalThis.crypto.subtle.importKey('raw', seed, 'HKDF', false, ['deriveBits']);
+    const bufferCopy = new Uint8Array(seed.length);
+    bufferCopy.set(seed);
+    const base = await globalThis.crypto.subtle.importKey('raw', bufferCopy.buffer, 'HKDF', false, ['deriveBits']);
+    bufferCopy.fill(0);
     const salt = text('PENORA/ACTIVE/AMOY/SECP256K1/V1');
     for (let counter = 0; counter < 8; counter++) {
       const material = await globalThis.crypto.subtle.deriveBits(
@@ -108,9 +111,8 @@ export class ActiveKeyAmoyProvider {
           data: (tx.data || '0x') as Hex,
           value: tx.value ? BigInt(tx.value) : 0n,
           gas: tx.gas ? BigInt(tx.gas) : undefined,
-          gasPrice: tx.gasPrice ? BigInt(tx.gasPrice) : undefined,
-          maxFeePerGas: tx.maxFeePerGas ? BigInt(tx.maxFeePerGas) : undefined,
-          maxPriorityFeePerGas: tx.maxPriorityFeePerGas ? BigInt(tx.maxPriorityFeePerGas) : undefined,
+          // Local viem signer estimates fees against Amoy; never trust an
+          // unvalidated mixture of legacy gasPrice and EIP-1559 fee fields.
           nonce: tx.nonce !== undefined ? Number(tx.nonce) : undefined,
         });
       }

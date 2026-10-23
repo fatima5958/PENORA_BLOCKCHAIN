@@ -80,6 +80,18 @@ export function ActiveKeyWalletEntry({ compact = false }: { compact?: boolean })
     }
   };
 
+  const connectBrowserWallet = async () => {
+    try {
+      penoraWalletService.disconnect();
+      lockActiveKeyWallet();
+      setAddress(null);
+      setUnlockedUsername(null);
+      await penoraWalletService.connect();
+    } catch {
+      setError('Could not connect the optional browser wallet.');
+    }
+  };
+
   const lock = () => {
     penoraWalletService.disconnect();
     lockActiveKeyWallet();
@@ -123,6 +135,12 @@ export function ActiveKeyWalletEntry({ compact = false }: { compact?: boolean })
             {busy ? 'Verifying…' : 'Unlock Wallet'}
           </button>
         </form>
+      )}
+      {!address && (
+        <button type="button" onClick={() => void connectBrowserWallet()}
+          className="text-xs underline underline-offset-2 opacity-80">
+          Use MetaMask / browser wallet instead (optional)
+        </button>
       )}
       <p className="text-[11px] opacity-70">
         Preview only · Active Key controls this derived wallet. Never share your key.
