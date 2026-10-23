@@ -46,6 +46,7 @@ import {
 } from '../../lib/exchange/exchangeService';
 import '../../styles/exchange.css';
 import { P2PMarketplaceView } from './P2PMarketplaceView';
+import { ActiveKeyWalletEntry, activeKeyWalletEnabled } from '../wallet/ActiveKeyWalletEntry';
 
 const compact = (raw: bigint, decimals = 18) =>
   Number(formatUnits(raw, decimals)).toLocaleString('en-US', { maximumFractionDigits: 6 });
@@ -295,6 +296,13 @@ export function ExchangeView() {
   const dialog = useRef<HTMLDialogElement>(null);
   const active = useRef(true);
   const configured = exchangeConfigured();
+  const connectWallet = () => {
+    if (activeKeyWalletEnabled) {
+      document.getElementById('penora-active-key-wallet')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    } else {
+      void penoraWalletService.connect();
+    }
+  };
 
   // 1. Subscribe to Wallet Service
   useEffect(() => {
@@ -566,6 +574,7 @@ export function ExchangeView() {
     <div className="ex-shell">
       <div className="ex-wrap">
         {/* Topline Navigation */}
+        {activeKeyWalletEnabled && <ActiveKeyWalletEntry compact />}
         <nav className="ex-topline" aria-label="Exchange navigation">
           <a href="/wallet/">
             <ArrowLeft size={14} /> Back to wallet
@@ -1025,7 +1034,7 @@ export function ExchangeView() {
                         type="button"
                         className="ex-primary"
                         disabled={busy || wallet.status === 'connecting'}
-                        onClick={() => void penoraWalletService.connect()}
+                        onClick={connectWallet}
                       >
                         Connect wallet <Wallet size={16} />
                       </button>
