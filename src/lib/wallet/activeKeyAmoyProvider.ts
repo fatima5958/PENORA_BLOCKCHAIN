@@ -107,7 +107,7 @@ export class ActiveKeyAmoyProvider {
         if (tx.chainId !== undefined && Number(tx.chainId) !== PENORA_TARGET_CHAIN_ID) {
           throw new Error('Transactions are restricted to Polygon Amoy testnet.');
         }
-        if (!isPermittedActiveKeyAmoyCall(tx.to, tx.data, tx.value)) {
+        if (!isPermittedActiveKeyAmoyCall(tx.to || '', tx.data, tx.value)) {
           throw new Error('Active Key wallet only supports configured PENORA Amoy contract calls with zero native POL value.');
         }
         if (typeof window === 'undefined' || typeof window.confirm !== 'function') {
