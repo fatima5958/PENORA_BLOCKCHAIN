@@ -1009,7 +1009,7 @@ export const CreatorProfileV7: React.FC<CreatorProfileV7Props> = ({
                       <div className="pt-2 border-t border-[#0A2540]/6 flex items-center justify-between text-[11px]">
                         <span className="text-[#6E7D90]">In discussion on:</span>
                         <a
-                          href={`/story/${reply.post.slug || reply.post.id}#comments`}
+                          href={`/read?slug=${encodeURIComponent(reply.post.slug || reply.post.id)}#comments`}
                           className="font-semibold text-[#007C8B] hover:underline truncate max-w-xs sm:max-w-md"
                         >
                           {reply.post.title} →

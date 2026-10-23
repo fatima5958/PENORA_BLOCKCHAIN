@@ -12,7 +12,7 @@ const links = [
   { key: 'Analytics', label: 'Creator Analytics', icon: BarChart3, href: '/analytics' },
   { key: 'Bookmarks', label: 'Saved Bookmarks', icon: Bookmark, href: '/?view=bookmarks' },
   { key: 'Wallet', label: 'Wallet & Rewards', icon: Wallet, href: '/wallet' },
-  { key: 'Exchange', label: 'Exchange', icon: ArrowLeftRight, href: '/exchange/' },
+  { key: 'Exchange', label: 'Exchange', icon: ArrowLeftRight, href: '/exchange' },
   { key: 'Profile', label: 'My Profile', icon: User, href: '/profile/me' },
 ] as const;
 

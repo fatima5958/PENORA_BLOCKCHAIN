@@ -140,7 +140,7 @@ export const CreatorDiscoveryView: React.FC = () => {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
           {/* Creator Sidebar Navigation */}
           <div className="hidden lg:block lg:col-span-3 sticky top-20">
-            <CreatorSidebar />
+            <CreatorSidebar activePage="Creators" />
           </div>
 
           {/* Main Discover Column */}

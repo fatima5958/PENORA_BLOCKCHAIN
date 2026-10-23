@@ -172,6 +172,8 @@ describe('PENORA Steemit-Style Creator Economy Architecture', () => {
         curatorAmount: parseUnits('200', 18),
         netInfluence: 100n,
         beneficiaries,
+        publishedAt: publishedAtStr,
+        payoutAt: new Date(payoutTimestampMs).toISOString(),
       };
 
       const chainId = 80002n;

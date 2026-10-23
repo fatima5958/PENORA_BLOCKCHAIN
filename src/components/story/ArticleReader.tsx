@@ -21,7 +21,6 @@ import {
   Check,
   Loader2,
   Trash2,
-  Heart,
   MoreVertical,
   ChevronRight,
   List,
@@ -1347,30 +1346,46 @@ export const ArticleReader: React.FC<ArticleReaderProps> = ({ article: initialAr
               </button>
             </div>
 
-            {/* ─── QUICK ENGAGEMENT BAR (Matching Mobile Screen 2) ─── */}
+            {/* ─── QUICK ENGAGEMENT BAR (Authentic Steemit Upvote/Downvote) ─── */}
             <div className="flex items-center justify-between py-2 text-[#52657C] text-sm">
-              <div className="flex items-center gap-4">
-                {/* Heart Upvote */}
-                <button
-                  type="button"
-                  onClick={() => handleVote(1)}
-                  className={`flex items-center gap-1.5 transition-colors ${
-                    voteStats.userVote === 1 ? 'text-[#D0384B] font-bold' : 'hover:text-[#D0384B]'
-                  }`}
-                  aria-label="Upvote article"
-                >
-                  <Heart className={`h-5 w-5 ${voteStats.userVote === 1 ? 'fill-current' : ''}`} />
-                  <span>{voteStats.upvotes}</span>
-                </button>
+              <div className="flex items-center gap-3">
+                {/* Steemit Upvote ▲ / Downvote ▼ Group */}
+                <div className="pn-vote-group" role="group" aria-label="Article voting">
+                  <button
+                    type="button"
+                    onClick={() => handleVote(1)}
+                    data-active={voteStats.userVote === 1 ? 'true' : 'false'}
+                    aria-pressed={voteStats.userVote === 1}
+                    aria-label={`Upvote (${voteStats.upvotes})`}
+                    className="pn-vote-btn pn-vote-up"
+                    title="Upvote ▲"
+                  >
+                    <span aria-hidden="true" className="text-[10px] leading-none">▲</span>
+                    <span>{voteStats.upvotes}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleVote(-1)}
+                    data-active={voteStats.userVote === -1 ? 'true' : 'false'}
+                    aria-pressed={voteStats.userVote === -1}
+                    aria-label={`Downvote (${voteStats.downvotes})`}
+                    className="pn-vote-btn pn-vote-down"
+                    title="Downvote ▼"
+                  >
+                    <span aria-hidden="true" className="text-[10px] leading-none">▼</span>
+                    <span>{voteStats.downvotes}</span>
+                  </button>
+                </div>
 
                 {/* Comment Counter & Scroll */}
                 <button
                   type="button"
                   onClick={scrollToComments}
-                  className="flex items-center gap-1.5 hover:text-[#007C8B] transition-colors"
+                  className="flex items-center gap-1.5 hover:text-[#007C8B] transition-colors text-xs font-semibold px-2.5 py-1 rounded-full bg-[#F4F7FA] border border-[#0A2540]/8"
                   aria-label="Scroll to comments"
                 >
-                  <MessageSquare className="h-5 w-5" />
+                  <MessageSquare className="h-4 w-4" />
                   <span>{comments.length}</span>
                 </button>
               </div>
@@ -1677,7 +1692,7 @@ export const ArticleReader: React.FC<ArticleReaderProps> = ({ article: initialAr
             {(moreArticles.length > 0 ? moreArticles : MOCK_ARTICLES.slice(0, 3)).map((item: any) => (
               <a
                 key={item.id}
-                href={`/story/${item.slug}`}
+                href={`/read?slug=${encodeURIComponent(item.slug)}`}
                 className="flex items-center gap-3.5 p-2 rounded-2xl hover:bg-[#F8FBFD] transition-colors group"
               >
                 <img
@@ -1690,13 +1705,10 @@ export const ArticleReader: React.FC<ArticleReaderProps> = ({ article: initialAr
                     {item.title}
                   </h3>
                   <div className="flex items-center gap-3 text-[11px] text-[#6E7D90] mt-1">
-                    <span>5 min read</span>
+                    <span>{Math.max(1, Math.ceil((item.content?.length || 600) / 1000))} min read</span>
                     <span>·</span>
-                    <span className="flex items-center gap-1">
-                      <Heart className="h-3 w-3" /> 98
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <MessageSquare className="h-3 w-3" /> 12
+                    <span className="text-[11px] text-[#007C8B] font-semibold">
+                      ▲ Read story
                     </span>
                   </div>
                 </div>

@@ -7,7 +7,6 @@ import {
   BarChart3,
   Flame,
   Eye,
-  Heart,
   MessageSquare,
   Users,
   BookOpen,
@@ -79,7 +78,7 @@ export const CreatorAnalyticsView: React.FC = () => {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
           {/* Creator Sidebar Navigation */}
           <div className="hidden lg:block lg:col-span-3 sticky top-20">
-            <CreatorSidebar />
+            <CreatorSidebar activePage="Analytics" />
           </div>
 
           {/* Main Analytics Column */}
@@ -148,7 +147,7 @@ export const CreatorAnalyticsView: React.FC = () => {
                   <div className="pn-panel p-5 bg-white space-y-2 hover:border-[#007C8B]/30 transition-all">
                     <div className="flex items-center justify-between text-[#6E7D90]">
                       <span className="text-xs font-semibold">Community Upvotes</span>
-                      <Heart className="h-4 w-4 text-rose-500" />
+                      <span className="text-[#007C8B] font-bold text-sm" aria-hidden="true">▲</span>
                     </div>
                     <div className="text-2xl sm:text-3xl font-extrabold text-[#0A2540]">
                       {analytics.totalUpvotes.toLocaleString()}
