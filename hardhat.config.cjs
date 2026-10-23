@@ -18,9 +18,14 @@ module.exports = {
     hardhat: {
       // Browser E2E uses an isolated local chain with the application's Amoy ID.
       chainId: process.env.PENORA_WALLET_E2E === '1' ? 80002 : 31337,
+      // 100 funded test accounts with 10,000 ETH each for comprehensive free local testing
+      accounts: {
+        count: 100,
+        accountsBalance: "10000000000000000000000",
+      },
     },
     polygonAmoy: {
-      url: process.env.AMOY_RPC_URL || "https://polygon-amoy.drpc.org",
+      url: process.env.PUBLIC_AMOY_RPC_URL || process.env.AMOY_RPC_URL || "https://polygon-amoy-bor-rpc.publicnode.com",
       chainId: 80002,
       accounts: process.env.AMOY_DEPLOYER_PRIVATE_KEY ? [process.env.AMOY_DEPLOYER_PRIVATE_KEY] : [],
     },

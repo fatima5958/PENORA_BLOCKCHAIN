@@ -536,24 +536,21 @@ export const Header: React.FC<HeaderProps> = ({ currentPath = '/' }) => {
                   <button
                     type="button"
                     onClick={() => setProfileDropdownOpen((v) => !v)}
-                    className="pn-focus flex items-center gap-1.5 p-1 rounded-full border border-[#007C8B]/30 hover:border-[#007C8B] transition-colors"
+                    className="pn-focus relative flex items-center justify-center h-8 w-8 sm:h-9 sm:w-9 rounded-full bg-[#0A2540] text-white font-bold text-xs ring-2 ring-[#00E5F4] hover:ring-[#00B3C4] shadow-xs transition-all hover:scale-105 active:scale-95 overflow-hidden shrink-0"
                     aria-expanded={profileDropdownOpen}
                     aria-haspopup="true"
                     aria-label="Open creator profile menu"
                   >
-                    <div className="h-7 w-7 sm:h-8 sm:w-8 rounded-full overflow-hidden bg-[#007C8B]/10 text-[#007C8B] font-bold flex items-center justify-center text-xs">
-                      {avatarUrl && !avatarImageError ? (
-                        <img
-                          src={avatarUrl}
-                          alt={displayName}
-                          className="h-full w-full object-cover"
-                          onError={() => setAvatarImageError(true)}
-                        />
-                      ) : (
-                        getInitials(displayName)
-                      )}
-                    </div>
-                    <ChevronDown className="h-3 w-3 text-[#4A5B70] hidden sm:block" />
+                    {avatarUrl && !avatarImageError ? (
+                      <img
+                        src={avatarUrl}
+                        alt={displayName}
+                        className="h-full w-full object-cover rounded-full"
+                        onError={() => setAvatarImageError(true)}
+                      />
+                    ) : (
+                      <span className="tracking-tight text-white font-bold">{getInitials(displayName)}</span>
+                    )}
                   </button>
 
                   {/* Dropdown Menu */}

@@ -6,6 +6,8 @@ import { isAddress, zeroAddress } from 'viem';
 export const DEFAULT_AMOY_CONTRACTS: Record<string, string> = {
   PNR_TOKEN: '0xBdD9D45524617d20111879ff914E1E2B708D59A6',
   USDT_TOKEN: '0x88E538DB3FD3980Ba510aDd2671587Daf40F1050',
+  EXCHANGE: '',
+  P2P_ESCROW: '',
 };
 
 function getContractAddress(envKey: string, storageKey: string): string {
@@ -49,6 +51,12 @@ export const PENORA_CONTRACT_ADDRESSES = {
   },
   get USDT_TOKEN(): string {
     return getContractAddress('PUBLIC_USDT_CONTRACT_ADDRESS', 'USDT_TOKEN');
+  },
+  get EXCHANGE(): string {
+    return getContractAddress('PUBLIC_PNR_EXCHANGE_ADDRESS', 'EXCHANGE');
+  },
+  get P2P_ESCROW(): string {
+    return getContractAddress('PUBLIC_P2P_ESCROW_ADDRESS', 'P2P_ESCROW');
   },
 };
 
