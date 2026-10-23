@@ -13,6 +13,7 @@ import {
   type WalletTab,
 } from './MobileWalletOverview';
 import { WalletHeader } from './WalletHeader';
+import { EmbeddedWalletEntry, embeddedWalletEnabled } from './EmbeddedWalletEntry';
 import { WalletNavigation } from './WalletNavigation';
 import { WalletOnboardingBanner } from './WalletOnboardingBanner';
 import { WalletBalanceCard } from './WalletBalanceCard';
@@ -713,6 +714,8 @@ export const WalletView: React.FC = () => {
       className="penora-wallet min-h-screen bg-[var(--wallet-bg)] text-[var(--wallet-text)] font-sans selection:bg-[#00E5F4]/30 pb-24"
     >
       <div className="wallet-content max-w-[1160px] mx-auto px-3.5 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-4 sm:space-y-5">
+        {embeddedWalletEnabled && <EmbeddedWalletEntry />}
+
         {/* Mobile Header (visible < 768px) */}
         <MobileWalletHeader theme={theme} onToggleTheme={toggleTheme} />
 

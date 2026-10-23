@@ -6,6 +6,7 @@ import { polygonAmoy, PENORA_TARGET_CHAIN_ID, AMOY_FALLBACK_RPCS } from './chain
 import type { WalletState } from './types';
 import { isUsdtConfigured } from './contracts';
 import { penoraUsdtService, penoraPnrService } from './usdtService';
+import { getEmbeddedWalletProvider } from './embeddedProvider';
 
 // Create a robust public viem client with automatic RPC failover, bounded retries, and exponential backoff
 export const publicClient = createPublicClient({
@@ -30,6 +31,8 @@ export const publicClient = createPublicClient({
 export function getEthereumProvider(): any {
   if (typeof window === 'undefined') return undefined;
   const anyWin = window as any;
+  const embedded = getEmbeddedWalletProvider();
+  if (embedded) return embedded;
   if (!anyWin.ethereum) return undefined;
 
   // Handle multi-provider injections (e.g. MetaMask + Coinbase + Phantom)
@@ -91,16 +94,20 @@ class PenoraWalletService {
       this.isInitialized = true;
       // Listen to accountsChanged
       eth.on?.('accountsChanged', (accounts: string[]) => {
+        if (getEmbeddedWalletProvider()) return;
         if (!accounts || accounts.length === 0) {
           this.disconnect();
         } else {
           this.handleAccountConnected(accounts[0] as `0x${string}`);
         }
       });
-      eth.on?.('disconnect', () => this.disconnect());
+      eth.on?.('disconnect', () => {
+        if (!getEmbeddedWalletProvider()) this.disconnect();
+      });
 
       // Listen to chainChanged
       eth.on?.('chainChanged', (chainIdHex: string) => {
+        if (getEmbeddedWalletProvider()) return;
         const chainId = parseInt(chainIdHex, 16);
         const isCorrect = chainId === PENORA_TARGET_CHAIN_ID;
         this.accountVersion++;
@@ -121,7 +128,7 @@ class PenoraWalletService {
       eth
         .request?.({ method: 'eth_accounts' })
         .then((accounts: string[]) => {
-          if (detectedVersion !== this.accountVersion) return;
+          if (detectedVersion !== this.accountVersion || getEmbeddedWalletProvider()) return;
           if (accounts && accounts.length > 0) {
             this.handleAccountConnected(accounts[0] as `0x${string}`);
           }
@@ -220,7 +227,7 @@ class PenoraWalletService {
     if (!eth) {
       this.updateState({
         status: 'error',
-        error: 'MetaMask not detected. Please install the MetaMask extension or use a Web3-compatible browser.',
+        error: 'No wallet connected. Use PENORA built-in wallet (when enabled) or connect a browser wallet.',
       });
       return;
     }

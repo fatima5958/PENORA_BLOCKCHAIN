@@ -33,6 +33,7 @@ import {
 } from '../../lib/exchange/exchangeService';
 import '../../styles/exchange.css';
 import { P2PMarketplaceView } from './P2PMarketplaceView';
+import { EmbeddedWalletEntry, embeddedWalletEnabled } from '../wallet/EmbeddedWalletEntry';
 
 const compact = (raw: bigint, decimals = 18) =>
   Number(formatUnits(raw, decimals)).toLocaleString('en-US', { maximumFractionDigits: 6 });
@@ -391,6 +392,7 @@ export function ExchangeView() {
   return (
     <div className="ex-shell">
       <div className="ex-wrap">
+        {embeddedWalletEnabled && <EmbeddedWalletEntry compact />}
         <nav className="ex-topline" aria-label="Exchange navigation">
           <a href="/wallet/">
             <ArrowLeft size={14} /> Back to wallet
