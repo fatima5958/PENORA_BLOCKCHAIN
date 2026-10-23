@@ -6,6 +6,7 @@ import { polygonAmoy, PENORA_TARGET_CHAIN_ID, AMOY_FALLBACK_RPCS } from './chain
 import type { WalletState } from './types';
 import { isUsdtConfigured } from './contracts';
 import { penoraUsdtService, penoraPnrService } from './usdtService';
+import { getActiveKeyWalletProvider, lockActiveKeyWallet } from './activeKeyAmoyProvider';
 
 // Create a robust public viem client with automatic RPC failover, bounded retries, and exponential backoff
 export const publicClient = createPublicClient({
@@ -30,6 +31,8 @@ export const publicClient = createPublicClient({
 export function getEthereumProvider(): any {
   if (typeof window === 'undefined') return undefined;
   const anyWin = window as any;
+  const builtIn = getActiveKeyWalletProvider();
+  if (builtIn) return builtIn;
   if (!anyWin.ethereum) return undefined;
 
   // Handle multi-provider injections (e.g. MetaMask + Coinbase + Phantom)
@@ -91,16 +94,18 @@ class PenoraWalletService {
       this.isInitialized = true;
       // Listen to accountsChanged
       eth.on?.('accountsChanged', (accounts: string[]) => {
+        if (getActiveKeyWalletProvider()) return;
         if (!accounts || accounts.length === 0) {
           this.disconnect();
         } else {
           this.handleAccountConnected(accounts[0] as `0x${string}`);
         }
       });
-      eth.on?.('disconnect', () => this.disconnect());
+      eth.on?.('disconnect', () => { if (!getActiveKeyWalletProvider()) this.disconnect(); });
 
       // Listen to chainChanged
       eth.on?.('chainChanged', (chainIdHex: string) => {
+        if (getActiveKeyWalletProvider()) return;
         const chainId = parseInt(chainIdHex, 16);
         const isCorrect = chainId === PENORA_TARGET_CHAIN_ID;
         this.accountVersion++;
@@ -121,7 +126,7 @@ class PenoraWalletService {
       eth
         .request?.({ method: 'eth_accounts' })
         .then((accounts: string[]) => {
-          if (detectedVersion !== this.accountVersion) return;
+          if (detectedVersion !== this.accountVersion || getActiveKeyWalletProvider()) return;
           if (accounts && accounts.length > 0) {
             this.handleAccountConnected(accounts[0] as `0x${string}`);
           }
@@ -330,6 +335,7 @@ class PenoraWalletService {
   }
 
   public disconnect() {
+    lockActiveKeyWallet();
     this.accountVersion++;
     this.balanceVersion++;
     this.updateState({
