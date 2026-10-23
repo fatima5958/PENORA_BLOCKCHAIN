@@ -59,6 +59,13 @@ function Session({ compact }: { compact: boolean }) {
     });
   }, [wallet, account?.address]);
 
+  useEffect(() => {
+    if (!wallet) return;
+    const signOut = () => { void disconnect(wallet); };
+    window.addEventListener('penora:embedded-wallet-disconnect', signOut);
+    return () => window.removeEventListener('penora:embedded-wallet-disconnect', signOut);
+  }, [wallet, disconnect]);
+
   const useExternal = async () => {
     try {
       if (wallet) await disconnect(wallet);

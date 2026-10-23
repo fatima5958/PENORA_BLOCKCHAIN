@@ -173,6 +173,13 @@ export function ExchangeView() {
     dialog = useRef<HTMLDialogElement>(null),
     active = useRef(true);
   const configured = exchangeConfigured();
+  const connectFromExchange = () => {
+    if (embeddedWalletEnabled) {
+      document.getElementById('penora-built-in-wallet')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
+    void penoraWalletService.connect();
+  };
 
   useEffect(() => {
     active.current = true;
@@ -787,7 +794,7 @@ export function ExchangeView() {
                         type="button"
                         className="ex-primary"
                         disabled={busy || wallet.status === 'connecting'}
-                        onClick={() => void penoraWalletService.connect()}
+                        onClick={connectFromExchange}
                       >
                         Connect wallet <Wallet size={16} />
                       </button>

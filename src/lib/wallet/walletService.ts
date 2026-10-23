@@ -337,6 +337,11 @@ class PenoraWalletService {
   }
 
   public disconnect() {
+    // Disconnect a thirdweb session as well as clearing PENORA's mirrored balance
+    // state. Prevent an embedded session from silently reactivating after logout.
+    if (getEmbeddedWalletProvider() && typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+      window.dispatchEvent(new Event('penora:embedded-wallet-disconnect'));
+    }
     this.accountVersion++;
     this.balanceVersion++;
     this.updateState({

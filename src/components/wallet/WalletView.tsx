@@ -82,6 +82,16 @@ export const WalletView: React.FC = () => {
     } catch {}
   }, []);
 
+  // All existing Connect buttons route to built-in onboarding first when enabled.
+  // The separate optional MetaMask action remains inside that panel.
+  const connectWallet = () => {
+    if (embeddedWalletEnabled) {
+      document.getElementById('penora-built-in-wallet')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
+    void penoraWalletService.connect();
+  };
+
   const toggleTheme = () => {
     const next = theme === 'light' ? 'dark' : 'light';
     setTheme(next);
@@ -726,7 +736,7 @@ export const WalletView: React.FC = () => {
             theme={theme}
             onToggleTheme={toggleTheme}
             onConnect={() => {
-              void penoraWalletService.connect();
+              connectWallet();
             }}
             onSwitchNetwork={() => {
               void penoraWalletService.switchOrAddAmoyNetwork();
@@ -796,7 +806,7 @@ export const WalletView: React.FC = () => {
               state={walletState}
               onNavigate={setActiveTab}
               onConnect={() => {
-                void penoraWalletService.connect();
+                connectWallet();
               }}
               onSwitchNetwork={() => {
                 void penoraWalletService.switchOrAddAmoyNetwork();
@@ -828,7 +838,7 @@ export const WalletView: React.FC = () => {
                   copied={copiedAddress}
                   isProviderInstalled={isProviderInstalled}
                   onConnect={() => {
-                    void penoraWalletService.connect();
+                    connectWallet();
                   }}
                   onSwitchNetwork={() => {
                     void penoraWalletService.switchOrAddAmoyNetwork();
@@ -855,7 +865,7 @@ export const WalletView: React.FC = () => {
                   onViewAll={() => setActiveTab('history')}
                   onStartSend={() => setActiveTab('send')}
                   onConnect={() => {
-                    void penoraWalletService.connect();
+                    connectWallet();
                   }}
                 />
               </div>
@@ -867,7 +877,7 @@ export const WalletView: React.FC = () => {
                   copied={copiedAddress}
                   isProviderInstalled={isProviderInstalled}
                   onConnect={() => {
-                    void penoraWalletService.connect();
+                    connectWallet();
                   }}
                   onDisconnect={() => {
                     penoraWalletService.disconnect();
@@ -898,7 +908,7 @@ export const WalletView: React.FC = () => {
               onDismiss={handleDismissOnboarding}
               onReopen={handleReopenOnboarding}
               onConnect={() => {
-                void penoraWalletService.connect();
+                connectWallet();
               }}
               onSwitchNetwork={() => {
                 void penoraWalletService.switchOrAddAmoyNetwork();
@@ -1026,7 +1036,7 @@ export const WalletView: React.FC = () => {
               if (walletState.address) void handleCopy(walletState.address);
             }}
             onConnect={() => {
-              void penoraWalletService.connect();
+              connectWallet();
             }}
             onSwitchNetwork={() => {
               void penoraWalletService.switchOrAddAmoyNetwork();
