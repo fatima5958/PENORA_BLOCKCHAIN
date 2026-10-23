@@ -38,8 +38,8 @@ describe('PENORA Mobile Navigation Drawer & Responsiveness Suite', () => {
   it('renders touch-friendly typography (15px) and 20px icons across navigation links', () => {
     const html = renderToStaticMarkup(<MobileNavigationDrawer {...defaultProps} />);
 
-    // Font size should be 15px for comfortable mobile reading
-    expect(html).toContain('text-[15px]');
+    // Font size should be 16px for comfortable mobile reading
+    expect(html).toContain('text-[16px]');
 
     // Touch targets should have at least 46px height
     expect(html).toContain('min-h-[46px]');

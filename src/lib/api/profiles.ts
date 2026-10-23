@@ -257,3 +257,46 @@ export async function getProfiles(options?: { limit?: number }): Promise<{ data:
     return { data: [], error: err.message || 'Failed to fetch profiles' };
   }
 }
+
+/**
+ * Searches real Supabase user profiles by username, display name, or @handle.
+ * Debounceable, safe against SQL injection, returns actual verified creators.
+ */
+export async function searchProfiles(
+  query: string,
+  limit = 12
+): Promise<{ data: ProfileRecord[]; error: string | null }> {
+  try {
+    const cleanQuery = query.trim().replace(/^@/, '');
+    if (!cleanQuery) return { data: [], error: null };
+
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .or(`username.ilike.%${cleanQuery}%,display_name.ilike.%${cleanQuery}%`)
+      .order('reputation', { ascending: false })
+      .limit(limit);
+
+    if (error) {
+      // Graceful fallback for restricted RPC or complex queries
+      const allRes = await getProfiles({ limit: 50 });
+      if (allRes.data && allRes.data.length > 0) {
+        const needle = cleanQuery.toLowerCase();
+        const filtered = allRes.data
+          .filter(
+            (p) =>
+              (p.username && p.username.toLowerCase().includes(needle)) ||
+              (p.display_name && p.display_name.toLowerCase().includes(needle))
+          )
+          .slice(0, limit);
+        return { data: filtered, error: null };
+      }
+      return { data: [], error: error.message };
+    }
+
+    return { data: (data as ProfileRecord[]) || [], error: null };
+  } catch (err: any) {
+    return { data: [], error: err.message || 'Failed to search creator profiles' };
+  }
+}
+

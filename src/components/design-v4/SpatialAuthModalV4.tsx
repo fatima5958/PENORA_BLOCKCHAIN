@@ -28,6 +28,7 @@ import {
   ClipboardPaste,
 } from 'lucide-react';
 import { PenoraEmblem } from '../brand/PenoraLogo';
+import { useOverlayLock } from '../../lib/ui/overlayManager';
 import { penoraKeyAuth, type PenoraUser } from '../../lib/auth/penoraKeyAuth';
 import {
   deriveKeyInfoFromWif,
@@ -138,13 +139,16 @@ export const SpatialAuthModalV4: React.FC<SpatialAuthModalV4Props> = ({
     }
   };
 
-  // Lock background scrolling while modal is open
+  // Stack-safe background scroll lock and Escape handling
+  useOverlayLock(isOpen, {
+    onEscape: onClose,
+  });
   useEffect(() => {
     if (isOpen) {
-      const originalOverflow = document.body.style.overflow;
-      document.body.style.overflow = 'hidden';
+      // Scroll lock handled by useOverlayLock
+
       return () => {
-        document.body.style.overflow = originalOverflow;
+
       };
     }
   }, [isOpen]);

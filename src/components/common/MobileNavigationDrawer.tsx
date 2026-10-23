@@ -1,13 +1,13 @@
 // src/components/common/MobileNavigationDrawer.tsx
 // PENORA — Premium Mobile Navigation Drawer (Sidebar)
 // - Calibrated drawer width: 80–85vw, capped at 320px
-// - Balanced horizontal padding, eliminating excessive right-side void
-// - Touch-friendly menu items (15–16px typography, 20px icons, 46px+ touch target)
-// - Subtle dark backdrop with instant outside-tap dismissal & Escape handling
-// - Robust background scroll lock and horizontal overflow prevention
-// - Full PENORA branding, creator identity card, and grouped navigation intact
+// - Mobile font size strictly 16px for optimal readability
+// - Integrated live user/creator search preview inside drawer
+// - Stack-safe focus trapping & background scroll lock via useOverlayLock
+// - Independent internal scrolling (drawer scrolls freely, background stays locked)
+// - Proper touch targets (46px+), consistent padding, and zero horizontal overflow
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Home,
   Compass,
@@ -31,10 +31,13 @@ import {
   UserCheck,
   Trophy,
   BarChart3,
+  Loader2,
 } from 'lucide-react';
 import { PenoraLogo } from '../brand/PenoraLogo';
 import { getFollowCounts } from '../../lib/api/follows';
 import { getUserArticles } from '../../lib/api/articles';
+import { searchProfiles } from '../../lib/api/profiles';
+import { useOverlayLock } from '../../lib/ui/overlayManager';
 import type { ProfileRecord } from '../../lib/api/types';
 import type { PenoraUser } from '../../lib/auth/penoraKeyAuth';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
@@ -64,12 +67,24 @@ export const MobileNavigationDrawer: React.FC<MobileNavigationDrawerProps> = ({
 }) => {
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const [searchQuery, setSearchQuery] = useState('');
+  const [liveCreators, setLiveCreators] = useState<ProfileRecord[]>([]);
+  const [isSearchingCreators, setIsSearchingCreators] = useState(false);
   const [avatarImageError, setAvatarImageError] = useState(false);
   const [stats, setStats] = useState({
     followers: 0,
     following: 0,
     blogs: 0,
     reputation: 0,
+  });
+
+  const drawerRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // Stack-safe background scroll lock, Escape key dismissal, and focus trapping
+  useOverlayLock(isOpen, {
+    containerRef: drawerRef,
+    initialFocusRef: searchInputRef,
+    onEscape: onClose,
   });
 
   const activeUser = keyUser || user;
@@ -130,47 +145,30 @@ export const MobileNavigationDrawer: React.FC<MobileNavigationDrawerProps> = ({
     };
   }, [isOpen, activeUserId, profile?.reputation]);
 
-  // Lock background scroll without jumping or layout shifts
+  // Debounced live user search inside drawer
   useEffect(() => {
-    if (isOpen) {
-      const scrollY = window.scrollY;
-      const originalOverflow = document.body.style.overflow;
-      const originalPosition = document.body.style.position;
-      const originalTop = document.body.style.top;
-      const originalWidth = document.body.style.width;
-
-      document.body.style.position = 'fixed';
-      document.body.style.top = `-${scrollY}px`;
-      document.body.style.width = '100%';
-      document.body.style.overflow = 'hidden';
-      document.documentElement.style.overflow = 'hidden';
-
-      return () => {
-        document.body.style.position = originalPosition;
-        document.body.style.top = originalTop;
-        document.body.style.width = originalWidth;
-        document.body.style.overflow = originalOverflow;
-        document.documentElement.style.overflow = '';
-        window.scrollTo(0, scrollY);
-      };
+    const q = searchQuery.trim();
+    if (!q || q.length < 2) {
+      setLiveCreators([]);
+      setIsSearchingCreators(false);
+      return;
     }
-  }, [isOpen]);
 
-  // Close on Escape key
-  useEffect(() => {
-    if (!isOpen) return;
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose]);
+    setIsSearchingCreators(true);
+    const timer = setTimeout(async () => {
+      const res = await searchProfiles(q, 4);
+      setLiveCreators(res.data || []);
+      setIsSearchingCreators(false);
+    }, 250);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (searchQuery.trim()) {
       onClose();
-      window.location.href = `/explore?q=${encodeURIComponent(searchQuery.trim())}`;
+      window.location.href = `/explore?q=${encodeURIComponent(searchQuery.trim())}&tab=creators`;
     }
   };
 
@@ -178,9 +176,9 @@ export const MobileNavigationDrawer: React.FC<MobileNavigationDrawerProps> = ({
 
   if (!isOpen) return null;
 
-  // Base styling for consistent navigation items
+  // Base styling: 16px mobile typography, 46px touch target
   const getItemClassName = (isActive: boolean) =>
-    `w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-[15px] font-medium transition-all min-h-[46px] select-none ${
+    `w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-[16px] font-medium transition-all min-h-[46px] select-none ${
       isActive
         ? isLight
           ? 'bg-[#007C8B]/10 text-[#007C8B] font-semibold border-l-[3px] border-[#007C8B]'
@@ -206,7 +204,9 @@ export const MobileNavigationDrawer: React.FC<MobileNavigationDrawerProps> = ({
 
       {/* ─── 2. Calibrated Drawer Panel (80–85vw, max 320px) ─── */}
       <div
-        className={`relative z-10 w-[82vw] max-w-[320px] h-full shadow-2xl flex flex-col justify-between overflow-x-hidden overflow-y-auto transform transition-all duration-300 ease-out pb-[max(1.25rem,env(safe-area-inset-bottom,0px))] pt-[max(0.875rem,env(safe-area-inset-top,0px))] px-3.5 ${
+        ref={drawerRef}
+        tabIndex={-1}
+        className={`relative z-10 w-[82vw] max-w-[320px] h-full shadow-2xl flex flex-col justify-between overflow-x-hidden overflow-y-auto overscroll-contain touch-pan-y transform transition-all duration-300 ease-out pb-[max(1.25rem,env(safe-area-inset-bottom,0px))] pt-[max(0.875rem,env(safe-area-inset-top,0px))] px-3.5 ${
           isLight
             ? 'bg-gradient-to-b from-[#FFFFFF] via-[#F8FBFD] to-[#F1F6FA] text-[#0A2540] border-r border-[#0A2540]/10'
             : 'bg-gradient-to-b from-[#0A2540] via-[#06182C] to-[#04101E] text-white border-r border-[#00E5F4]/20 shadow-[0_0_40px_rgba(0,229,244,0.12)]'
@@ -389,26 +389,76 @@ export const MobileNavigationDrawer: React.FC<MobileNavigationDrawerProps> = ({
           )}
 
           {/* Search Bar Inside Drawer */}
-          <form onSubmit={handleSearchSubmit} className="pt-0.5">
-            <div
-              className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl border transition-all ${
-                isLight
-                  ? 'bg-white border-[#0A2540]/12 focus-within:border-[#007C8B] shadow-xs'
-                  : 'bg-white/5 border-white/15 focus-within:border-[#00E5F4]'
-              }`}
-            >
-              <Search className={`h-4 w-4 shrink-0 ${isLight ? 'text-[#6E7D90]' : 'text-[#7D93AA]'}`} />
-              <input
-                type="search"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search PENORA..."
-                className={`w-full text-sm bg-transparent border-none focus:outline-none ${
-                  isLight ? 'placeholder:text-[#6E7D90]/70 text-[#0A2540]' : 'placeholder:text-[#7D93AA] text-white'
+          <div className="space-y-1.5 pt-0.5">
+            <form onSubmit={handleSearchSubmit}>
+              <div
+                className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl border transition-all ${
+                  isLight
+                    ? 'bg-white border-[#0A2540]/12 focus-within:border-[#007C8B] shadow-xs'
+                    : 'bg-white/5 border-white/15 focus-within:border-[#00E5F4]'
                 }`}
-              />
-            </div>
-          </form>
+              >
+                <Search className={`h-4 w-4 shrink-0 ${isLight ? 'text-[#6E7D90]' : 'text-[#7D93AA]'}`} />
+                <input
+                  ref={searchInputRef}
+                  type="search"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search creators &amp; topics..."
+                  className={`w-full text-sm bg-transparent border-none focus:outline-none ${
+                    isLight ? 'placeholder:text-[#6E7D90]/70 text-[#0A2540]' : 'placeholder:text-[#7D93AA] text-white'
+                  }`}
+                />
+                {isSearchingCreators && (
+                  <Loader2 className="h-3.5 w-3.5 text-[#007C8B] animate-spin shrink-0" />
+                )}
+              </div>
+            </form>
+
+            {/* Live Creator Matches Inside Drawer */}
+            {liveCreators.length > 0 && (
+              <div className="p-2 rounded-xl bg-white dark:bg-white/5 border border-[#0A2540]/8 dark:border-white/10 space-y-1 shadow-sm">
+                <div className="px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-[#007C8B] dark:text-[#00E5F4] flex justify-between items-center">
+                  <span>Matching Creators</span>
+                  <span className="text-[9px] text-[#6E7D90]">Click to view</span>
+                </div>
+                {liveCreators.map((c) => {
+                  const handle = c.username || c.id;
+                  const cName = c.display_name || c.username || 'Creator';
+                  const cAvatar = c.avatar_url && !c.avatar_url.includes('/brand/penora-avatar-') ? c.avatar_url : null;
+                  return (
+                    <a
+                      key={c.id}
+                      href={`/profile/${encodeURIComponent(handle)}`}
+                      onClick={onClose}
+                      className="flex items-center justify-between p-2 rounded-lg hover:bg-[#EEFBFC] dark:hover:bg-white/10 transition-colors"
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        {cAvatar ? (
+                          <img src={cAvatar} alt={cName} className="h-7 w-7 rounded-full object-cover shrink-0 ring-1 ring-[#007C8B]/30" />
+                        ) : (
+                          <div className="h-7 w-7 rounded-full bg-[#E5F7F8] text-[#007C8B] flex items-center justify-center font-bold text-xs shrink-0">
+                            {cName.slice(0, 1).toUpperCase()}
+                          </div>
+                        )}
+                        <div className="min-w-0">
+                          <div className="text-xs font-bold truncate text-[#0A2540] dark:text-white">
+                            {cName}
+                          </div>
+                          <div className="text-[10px] text-[#6E7D90] truncate">
+                            @{c.username || 'creator'}
+                          </div>
+                        </div>
+                      </div>
+                      <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-[#007C8B]/10 text-[#007C8B] shrink-0">
+                        Rep {c.reputation ?? 25}
+                      </span>
+                    </a>
+                  );
+                })}
+              </div>
+            )}
+          </div>
 
           {/* Grouped Navigation Links */}
           <div className="space-y-4 pt-1">
@@ -449,7 +499,7 @@ export const MobileNavigationDrawer: React.FC<MobileNavigationDrawerProps> = ({
                 <ChevronRight className="h-4 w-4 opacity-40 shrink-0" />
               </a>
 
-              {/* Explore Topics */}
+              {/* Explore Topics & Search */}
               <a
                 href="/explore"
                 onClick={onClose}
@@ -457,7 +507,7 @@ export const MobileNavigationDrawer: React.FC<MobileNavigationDrawerProps> = ({
               >
                 <div className="flex items-center gap-3 min-w-0">
                   <Compass className="h-5 w-5 shrink-0" />
-                  <span className="truncate">Explore Topics</span>
+                  <span className="truncate">Explore Topics &amp; Users</span>
                 </div>
                 <ChevronRight className="h-4 w-4 opacity-40 shrink-0" />
               </a>
@@ -678,7 +728,7 @@ export const MobileNavigationDrawer: React.FC<MobileNavigationDrawerProps> = ({
                 onClose();
                 onLogout();
               }}
-              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-[14px] font-semibold text-[#D0384B] transition-colors min-h-[44px] ${
+              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-[15px] font-semibold text-[#D0384B] transition-colors min-h-[44px] ${
                 isLight ? 'hover:bg-[#FDECEE] active:bg-[#FDECEE]/80' : 'hover:bg-red-500/10 active:bg-red-500/20'
               }`}
             >
