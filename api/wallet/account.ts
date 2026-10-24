@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
-import { verifyChallengeSignature } from '../../src/lib/crypto/penoraKeys';
-import { accountMessage, accountUnits, validateAccountRequest } from '../../src/lib/wallet/accountProtocol';
+import { verifyChallengeSignature } from '../../src/lib/crypto/penoraKeys.js';
+import { accountMessage, accountUnits, validateAccountRequest } from '../../src/lib/wallet/accountProtocol.js';
 
 const headers = { 'Cache-Control': 'no-store' };
 export async function POST(request: Request) {
