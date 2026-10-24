@@ -404,6 +404,7 @@ export function getGasSponsorshipStatus(): GasSponsorshipInfrastructureStatus {
     provider,
     bundlerEndpoint: bundlerUrl,
     paymasterEndpoint: paymasterUrl,
-    status: 'active',
+    status: 'blocked',
+    blockerReason: 'Endpoints are configured, but sponsored submission and authenticated paymaster authorization are not integrated. Native Test POL is required.',
   };
 }

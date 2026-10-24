@@ -1,21 +1,18 @@
 // src/lib/wallet/serverSponsorshipService.ts
 // PENORA Blockchain — Server-Side Gas Sponsorship Authorization & Paymaster Policy Service
 // Polygon Amoy Testnet (80002)
-// Enforces strict target-bound ABI validation, replay prevention, and atomic quota controls.
+// Prototype policy simulation only; live authorization fails closed.
+// Process-local quotas are not durable authorization or production replay protection.
 
 import {
   isAddress,
   type Address,
   type Hex,
-  concat,
-  keccak256,
-  encodePacked,
 } from 'viem';
 import { validateContractCalldata, type CalldataValidationResult } from './calldataValidator';
 import {
   DEFAULT_AMOY_SPONSORSHIP_QUOTA,
   type SponsorshipQuota,
-  CANONICAL_ENTRY_POINT_V06,
 } from './gasSponsorshipService';
 
 export interface SponsorshipAuthRequest {
@@ -40,40 +37,59 @@ export interface SponsorshipAuthResponse {
   quotaRemainingToday: number;
 }
 
+export interface SponsorshipPolicyEvaluation {
+  eligible: boolean;
+  reason?: string;
+  validationResult?: CalldataValidationResult;
+  quotaRemainingToday: number;
+}
+
 interface ServerLedgerEntry {
   timestamps: number[];
   lastNonce: bigint;
 }
 
-// In-memory atomic rate-limiting and nonce ledger for the server/edge session
+// In-memory simulation ledger; resets on process restart and differs across instances.
 const serverLedger = new Map<string, ServerLedgerEntry>();
 
 export function resetServerSponsorshipLedger(): void {
   serverLedger.clear();
 }
 
-/**
- * Server-side authorization check before gas sponsorship.
- * Validates caller identity, decodes ABI calldata, enforces nonce ordering, and checks rate quotas.
+/** Never issue spend authorization from an unverified username or local policy simulation.
+ * Live grants require authenticated wallet ownership, durable atomic quotas/replay
+ * protection, and a real paymaster signing the complete UserOperation.
  */
 export async function authorizeSponsorship(
+  _req: SponsorshipAuthRequest,
+  _quota: SponsorshipQuota = DEFAULT_AMOY_SPONSORSHIP_QUOTA
+): Promise<SponsorshipAuthResponse> {
+  return {
+    authorized: false,
+    reason: 'Gas sponsorship unavailable: authenticated ownership, durable quotas and a verified paymaster are not integrated. Native Test POL is required.',
+    quotaRemainingToday: 0,
+  };
+}
+
+/** Testnet policy simulation only. Eligibility is not permission to spend sponsor funds. */
+export async function evaluateSponsorshipPolicy(
   req: SponsorshipAuthRequest,
   quota: SponsorshipQuota = DEFAULT_AMOY_SPONSORSHIP_QUOTA
-): Promise<SponsorshipAuthResponse> {
+): Promise<SponsorshipPolicyEvaluation> {
   const { username, senderAddress, targetAddress, calldata, value = 0n, nonce } = req;
 
   // 1. Identity validation
   const cleanUser = (username || '').trim().toLowerCase().replace(/^@/, '');
   if (!cleanUser) {
-    return { authorized: false, reason: 'Authenticated PENORA user identifier required.', quotaRemainingToday: 0 };
+    return { eligible: false, reason: 'Authenticated PENORA user identifier required.', quotaRemainingToday: 0 };
   }
 
   if (!senderAddress || !isAddress(senderAddress)) {
-    return { authorized: false, reason: 'Valid sender address required.', quotaRemainingToday: 0 };
+    return { eligible: false, reason: 'Valid sender address required.', quotaRemainingToday: 0 };
   }
 
   if (!targetAddress || !isAddress(targetAddress)) {
-    return { authorized: false, reason: 'Valid target contract address required.', quotaRemainingToday: 0 };
+    return { eligible: false, reason: 'Valid target contract address required.', quotaRemainingToday: 0 };
   }
 
   // 2. Calldata & Decoded ABI validation
@@ -86,7 +102,7 @@ export async function authorizeSponsorship(
 
   if (!calldataResult.valid) {
     return {
-      authorized: false,
+      eligible: false,
       reason: calldataResult.reason || 'Calldata verification failed against authorized PENORA contracts.',
       validationResult: calldataResult,
       quotaRemainingToday: 0,
@@ -96,7 +112,7 @@ export async function authorizeSponsorship(
   // 3. Gas limits and fee caps
   if (req.gasLimit && req.gasLimit > quota.maxGasLimitPerTx) {
     return {
-      authorized: false,
+      eligible: false,
       reason: `Requested gas limit exceeds server cap (${quota.maxGasLimitPerTx.toString()}).`,
       quotaRemainingToday: 0,
     };
@@ -104,7 +120,7 @@ export async function authorizeSponsorship(
 
   if (req.maxFeePerGas && req.maxFeePerGas > quota.maxFeePerGasWei) {
     return {
-      authorized: false,
+      eligible: false,
       reason: `Gas fee exceeds server Amoy cap (${quota.maxFeePerGasWei.toString()} wei).`,
       quotaRemainingToday: 0,
     };
@@ -131,7 +147,7 @@ export async function authorizeSponsorship(
 
   if (hourlyCount >= quota.maxHourlyRequests) {
     return {
-      authorized: false,
+      eligible: false,
       reason: `Hourly rate limit exceeded (${hourlyCount}/${quota.maxHourlyRequests}).`,
       quotaRemainingToday: quotaRemaining,
     };
@@ -139,7 +155,7 @@ export async function authorizeSponsorship(
 
   if (dailyCount >= quota.maxDailyRequests) {
     return {
-      authorized: false,
+      eligible: false,
       reason: `Daily sponsorship quota reached (${quota.maxDailyRequests}/${quota.maxDailyRequests}).`,
       quotaRemainingToday: 0,
     };
@@ -150,7 +166,7 @@ export async function authorizeSponsorship(
     const bigNonce = BigInt(nonce);
     if (bigNonce <= entry.lastNonce) {
       return {
-        authorized: false,
+        eligible: false,
         reason: `Invalid or replayed nonce (${bigNonce.toString()} <= ${entry.lastNonce.toString()}).`,
         quotaRemainingToday: quotaRemaining,
       };
@@ -161,24 +177,9 @@ export async function authorizeSponsorship(
   // Record quota usage
   entry.timestamps.push(now);
 
-  // 5. Build sponsorship auth token
-  const validUntil = Math.floor(now / 1000) + 300; // 5-minute validity window
-  const tokenHash = keccak256(
-    encodePacked(
-      ['string', 'address', 'address', 'bytes32', 'uint256'],
-      [cleanUser, senderAddress, targetAddress, keccak256(calldata), BigInt(validUntil)]
-    )
-  );
-
   return {
-    authorized: true,
+    eligible: true,
     validationResult: calldataResult,
-    authToken: tokenHash,
-    validUntil,
     quotaRemainingToday: quotaRemaining - 1,
-    paymasterAndData: concat([
-      CANONICAL_ENTRY_POINT_V06,
-      ('0x' + validUntil.toString(16).padStart(16, '0')) as Hex,
-    ]),
   };
 }

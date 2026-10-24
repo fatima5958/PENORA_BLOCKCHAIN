@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { encodeFunctionData, parseEther, parseUnits, zeroAddress, type Address } from 'viem';
 import {
   validateContractCalldata,
@@ -8,6 +8,7 @@ import {
 } from '../lib/wallet/calldataValidator';
 import {
   authorizeSponsorship,
+  evaluateSponsorshipPolicy,
   resetServerSponsorshipLedger,
   type SponsorshipAuthRequest,
 } from '../lib/wallet/serverSponsorshipService';
@@ -17,6 +18,7 @@ import {
   ERC20_USDT_ABI,
   POWER_ESCROW_ABI,
 } from '../lib/wallet/contracts';
+import { getGasSponsorshipStatus } from '../lib/wallet/gasSponsorshipService';
 import { EXCHANGE_ABI, FOUNDER_WALLET_ADDRESS } from '../lib/exchange/exchangeService';
 
 describe('PENORA Phase 25 — Calldata ABI Validation & Server Sponsorship Policy Suite', () => {
@@ -211,7 +213,19 @@ describe('PENORA Phase 25 — Calldata ABI Validation & Server Sponsorship Polic
       args: [bob, parseEther('10')],
     });
 
-    it('authorizes eligible sponsorship requests and returns auth token and paymasterAndData', async () => {
+    it('refuses live authorization for a caller-supplied identity even after policy eligibility', async () => {
+      const req: SponsorshipAuthRequest = {
+        username: 'alice_creator', senderAddress: alice, targetAddress: pnr,
+        calldata: validData, nonce: 0,
+      };
+      expect((await evaluateSponsorshipPolicy(req)).eligible).toBe(true);
+      const grant = await authorizeSponsorship(req);
+      expect(grant.authorized).toBe(false);
+      expect(grant).not.toHaveProperty('authToken');
+      expect(grant).not.toHaveProperty('paymasterAndData');
+    });
+
+    it('evaluates policy without fabricating a paymaster grant', async () => {
       const req: SponsorshipAuthRequest = {
         username: 'alice_creator',
         senderAddress: alice,
@@ -220,11 +234,10 @@ describe('PENORA Phase 25 — Calldata ABI Validation & Server Sponsorship Polic
         nonce: 0,
       };
 
-      const res = await authorizeSponsorship(req);
-      expect(res.authorized).toBe(true);
-      expect(res.authToken).toMatch(/^0x[0-9a-fA-F]{64}$/);
-      expect(res.paymasterAndData).toBeDefined();
-      expect(res.validUntil).toBeGreaterThan(Math.floor(Date.now() / 1000));
+      const res = await evaluateSponsorshipPolicy(req);
+      expect(res.eligible).toBe(true);
+      expect(res).not.toHaveProperty('authToken');
+      expect(res).not.toHaveProperty('paymasterAndData');
       expect(res.quotaRemainingToday).toBe(19);
     });
 
@@ -237,13 +250,13 @@ describe('PENORA Phase 25 — Calldata ABI Validation & Server Sponsorship Polic
       };
 
       for (let i = 0; i < 5; i++) {
-        const r = await authorizeSponsorship({ ...req, nonce: i });
-        expect(r.authorized).toBe(true);
+        const r = await evaluateSponsorshipPolicy({ ...req, nonce: i });
+        expect(r.eligible).toBe(true);
       }
 
       // 6th request should be blocked
-      const blocked = await authorizeSponsorship({ ...req, nonce: 5 });
-      expect(blocked.authorized).toBe(false);
+      const blocked = await evaluateSponsorshipPolicy({ ...req, nonce: 5 });
+      expect(blocked.eligible).toBe(false);
       expect(blocked.reason).toContain('Hourly rate limit exceeded');
     });
 
@@ -256,17 +269,17 @@ describe('PENORA Phase 25 — Calldata ABI Validation & Server Sponsorship Polic
         nonce: 10,
       };
 
-      const first = await authorizeSponsorship(req);
-      expect(first.authorized).toBe(true);
+      const first = await evaluateSponsorshipPolicy(req);
+      expect(first.eligible).toBe(true);
 
       // Replayed nonce 10
-      const replay = await authorizeSponsorship(req);
-      expect(replay.authorized).toBe(false);
+      const replay = await evaluateSponsorshipPolicy(req);
+      expect(replay.eligible).toBe(false);
       expect(replay.reason).toContain('replayed nonce');
 
       // Decreasing nonce 9
-      const decreasing = await authorizeSponsorship({ ...req, nonce: 9 });
-      expect(decreasing.authorized).toBe(false);
+      const decreasing = await evaluateSponsorshipPolicy({ ...req, nonce: 9 });
+      expect(decreasing.eligible).toBe(false);
       expect(decreasing.reason).toContain('replayed nonce');
     });
 
@@ -279,9 +292,24 @@ describe('PENORA Phase 25 — Calldata ABI Validation & Server Sponsorship Polic
         gasLimit: 1_000_000n, // Exceeds default 500,000n
       };
 
-      const res = await authorizeSponsorship(req);
-      expect(res.authorized).toBe(false);
+      const res = await evaluateSponsorshipPolicy(req);
+      expect(res.eligible).toBe(false);
       expect(res.reason).toContain('gas limit exceeds server cap');
     });
+  });
+});
+
+describe('Live sponsorship readiness', () => {
+  it('does not claim live sponsorship merely because provider URLs exist', () => {
+    vi.stubEnv('PUBLIC_AMOY_BUNDLER_URL', 'https://bundler.example.test');
+    vi.stubEnv('PUBLIC_AMOY_PAYMASTER_URL', 'https://paymaster.example.test');
+    try {
+      const status = getGasSponsorshipStatus();
+      expect(status.isConfigured).toBe(true);
+      expect(status.status).toBe('blocked');
+      expect(status.blockerReason).toContain('Native Test POL is required');
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 });
