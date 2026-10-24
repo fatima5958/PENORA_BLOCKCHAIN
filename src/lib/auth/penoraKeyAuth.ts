@@ -26,6 +26,8 @@ import {
   generateCryptoUuid,
 } from './emailVerification';
 import { supabase } from '../supabaseClient';
+import { clearEmbeddedProvider } from '../wallet/embeddedProvider';
+import { unlockAccountWallet, lockAccountWallet } from '../wallet/accountVault';
 
 export interface PenoraUser {
   id: string;
@@ -117,6 +119,8 @@ class PenoraKeyAuthService {
   }
 
   private clearStorage(broadcast = true) {
+    lockAccountWallet();
+    clearEmbeddedProvider();
     this.currentUser = null;
     this.currentSession = null;
     if (typeof window !== 'undefined' && window.localStorage) {
@@ -427,6 +431,9 @@ class PenoraKeyAuthService {
       window.localStorage.setItem('penora_auth_user', JSON.stringify(this.currentUser));
     }
 
+    clearEmbeddedProvider();
+    if (keyRole === 'active') unlockAccountWallet(cleanUsername, cleanKey);
+    else lockAccountWallet();
     this.notifyListeners(true);
     return { success: true, user: this.currentUser };
   }
@@ -436,6 +443,8 @@ class PenoraKeyAuthService {
   // --------------------------------------------------------------------------
 
   public logout(): void {
+    lockAccountWallet();
+    clearEmbeddedProvider();
     if (this.currentSession) {
       authBroker.invalidateSession(this.currentSession.token);
     }

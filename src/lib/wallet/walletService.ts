@@ -3,6 +3,7 @@
 // Clean separation of PENORA authority keys from EVM Web3 wallet keys.
 import { createPublicClient, http, fallback, formatEther } from 'viem';
 import { polygonAmoy, PENORA_TARGET_CHAIN_ID, AMOY_FALLBACK_RPCS } from './chain';
+import { getEmbeddedProvider } from './embeddedProvider';
 import type { WalletState } from './types';
 import { isUsdtConfigured } from './contracts';
 import { penoraUsdtService, penoraPnrService } from './usdtService';
@@ -29,6 +30,8 @@ export const publicClient = createPublicClient({
 // Helper to get MetaMask / EIP-1193 injected provider
 export function getEthereumProvider(): any {
   if (typeof window === 'undefined') return undefined;
+  const embedded = getEmbeddedProvider();
+  if (embedded) return embedded;
   const anyWin = window as any;
   if (!anyWin.ethereum) return undefined;
 

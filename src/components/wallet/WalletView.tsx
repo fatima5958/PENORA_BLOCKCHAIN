@@ -44,7 +44,27 @@ import {
 } from '../../lib/wallet/txLifecycle';
 import type { WalletState, WalletTransaction, UsdtGasEstimate } from '../../lib/wallet/types';
 
+import { penoraKeyAuth } from '../../lib/auth/penoraKeyAuth';
+import { accountWalletKey } from '../../lib/wallet/accountVault';
+import { enableEmbeddedProvider } from '../../lib/wallet/embeddedProvider';
+import { AccountWallet } from './AccountWallet';
+import '../../styles/account-wallet.css';
+
 export const WalletView: React.FC = () => {
+  const [external, setExternal] = useState(false);
+  const openExternal = () => {
+    const user = penoraKeyAuth.getCurrentUser();
+    const key = user ? accountWalletKey(user.username) : null;
+    if (user && key) {
+      enableEmbeddedProvider(user.username, key);
+      void penoraWalletService.connect();
+    }
+    setExternal(true);
+  };
+  return external ? <><div className="account-return"><button onClick={() => setExternal(false)}>← PENORA account wallet</button><span>Polygon Amoy · On-chain balances</span></div><OnchainWalletView /></> : <AccountWallet onExternal={openExternal} />;
+};
+
+const OnchainWalletView: React.FC = () => {
   const [walletState, setWalletState] = useState<WalletState>(() => ({ ...INITIAL_WALLET_STATE }));
   const [copiedAddress, setCopiedAddress] = useState(false);
   const [activeTab, setActiveTab] = useState<WalletTab>('overview');

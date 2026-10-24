@@ -1,0 +1,41 @@
+begin;
+do $$
+declare a uuid := gen_random_uuid(); b uuid := gen_random_uuid(); n uuid := gen_random_uuid(); recipient text; receipt jsonb; again jsonb; before_units numeric; rejected boolean; expiry bigint := (extract(epoch from now())*1000)::bigint+60000;
+begin
+  insert into auth.users(id,email,raw_user_meta_data) values(a,a::text||'@example.invalid','{}'),(b,b::text||'@example.invalid','{}');
+  insert into public.profiles(id,username) values(a,'qa'||left(a::text,8)),(b,'qa'||left(b::text,8)) on conflict(id) do nothing;
+  select username into recipient from public.profiles where id=b;
+  insert into public.account_authorities(account_id,owner_public_key,active_public_key,posting_public_key,memo_public_key)
+    values(a,'PENtestOwner','PENtestActive','PENtestPosting','PENtestMemo');
+  insert into public.penora_account_balances(owner_id,asset,units) values(a,'USDT',10000001),(a,'PNR',1000000000000000001);
+  receipt := public.penora_account_transfer(a,recipient,'USDT',1000001,n,'PENtestActive',expiry);
+  again := public.penora_account_transfer(a,recipient,'USDT',1000001,n,'PENtestActive',expiry);
+  if receipt->>'id' <> again->>'id' then raise exception 'Idempotency failed'; end if;
+  if (select units from public.penora_account_balances where owner_id=a and asset='USDT') <> 9000000 then raise exception 'Debit precision failed'; end if;
+  if (select units from public.penora_account_balances where owner_id=b and asset='USDT') <> 1000001 then raise exception 'Credit precision failed'; end if;
+  if (select count(*) from public.penora_account_transfers where sender_id=a) <> 1 then raise exception 'Duplicate transfer'; end if;
+  rejected := false;
+  begin perform public.penora_account_transfer(a,recipient,'USDT',1000002,n,'PENtestActive',expiry);
+  exception when others then if sqlerrm <> 'Request conflict' then raise; end if; rejected := true; end;
+  if not rejected then raise exception 'Changed retry accepted'; end if;
+  rejected := false;
+  begin perform public.penora_account_transfer(a,recipient,'USDT',9000001,gen_random_uuid(),'PENtestActive',expiry);
+  exception when others then if sqlerrm <> 'Insufficient account balance' then raise; end if; rejected := true; end;
+  if not rejected then raise exception 'Overspend accepted'; end if;
+  rejected := false;
+  begin perform public.penora_account_transfer(a,recipient,'USDT',1,gen_random_uuid(),'PENwrongKey',expiry);
+  exception when others then if sqlerrm <> 'Active Key changed' then raise; end if; rejected := true; end;
+  if not rejected then raise exception 'Wrong Active Key accepted'; end if;
+  rejected := false;
+  begin perform public.penora_account_transfer(a,recipient,'USDT',1,gen_random_uuid(),'PENtestActive',0);
+  exception when others then if sqlerrm <> 'Request expired' then raise; end if; rejected := true; end;
+  if not rejected then raise exception 'Expired request accepted'; end if;
+  perform public.penora_account_transfer(a,recipient,'PNR',1,gen_random_uuid(),'PENtestActive',expiry);
+  if (select units from public.penora_account_balances where owner_id=b and asset='PNR') <> 1 then raise exception 'PNR precision failed'; end if;
+  if (public.penora_account_snapshot(a)->'balances'->>'PNR') <> '1000000000000000000' then raise exception 'Snapshot precision failed'; end if;
+  if has_function_privilege('anon','public.penora_account_transfer(uuid,text,text,numeric,uuid,text,bigint)','EXECUTE') then raise exception 'Anonymous RPC access'; end if;
+  if has_function_privilege('authenticated','public.penora_account_transfer(uuid,text,text,numeric,uuid,text,bigint)','EXECUTE') then raise exception 'Client RPC access'; end if;
+  if has_table_privilege('authenticated','public.penora_account_balances','UPDATE') then raise exception 'Client minting access'; end if;
+end $$;
+select 'PASS: USDT and PNR exact debit/credit, idempotency, tampering, overspend, expiry, key rotation and client privilege checks. Test data rolled back.' as result;
+rollback;
